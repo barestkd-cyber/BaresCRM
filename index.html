@@ -1,0 +1,1672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>BaresTKD CRM — Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#15171C; --ink-2:#23262E; --surface:#EEF1F4; --card:#FFFFFF; --line:#E2E6EB;
+  --text:#1A1D23; --muted:#6A727E; --accent:#D8232A; --go:#18A974; --go-press:#138A60;
+  --warn:#E5484D; --gold:#C98A1A; --radius:14px; --radius-sm:10px;
+  --shadow:0 1px 2px rgba(20,23,28,.06), 0 6px 18px rgba(20,23,28,.06);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--surface);color:var(--text);font-size:16px;line-height:1.4;-webkit-font-smoothing:antialiased}
+.num{font-variant-numeric:tabular-nums}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input{font-family:inherit;font-size:16px}
+#app{max-width:480px;margin:0 auto;min-height:100vh;background:var(--surface);position:relative;display:flex;flex-direction:column;box-shadow:0 0 60px rgba(0,0,0,.08)}
+
+.belt{height:4px;width:100%;background:linear-gradient(90deg,#FFFFFF 0 16.6%,#F4C430 16.6% 33.3%,#2E8B57 33.3% 50%,#2563EB 50% 66.6%,#D8232A 66.6% 83.3%,#15171C 83.3% 100%)}
+header{background:var(--ink);color:#fff;padding:14px 16px 12px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:30}
+.wordmark{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px;letter-spacing:.5px;display:flex;align-items:baseline;gap:7px}
+.wordmark small{font-weight:500;font-size:11px;letter-spacing:1.5px;color:#9AA1AC;text-transform:uppercase}
+.pos-link{background:var(--ink-2);border:1px solid #32363F;color:#E7E9EC;padding:6px 11px;border-radius:999px;font-size:13px;font-weight:600}
+
+main{flex:1;overflow-y:auto}
+.view{display:none}
+.view.on{display:block;animation:fade .2s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* ---------- action bar ---------- */
+.actionbar{padding:14px 16px 4px}
+.ab-title{font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:0 2px 9px}
+.chips{display:flex;gap:9px;overflow-x:auto;padding-bottom:6px;margin:0 -16px;padding-left:16px;padding-right:16px}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:11px 14px;min-width:96px;box-shadow:var(--shadow);text-align:left;transition:transform .08s,border-color .12s}
+.chip:active{transform:scale(.96)}
+.chip.on{border-color:var(--ink);background:var(--ink);color:#fff}
+.chip .c-count{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:22px;line-height:1;font-variant-numeric:tabular-nums}
+.chip .c-label{font-size:12px;font-weight:600;margin-top:4px;color:var(--muted)}
+.chip.on .c-label{color:#C7CCD2}
+.chip.alert .c-count{color:var(--accent)}
+.chip.on.alert .c-count{color:#FF8A8F}
+
+/* ---------- search + list head ---------- */
+.search-wrap{padding:8px 16px 6px;position:relative}
+.search{width:100%;background:var(--card);border:1.5px solid var(--line);border-radius:var(--radius);padding:13px 14px 13px 42px;font-size:15px;box-shadow:var(--shadow);outline:none}
+.search:focus{border-color:var(--ink)}
+.search-ico{position:absolute;left:31px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:17px}
+.list-head{display:flex;align-items:center;justify-content:space-between;padding:10px 18px 6px}
+.list-head .lh-title{font-size:13px;font-weight:700;color:var(--text)}
+.list-head .lh-clear{font-size:13px;font-weight:600;color:var(--accent)}
+
+/* ---------- member rows ---------- */
+.mlist{padding:0 16px 28px}
+.mrow{display:flex;align-items:center;gap:13px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:13px 14px;margin-bottom:9px;box-shadow:var(--shadow);width:100%;text-align:left}
+.mrow:active{transform:scale(.99)}
+.c-name{flex:1;display:flex;align-items:center;gap:13px;min-width:0}
+.col-d{display:none}                 /* extra table columns: desktop only */
+.c-belt,.c-plan,.c-visit,.c-phone{font-size:13.5px;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.c-plan,.c-phone{color:var(--muted)}
+.c-visit.risk{color:var(--accent);font-weight:600}
+.c-dash{color:#AEB4BD}
+.lthead{display:none}
+.av{width:44px;height:44px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;color:#fff;position:relative}
+.av .belt-ring{position:absolute;inset:-3px;border-radius:50%;border:2.5px solid transparent}
+.minfo{flex:1;min-width:0}
+.mname{font-weight:700;font-size:16px;line-height:1.2}
+.msub{font-size:13px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mright{text-align:right;flex:0 0 auto}
+.seg{font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;white-space:nowrap}
+.seg.active{background:#E4F5EE;color:var(--go)}
+.seg.lead{background:#FBF1DC;color:var(--gold)}
+.seg.former{background:#EDEFF2;color:var(--muted)}
+.seg.trial{background:#E7F1FB;color:#2563EB}
+.pseg.trial{background:#E7F1FB;color:#2563EB}
+.owe{font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums;font-size:14px;margin-top:5px}
+.mempty{text-align:center;color:var(--muted);padding:40px 20px}
+
+/* ---------- profile ---------- */
+.pbar{background:var(--ink);color:#fff;display:flex;align-items:center;gap:6px;padding:12px 14px;position:sticky;top:0;z-index:20}
+.pbar .back{color:#fff;font-weight:600;font-size:15px;display:flex;align-items:center;gap:4px}
+.phead{background:var(--ink);color:#fff;padding:6px 18px 20px;text-align:center}
+.phead .pav{width:78px;height:78px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:30px;color:#fff;position:relative}
+.phead .pav .belt-ring{position:absolute;inset:-4px;border-radius:50%;border:3px solid transparent}
+.phead .pname{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:24px}
+.phead .pmeta{color:#AEB4BD;font-size:13.5px;margin-top:5px;line-height:1.5}
+.phead .pseg{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;margin-top:9px}
+
+.qactions{display:flex;gap:8px;padding:14px 16px 4px;overflow-x:auto;margin-top:-12px}
+.qactions::-webkit-scrollbar{display:none}
+.qa{flex:0 0 auto;background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:11px 14px;font-weight:600;font-size:13.5px;box-shadow:var(--shadow);display:flex;align-items:center;gap:7px}
+.qa.primary{background:var(--go);color:#fff;border-color:var(--go)}
+.qa:active{transform:scale(.97)}
+
+.sec{padding:18px 16px 0}
+.sec-h{font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:0 2px 9px;display:flex;justify-content:space-between;align-items:center}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.card.pad{padding:15px 16px}
+
+/* membership card */
+.mem{padding:15px 16px;border-bottom:1px solid var(--line)}
+.mem:last-child{border-bottom:none}
+.mem-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.mem-name{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px}
+.mem-plan{font-size:13px;color:var(--muted);margin-top:2px}
+.mstatus{font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;white-space:nowrap}
+.mstatus.active{background:#E4F5EE;color:var(--go)}
+.mstatus.paused{background:#FBF1DC;color:var(--gold)}
+.mstatus.cancelled{background:#EDEFF2;color:var(--muted)}
+.mem-pay{margin-top:10px;font-size:13.5px;display:flex;flex-wrap:wrap;gap:4px 14px}
+.mem-pay .due{color:var(--muted)}
+.mem-pay .od{color:var(--accent);font-weight:700}
+.mem-foot{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+.mem-foot .vc{font-size:13px;font-weight:600;color:#2563EB}
+.mem-foot .act{font-size:13px;font-weight:700;color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:7px 13px;background:#fff}
+.add-mem{width:100%;padding:13px;text-align:center;font-weight:700;color:var(--go);font-size:14px;background:#fff;border:1.5px dashed #BFE6D6;border-radius:var(--radius);margin-top:9px}
+
+/* generic rows */
+.kv{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);font-size:14.5px}
+.kv:last-child{border-bottom:none}
+.kv .k{color:var(--muted);flex:0 0 auto}
+.kv .v{text-align:right;font-weight:500}
+.kv .v.owe{color:var(--accent);font-weight:700}
+.bal{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:#FBEBEC;border-radius:var(--radius) var(--radius) 0 0}
+.bal .bl{font-weight:600;color:#7a1f23}
+.bal .bv{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;color:var(--accent);font-variant-numeric:tabular-nums}
+.inv{display:flex;justify-content:space-between;gap:10px;padding:11px 16px;border-top:1px solid var(--line);font-size:14px}
+.inv .id{flex:1;min-width:0}
+.inv .id small{color:var(--muted);display:block;font-size:12px}
+.inv .ia{font-variant-numeric:tabular-nums;font-weight:600;text-align:right}
+.inv .st{font-size:11px;font-weight:700}
+.inv .st.paid{color:var(--go)}
+.inv .st.over{color:var(--accent)}
+.linkrow{padding:12px 16px;text-align:center;font-weight:600;color:var(--ink);font-size:14px;border-top:1px solid var(--line)}
+.tagwrap{display:flex;flex-wrap:wrap;gap:8px;padding:15px 16px}
+.tag{background:#E7F1FB;color:#2563EB;font-size:13px;font-weight:600;padding:5px 11px;border-radius:7px}
+.tag.add{background:#fff;border:1.5px dashed var(--line);color:var(--muted)}
+.note{padding:13px 16px;border-bottom:1px solid var(--line)}
+.note:last-of-type{border-bottom:none}
+.note .nt{font-size:14px}
+.note .nd{font-size:12px;color:var(--muted);margin-top:3px}
+.note-empty{padding:18px 16px;color:var(--muted);font-size:14px}
+.belt-bar{display:inline-block;width:34px;height:11px;border-radius:3px;vertical-align:middle;margin-right:7px;border:1px solid rgba(0,0,0,.15)}
+
+details.acc{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);margin-top:9px;overflow:hidden}
+details.acc>summary{padding:14px 16px;font-weight:600;font-size:14px;list-style:none;display:flex;justify-content:space-between;align-items:center}
+details.acc>summary::-webkit-details-marker{display:none}
+details.acc .chev{color:var(--muted);transition:transform .2s}
+details.acc[open] .chev{transform:rotate(180deg)}
+details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-height:1.5}
+.spacer{height:30px}
+
+/* sheet + toast (shared) */
+.scrim{position:fixed;inset:0;background:rgba(16,18,22,.45);z-index:40;display:none;align-items:flex-end;justify-content:center}
+.scrim.on{display:flex}
+.sheet{background:var(--surface);width:100%;max-width:480px;border-radius:20px 20px 0 0;max-height:92vh;overflow-y:auto;animation:slideup .25s cubic-bezier(.2,.7,.3,1)}
+@keyframes slideup{from{transform:translateY(100%)}to{transform:none}}
+.sheet .grab{width:40px;height:4px;border-radius:2px;background:#CDD3DA;margin:10px auto 4px}
+.sheet-head{padding:6px 18px 0;display:flex;justify-content:space-between;align-items:flex-start}
+.sheet-head h3{font-family:'Space Grotesk',sans-serif;margin:0;font-size:20px}
+.sheet-head .sub{color:var(--muted);font-size:13px;margin-top:2px}
+.sheet-head .close{font-size:24px;color:var(--muted);line-height:1;padding:4px}
+.sheet-body{padding:14px 18px 22px}
+.opt-btn{width:100%;background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:15px 16px;text-align:left;font-weight:600;font-size:15px;margin-bottom:10px;display:flex;align-items:center;gap:12px}
+.opt-btn:active{border-color:var(--ink)}
+.opt-btn.danger{color:var(--warn)}
+.opt-btn .oi{width:36px;height:36px;border-radius:9px;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:17px;flex:0 0 auto}
+.medit{margin-bottom:12px}
+.medit label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:5px}
+.medit input{width:100%;background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:11px 12px;font-size:15px;outline:none}
+.medit input:focus{border-color:var(--ink)}
+.medit textarea{width:100%;background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:11px 12px;font-size:15px;outline:none;font-family:inherit;resize:vertical}
+.medit textarea:focus{border-color:var(--ink)}
+.frow2{display:flex;gap:10px}
+.frow2 .medit{flex:1}
+.savebtn{width:100%;background:var(--go);color:#fff;font-weight:700;font-size:15px;padding:13px;border-radius:12px;margin-top:4px;font-family:'Space Grotesk',sans-serif}
+.prog-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:13px}
+.prog-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.prog-name{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px}
+.prog-ages{color:var(--muted);font-size:13px;margin-top:2px}
+.prog-count{font-size:11px;font-weight:700;background:#E4F5EE;color:var(--go);padding:3px 9px;border-radius:6px;white-space:nowrap}
+.prog-plans{margin-top:12px;border-top:1px solid var(--line);padding-top:8px}
+.plan-line{display:flex;justify-content:space-between;gap:12px;padding:7px 0;font-size:13.5px;border-bottom:1px solid var(--line)}
+.plan-line:last-child{border-bottom:none}
+.plan-line .pl-name{font-weight:600}
+.plan-line .pl-terms{color:var(--muted);text-align:right}
+.prog-edit{margin-top:12px;width:100%;padding:11px;border-radius:var(--radius-sm);font-weight:700;font-size:14px;border:1.5px solid var(--line);background:#fff}
+.ck-btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.ck-btns .prog-edit{margin-top:0;flex:1 1 30%;min-width:84px;padding:10px 6px}
+.prog-edit.ghost{background:var(--surface);color:var(--muted)}
+.ck-status{font-size:12.5px;font-weight:600;margin-top:10px;padding:8px 11px;border-radius:8px}
+.ck-status.live{background:#E4F5EE;color:var(--go)}
+.ck-status.scheduled{background:var(--surface);color:var(--muted)}
+.ck-status.past{background:#FBE9E9;color:var(--accent)}
+/* ---------- calendar ---------- */
+.cal-bar{display:flex;align-items:center;gap:10px;margin:14px 0 12px}
+.cal-bar h2{font-family:'Space Grotesk',sans-serif;font-size:20px;margin:0;flex:1}
+.cal-nav{width:36px;height:36px;border-radius:10px;border:1.5px solid var(--line);background:#fff;font-size:18px;font-weight:700;color:var(--ink)}
+.cal-legend{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}
+.cal-leg{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--muted);background:#fff;border:1.5px solid var(--line);border-radius:999px;padding:5px 11px}
+.cal-leg.off{opacity:.4}
+.cal-leg .dot{width:9px;height:9px;border-radius:50%}
+.cal-grid{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.cal-dow{display:grid;grid-template-columns:repeat(7,1fr);background:var(--surface);border-bottom:1px solid var(--line)}
+.cal-dow span{text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding:8px 0;letter-spacing:.5px}
+.cal-weeks{display:grid;grid-template-columns:repeat(7,1fr)}
+.cal-day{min-height:54px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:5px 0 4px;display:flex;flex-direction:column;align-items:center;gap:3px;background:#fff;cursor:pointer}
+.cal-day:nth-child(7n){border-right:none}
+.cal-day.blank{background:#FAFBFC;cursor:default}
+.cal-day .dnum{font-size:12.5px;font-weight:600;color:var(--text)}
+.cal-day.today .dnum{background:var(--accent);color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.cal-day.sel{background:#F0F6FF}
+.cal-dots{display:flex;gap:3px;flex-wrap:wrap;justify-content:center;max-width:90%}
+.cal-dots .dot{width:6px;height:6px;border-radius:50%}
+.cal-agenda{margin-top:14px}
+.cal-agenda .ag-day{font-size:12px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin-bottom:9px}
+.ag-item{display:flex;align-items:center;gap:11px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);padding:11px 13px;margin-bottom:8px;width:100%;text-align:left}
+.ag-item .ag-bar{width:4px;align-self:stretch;border-radius:3px;flex:0 0 auto}
+.ag-item .ag-info{flex:1;min-width:0}
+.ag-item .ag-title{font-weight:600;font-size:14.5px}
+.ag-item .ag-meta{font-size:12.5px;color:var(--muted);margin-top:1px}
+.ag-item .ag-type{font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px}
+.ag-empty{padding:18px;text-align:center;color:var(--muted);font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm)}
+.cal-acts{display:flex;gap:10px;margin-top:14px}
+.cal-acts button{flex:1;font-weight:700;font-size:14px;padding:13px;border-radius:var(--radius)}
+.cal-acts .sched{background:var(--ink);color:#fff}
+.cal-acts .gsync{background:#fff;border:1.5px solid var(--line);color:var(--ink)}
+.seg-pick{display:flex;gap:8px;margin-bottom:14px}
+.seg-pick button{flex:1;padding:11px 6px;border-radius:10px;border:1.5px solid var(--line);background:#fff;font-weight:700;font-size:13.5px;color:var(--muted)}
+.seg-pick button.on{border-color:var(--ink);color:var(--ink);background:var(--surface)}
+.waiver{font-size:12.5px;color:var(--muted);line-height:1.5;background:var(--surface);border-radius:var(--radius-sm);padding:12px;max-height:120px;overflow:auto;margin-bottom:12px}
+.fld select{width:100%;background:#fff;border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px 13px;outline:none;font-size:15px;font-family:inherit;color:var(--text)}
+.tc-row{display:flex;align-items:center;gap:12px;padding:12px 2px;border-bottom:1px solid var(--line)}
+.tc-row .tc-info{flex:1;min-width:0}
+.tc-row .tc-name{font-weight:600;font-size:14.5px}
+.tc-row .tc-when{font-size:12.5px;color:var(--muted);margin-top:2px}
+.role-row{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.role-row .role-desc{font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.4}
+.role-badge{display:inline-block;font-size:12px;font-weight:700;padding:4px 10px;border-radius:6px;background:#EDEFF2;color:var(--muted)}
+.role-badge.leader{background:#E7F1FB;color:#2563EB}
+.role-badge.instructor{background:#F3EAFB;color:#7A3FC0}
+.role-badge.admin,.role-badge.owner{background:#FBE9E9;color:var(--accent)}
+.opt-btn.on{border-color:var(--ink);background:var(--surface)}
+.pos-packets{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.pos-packets button{flex:1 1 40%;min-width:130px;display:flex;align-items:center;gap:7px;justify-content:center;background:#fff;border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:11px;font-weight:600;font-size:13.5px;color:var(--ink)}
+.pos-packets .pk-ico{color:var(--muted)}
+.pdf-wrap{display:flex;flex-direction:column;height:calc(100vh - 46px)}
+.pdf-frame{flex:1;width:100%;border:none;background:#525659}
+.pdf-foot{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--ink)}
+.pdf-name{font-size:12px;color:#9AA1AC;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pdf-up{display:inline-block;background:#fff;color:var(--ink);font-weight:700;font-size:13px;padding:8px 13px;border-radius:8px;cursor:pointer}
+.pdf-up input{display:none}
+.pdf-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:30px;background:var(--surface)}
+.pdf-empty .pdf-ico{width:64px;height:64px;border-radius:16px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:30px;color:var(--muted)}
+.pdf-empty .pdf-msg{font-size:15px;color:var(--muted)}
+.pdf-up.big{background:var(--ink);color:#fff;padding:13px 22px;font-size:15px}
+.pdf-hint{font-size:12.5px;color:var(--muted);max-width:280px;line-height:1.45}
+.prog-edit:active{transform:scale(.99)}
+.opt-h{font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin:16px 2px 10px;padding-top:14px;border-top:1px solid var(--line)}
+.opt-empty{color:var(--muted);font-size:13.5px;padding:6px 2px 12px}
+.planrow{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px;margin-bottom:10px}
+.planrow-top{display:flex;gap:8px;margin-bottom:8px}
+.planrow-top .pr-name{flex:1;background:#fff;border:1.5px solid var(--line);border-radius:9px;padding:10px 11px;font-size:14.5px;font-weight:600;outline:none}
+.planrow-top .pr-name:focus{border-color:var(--ink)}
+.pr-del{width:40px;border:1.5px solid var(--line);border-radius:9px;background:#fff;font-size:20px;color:var(--muted);flex:0 0 auto}
+.addopt{width:100%;padding:12px;text-align:center;font-weight:700;color:var(--go);font-size:14px;background:#fff;border:1.5px dashed #BFE6D6;border-radius:var(--radius-sm);margin-bottom:14px}
+/* reuse builder list styles in this app */
+.bld{padding:18px}
+.bld-hd h2{font-family:'Space Grotesk',sans-serif;font-size:23px;margin:0}
+.bld-hd p{color:var(--muted);font-size:14px;margin:4px 0 0;line-height:1.5}
+.newbtn{width:100%;margin:16px 0 18px;background:var(--ink);color:#fff;font-weight:700;font-size:15px;padding:14px;border-radius:var(--radius)}
+.newbtn:active{transform:scale(.99)}
+
+#toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:11px 18px;border-radius:999px;font-size:14px;font-weight:600;z-index:60;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:88%;text-align:center}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.proto-note{font-size:11px;color:var(--muted);text-align:center;padding:14px 20px 4px;line-height:1.5}
+/* ---------- selected row + hover (PC) ---------- */
+.mrow.sel{border-color:var(--ink);box-shadow:0 0 0 1.5px var(--ink),var(--shadow)}
+@media (hover:hover){
+  .mrow:hover{border-color:#C2C8D0}
+  .chip:hover{border-color:#C2C8D0}
+  .qa:hover{border-color:#C2C8D0}
+  .opt-btn:hover{border-color:#C2C8D0}
+  .mrow.sel:hover{border-color:var(--ink)}
+}
+
+/* ---------- app shell + sidebar ---------- */
+.hamburger{background:none;color:#fff;font-size:21px;line-height:1;padding:2px 10px 2px 0}
+.shell{display:flex;flex:1;min-height:0}
+.sidebar{position:fixed;top:0;left:0;height:100%;width:244px;background:var(--ink);color:#fff;z-index:50;transform:translateX(-100%);transition:transform .25s cubic-bezier(.2,.7,.3,1);padding:16px 12px;display:flex;flex-direction:column;gap:4px;overflow-y:auto}
+.sidebar.open{transform:none}
+.rail-toggle{display:none}
+.nav-item{display:flex;align-items:center;gap:14px;width:100%;padding:13px 12px;border-radius:10px;color:#C7CCD2;font-weight:600;font-size:15px;text-align:left;transition:background .12s}
+.nav-item .ni{width:24px;text-align:center;font-size:17px;flex:0 0 auto}
+.nav-item.active{background:var(--accent);color:#fff}
+.nav-item .soon{margin-left:auto;font-size:9.5px;font-weight:700;letter-spacing:.5px;background:#32363F;color:#9AA1AC;padding:2px 7px;border-radius:6px;text-transform:uppercase}
+.nav-sep{font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#6A727E;padding:13px 12px 6px;margin-top:8px;border-top:1px solid #2A2E36}
+.nav-sep.first{border-top:none;margin-top:2px}
+.nav-item.launch{color:#AEB4BD}
+.nav-item .ext{margin-left:auto;color:#6A727E;font-size:13px}
+.nav-backdrop{position:fixed;inset:0;background:rgba(16,18,22,.5);z-index:45;display:none}
+.nav-backdrop.show{display:block}
+
+/* placeholder sections */
+.placeholder{text-align:center;padding:56px 28px}
+.placeholder .ph-ico{font-size:36px;width:80px;height:80px;border-radius:22px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;color:var(--ink);box-shadow:var(--shadow)}
+.placeholder h2{font-family:'Space Grotesk',sans-serif;color:var(--text);margin:0 0 8px;font-size:22px}
+.placeholder p{max-width:380px;margin:0 auto 18px;font-size:14.5px;line-height:1.5;color:var(--muted)}
+.ph-btn{background:var(--go);color:#fff;font-weight:700;padding:12px 22px;border-radius:12px;font-size:15px}
+.ph-tag{display:inline-block;background:#FBF1DC;color:var(--gold);font-weight:700;font-size:12px;padding:6px 12px;border-radius:8px}
+
+/* dashboard */
+.dash{padding:18px 16px 30px}
+.dash-hd h2{font-family:'Space Grotesk',sans-serif;font-size:24px;margin:0}
+.dash-hd .ds{color:var(--muted);font-size:13.5px;margin-top:3px}
+.dash-sub{font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:22px 2px 11px}
+.dcards{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.dcard{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:15px 16px;text-align:left}
+.dcard:active{transform:scale(.98)}
+.dcard .dc-top{display:flex;align-items:flex-start;justify-content:space-between}
+.dcard .dc-count{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:30px;line-height:1;font-variant-numeric:tabular-nums}
+.dcard.alert .dc-count{color:var(--accent)}
+.dcard .dc-ico{font-size:16px;color:var(--muted)}
+.dcard .dc-label{font-weight:700;font-size:14px;margin-top:10px}
+.dcard .dc-desc{color:var(--muted);font-size:12.5px;margin-top:2px}
+.dcard .dc-go{color:#2563EB;font-size:12.5px;font-weight:600;margin-top:10px;display:inline-block}
+
+/* ---------- DESKTOP: wide table list, profile opens on click ---------- */
+@media (min-width:900px){
+  body{background:#DCE1E7}
+  #app{max-width:1200px;height:100vh;display:flex;flex-direction:column;overflow:hidden;--cols:minmax(210px,1.7fr) 1.1fr 1.4fr 122px 150px 128px}
+  .hamburger{display:none}
+  .nav-backdrop{display:none!important}
+  .shell{flex:1;overflow:hidden}
+  .sidebar{position:static;transform:none;height:100%;width:228px;flex:0 0 228px;transition:flex-basis .2s,width .2s}
+  main{height:100%;overflow-y:auto}
+  .rail-toggle{display:block;align-self:flex-end;background:var(--ink-2);color:#C7CCD2;width:32px;height:30px;border-radius:8px;font-size:15px;margin-bottom:8px;transition:transform .2s}
+  .sidebar.rail{flex-basis:64px;width:64px}
+  .sidebar.rail .nl,.sidebar.rail .soon,.sidebar.rail .ext,.sidebar.rail .nav-sep{display:none}
+  .sidebar.rail .nav-item{justify-content:center;gap:0;padding:13px 0}
+  .sidebar.rail .rail-toggle{transform:rotate(180deg);align-self:center}
+  .dash{padding:26px 30px 36px;max-width:940px}
+  .dash-hd h2{font-size:28px}
+  .dcards{grid-template-columns:repeat(4,1fr);gap:14px}
+  .placeholder{padding:72px 28px}
+  .actionbar{padding:18px 28px 4px}
+  .search-wrap{padding:8px 28px 6px}
+  .list-head{padding:10px 30px 4px}
+  .mlist{padding:0 28px 30px}
+  /* column header */
+  .lthead{display:grid;grid-template-columns:var(--cols);gap:16px;padding:2px 16px 8px;margin:0;font-size:10.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+  .lthead .lt-r{text-align:right}
+  /* rows become table rows */
+  .mrow{display:grid;grid-template-columns:var(--cols);align-items:center;gap:16px;padding:13px 16px}
+  .mrow .msub{display:none}            /* rank lives in its own column now */
+  .col-d{display:block}
+  .mright{flex-direction:column;align-items:flex-end}
+  /* profile is a normal full-width view with its back bar */
+  .phead{display:flex;align-items:center;text-align:left;gap:18px;padding:24px 28px}
+  .phead .pav{margin:0;width:62px;height:62px;font-size:23px}
+  .phead .pname{font-size:25px}
+  .phead .pmeta{margin-top:4px}
+  .phead .pseg{margin-top:8px}
+  .qactions{padding:18px 28px 2px;margin-top:0}
+  .psections{column-count:2;column-gap:20px;padding:14px 28px 0}
+  .psections .sec{padding:0;margin-bottom:18px;break-inside:avoid}
+  .spacer{height:30px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* ---------- checkout public preview (ported) ---------- */
+.pubbar{background:var(--ink);color:#fff;display:flex;align-items:center;padding:11px 16px;font-size:13px}
+.pubbar .back{color:#fff;font-weight:600;display:flex;align-items:center;gap:5px}
+.pubbar .tag{margin-left:auto;color:#9AA1AC;font-size:11px;letter-spacing:.5px;text-transform:uppercase}
+.pub{max-width:460px;margin:0 auto;padding:22px 18px 40px}
+.pub-brand{text-align:center;margin-bottom:16px}
+.pub-brand .logo{width:50px;height:50px;border-radius:13px;background:var(--ink);color:#fff;font-family:'Space Grotesk',sans-serif;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:12px;margin:0 auto 8px}
+.pub-brand .school{font-weight:600;font-size:13.5px;color:var(--muted)}
+.pub-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.pub-hero{padding:18px;border-bottom:1px solid var(--line)}
+.pub-hero h1{font-family:'Space Grotesk',sans-serif;font-size:21px;margin:0 0 6px}
+.pub-hero p{color:var(--muted);font-size:14px;margin:0;line-height:1.5}
+.pub-sec{padding:15px 18px;border-bottom:1px solid var(--line)}
+.pub-sec .sh{font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin-bottom:11px}
+.planopt{display:flex;align-items:center;gap:12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px 13px;margin-bottom:9px;cursor:pointer}
+.planopt:last-child{margin-bottom:0}
+.planopt.selected{border-color:var(--go);background:#F4FAF7}
+.planopt .po-radio{width:18px;height:18px;border-radius:50%;border:2px solid #CDD3DA;flex:0 0 auto;position:relative}
+.planopt.selected .po-radio{border-color:var(--go)}
+.planopt.selected .po-radio::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--go)}
+.planopt .po-body{flex:1;min-width:0}
+.planopt .po-name{font-weight:700;font-size:14.5px}
+.planopt .po-terms{font-size:12.5px;color:var(--muted);margin-top:2px}
+.planopt .po-price{text-align:right;flex:0 0 auto}
+.planopt .po-today{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px}
+.planopt .po-rec{font-size:11.5px;color:var(--muted);margin-top:1px}
+.fld{margin-bottom:11px}.fld:last-child{margin-bottom:0}
+.fld label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:5px}
+.fld input{width:100%;background:#fff;border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px 13px;outline:none}
+.fld input:focus{border-color:var(--ink)}
+.frow{display:flex;gap:10px}.frow .fld{flex:1}
+.qty{display:flex;align-items:center;gap:14px}
+.qty button{width:38px;height:38px;border-radius:10px;border:1.5px solid var(--line);background:#fff;font-size:20px;font-weight:700;color:var(--ink)}
+.qty .qv{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;min-width:24px;text-align:center}
+.addon{display:flex;align-items:center;gap:13px;background:var(--surface);border-radius:var(--radius-sm);padding:13px 14px}
+.addon .an{font-weight:600;font-size:14px}.addon .ap{color:var(--muted);font-size:13px;margin-top:2px}
+.lock{display:flex;align-items:center;justify-content:center;gap:6px;color:var(--muted);font-size:12px;margin-top:14px}
+.summary{padding:16px 18px;background:#FAFBFC}
+.sline{display:flex;justify-content:space-between;font-size:14px;padding:5px 0;color:var(--muted)}
+.sline.tot{color:var(--text);font-weight:700;font-size:17px;border-top:1px solid var(--line);margin-top:6px;padding-top:11px;font-family:'Space Grotesk',sans-serif}
+.sline .num{color:var(--text)}
+.rec-note{font-size:12.5px;color:var(--muted);text-align:center;margin-top:8px}
+.paybtn{width:100%;background:var(--go);color:#fff;font-weight:700;font-size:16px;padding:15px;border-radius:var(--radius);margin-top:14px;font-family:'Space Grotesk',sans-serif}
+.success{text-align:center;padding:34px 22px}
+.success .chk{width:64px;height:64px;border-radius:50%;background:#E4F5EE;color:var(--go);display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 16px}
+.success h2{font-family:'Space Grotesk',sans-serif;font-size:21px;margin:0 0 8px}
+.success p{color:var(--muted);font-size:14.5px;line-height:1.55;margin:0 auto;max-width:330px}
+.success .insys{margin-top:16px;display:inline-block;background:#E7F1FB;color:#2563EB;font-weight:600;font-size:13px;padding:8px 14px;border-radius:8px}
+.sw{position:relative;width:42px;height:24px;flex:0 0 auto}
+.sw input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer;z-index:2}
+.sw .track{position:absolute;inset:0;background:#CDD3DA;border-radius:999px;transition:background .15s}
+.sw .knob{position:absolute;top:3px;left:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.sw input:checked ~ .track{background:var(--go)}
+.sw input:checked ~ .knob{transform:translateX(18px)}
+.ck-hint{font-size:12.5px;color:var(--muted);margin:-2px 0 10px;line-height:1.45}
+.ck-tabs{display:flex;gap:4px;margin:16px 0 16px;border-bottom:1px solid var(--line)}
+.ck-tab{padding:10px 15px;font-weight:600;font-size:14.5px;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+.ck-tab.on{color:var(--text);border-bottom-color:var(--accent)}
+/* ---------- POS ---------- */
+.pos-buyer{display:flex;justify-content:space-between;align-items:center;margin-top:16px}
+.pos-buyer .pb-lbl{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
+.pos-buyer .pb-name{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;margin-top:3px}
+.pos-buyer .pb-change{font-weight:700;color:#2563EB;font-size:14px}
+.pos-add{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}
+.pos-add button{flex:1 1 28%;min-width:96px;background:var(--ink);color:#fff;font-weight:700;font-size:14px;padding:14px 6px;border-radius:var(--radius)}
+.pos-add button:active{transform:scale(.99)}
+.cart-line{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line)}
+.cart-line:last-child{border-bottom:none}
+.cart-line .cl-info{flex:1;min-width:0}
+.cart-line .cl-label{font-weight:600;font-size:14.5px}
+.cart-line .cl-sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+.cart-line .cl-amt{font-weight:700;font-variant-numeric:tabular-nums}
+.cart-line .cl-del{width:30px;height:30px;border-radius:8px;background:var(--surface);color:var(--muted);font-size:18px;flex:0 0 auto}
+.cart-empty{padding:22px 16px;text-align:center;color:var(--muted);font-size:14px}
+.pos-tot{margin-top:13px;padding:14px 16px}
+.sline2{display:flex;justify-content:space-between;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px}
+.tenders{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:13px}
+.tbtn{background:var(--go);color:#fff;font-weight:700;font-size:15px;padding:15px;border-radius:var(--radius)}
+.tbtn:active{transform:scale(.99)}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="belt"></div>
+  <header>
+    <button class="hamburger" onclick="toggleNav()" aria-label="Menu">☰</button>
+    <div class="wordmark">BaresTKD <small>CRM</small></div>
+  </header>
+
+  <div class="shell">
+    <nav class="sidebar" id="sidebar">
+      <button class="rail-toggle" onclick="toggleRail()" title="Collapse menu">‹</button>
+      <div class="nav-sep first">Business</div>
+      <button class="nav-item active" data-sec="dashboard" onclick="showSection('dashboard')"><span class="ni">▦</span><span class="nl">Dashboard</span></button>
+      <button class="nav-item" data-sec="calendar" onclick="showSection('calendar')"><span class="ni">▣</span><span class="nl">Calendar</span></button>
+      <button class="nav-item" data-sec="members" onclick="showSection('members')"><span class="ni">☰</span><span class="nl">Members</span></button>
+      <button class="nav-item" data-sec="pos" onclick="showSection('pos')"><span class="ni">＄</span><span class="nl">POS</span></button>
+      <button class="nav-item" data-sec="memberships" onclick="showSection('memberships')"><span class="ni">◆</span><span class="nl">Memberships</span></button>
+      <button class="nav-item" data-sec="checkout" onclick="showSection('checkout')"><span class="ni">▥</span><span class="nl">Checkout pages</span></button>
+      <div class="nav-sep">Shared</div>
+      <button class="nav-item launch" onclick="toast('Attendance · to be built')"><span class="ni">◎</span><span class="nl">Attendance</span><span class="soon">soon</span></button>
+      <div class="nav-sep">Martial Arts</div>
+      <button class="nav-item launch" onclick="launchApp('testing')"><span class="ni">✓</span><span class="nl">Testing</span><span class="ext">↗</span></button>
+      <button class="nav-item launch" onclick="launchApp('curriculum')"><span class="ni">▤</span><span class="nl">Curriculum</span><span class="ext">↗</span></button>
+      <button class="nav-item launch" onclick="launchApp('classplan')"><span class="ni">⊞</span><span class="nl">Class Plan</span><span class="ext">↗</span></button>
+      <button class="nav-item launch" onclick="launchApp('leadership')"><span class="ni">★</span><span class="nl">Leadership</span><span class="ext">↗</span></button>
+
+      <div class="nav-sep">Tools</div>
+      <button class="nav-item launch" onclick="launchApp('gear')"><span class="ni">▦</span><span class="nl">Gear Order</span><span class="ext">↗</span></button>
+      <button class="nav-item launch" onclick="launchApp('certs')"><span class="ni">▤</span><span class="nl">Certificates</span><span class="ext">↗</span></button>
+    </nav>
+    <div class="nav-backdrop" id="navBackdrop" onclick="closeNav()"></div>
+
+    <main>
+      <!-- ===== DASHBOARD (landing) ===== -->
+      <section class="view on" id="view-dashboard"></section>
+
+      <!-- ===== MEMBERS ===== -->
+      <section class="view" id="view-members">
+        <div class="actionbar">
+          <div class="ab-title">Needs you today</div>
+          <div class="chips" id="chips"></div>
+        </div>
+        <div class="search-wrap">
+          <span class="search-ico">⌕</span>
+          <input class="search" id="search" placeholder="Search members" autocomplete="off" oninput="renderList()">
+        </div>
+        <div class="list-head"><span class="lh-title" id="lhTitle">All members</span><span class="lh-clear" id="lhClear" style="display:none" onclick="clearFilter()">Clear ✕</span></div>
+        <div class="lthead"><span>Member</span><span>Belt / rank</span><span>Plan</span><span>Last visit</span><span>Phone</span><span class="lt-r">Status</span></div>
+        <div class="mlist" id="mlist"></div>
+        <div class="proto-note">Prototype · mock data · resets on reload. Click a member to open their profile.</div>
+      </section>
+
+      <!-- ===== PROFILE ===== -->
+      <section class="view" id="view-profile"></section>
+
+      <!-- ===== POS ===== -->
+      <section class="view" id="view-pos">
+        <div class="placeholder">
+          <div class="ph-ico">＄</div>
+          <h2>Point of Sale</h2>
+          <p>Ring up sales, sell memberships, take payments. This is the separate POS app, sharing the same roster and tables as the CRM.</p>
+          <button class="ph-btn" onclick="toast('Launches the POS app')">Open POS ↗</button>
+        </div>
+      </section>
+
+      <!-- ===== MEMBERSHIPS (config) ===== -->
+      <section class="view" id="view-memberships"></section>
+
+      <!-- ===== CHECKOUT PAGES ===== -->
+      <section class="view" id="view-checkout"></section>
+      <section class="view" id="view-checkoutpub"></section>
+
+      <!-- ===== CALENDAR ===== -->
+      <section class="view" id="view-calendar"></section>
+
+      <!-- ===== PDF PACKET VIEWER ===== -->
+      <section class="view" id="view-pdf"></section>
+    </main>
+  </div>
+</div>
+
+<div class="scrim" id="scrim" onclick="if(event.target===this)closeSheet()"><div class="sheet" id="sheet"></div></div>
+<div id="toast"></div>
+
+<script>
+/* ========== belt color map ========== */
+const BELT = {
+  White:"#D7DBE0", Yellow:"#F4C430", Orange:"#E8833A", Green:"#2E8B57",
+  Blue:"#2563EB", Purple:"#7C3AED", Brown:"#8B5E3C", Red:"#D8232A", Black:"#15171C"
+};
+
+/* ========== MOCK MEMBERS (becomes the shared roster table) ========== */
+const MEMBERS = [
+  {id:"m1", first:"Mia", last:"Cater", segment:"Active", belt:"Yellow", rank:"Senior Yellow Belt", rankDate:"04/11/2026",
+   since:"Sep 2024", age:6, gender:"Female", guardians:[["Maranda Cater","Mom"],["Danny Cater","Dad"]],
+   phones:[["Mobile","(903) 530-1145"]], emails:["Maranda.cater@yahoo.com"], address:"13695 Eastside Rd, Tyler, TX 75707",
+   app:true, phase:"Regular Program", source:"Walk In", beltSize:"00", kickSize:'8.125 – 8.625"', tags:["bought-gear"],
+   attended:16, daysSince:3, testing:false, balance:179.00,
+   memberships:[
+     {program:"Juniors Taekwondo", plan:"Option B · $95/mo", status:"active", nextDue:"Jul 1, 2026", overdue:129.00, contract:true, down:359, monthly:95, total:12, remaining:9},
+     {program:"AMP'D Add-on", plan:"$50/mo", status:"active", nextDue:"Jul 1, 2026", overdue:50.00, contract:true, down:0, monthly:50, total:null, remaining:null}
+   ],
+   invoices:[["06/12/2026","Juniors TKD monthly",95.00,"over"],["06/12/2026","AMP'D monthly",50.00,"over"],["05/12/2026","Juniors TKD monthly",95.00,"paid"]],
+   notes:[]},
+
+  {id:"m2", first:"John", last:"Cater", segment:"Active", belt:"Red", rank:"Red Belt", rankDate:"02/08/2026",
+   since:"Jan 2023", age:34, gender:"Male", guardians:[], phones:[["Mobile","(903) 530-2210"]], emails:["john.cater@gmail.com"],
+   address:"13695 Eastside Rd, Tyler, TX 75707", app:true, phase:"Regular Program", source:"Referral", beltSize:"5", kickSize:'10 – 11"', tags:["leadership-track"],
+   attended:62, daysSince:5, testing:true, balance:0,
+   memberships:[{program:"Adult Taekwondo", plan:"Option A · Paid in full", status:"active", nextDue:"—", overdue:0, contract:true}],
+   invoices:[["01/15/2026","Option A paid in full",1400.00,"paid"]], notes:[["05/02/2026","Asked about leadership program."]]},
+
+  {id:"m3", first:"Sarah", last:"Chen", segment:"Active", belt:"Blue", rank:"Blue Belt", rankDate:"03/14/2026",
+   since:"Aug 2024", age:29, gender:"Female", guardians:[], phones:[["Mobile","(903) 555-0182"]], emails:["sarah.chen@gmail.com"],
+   address:"305 Rice Rd, Tyler, TX 75703", app:true, phase:"Regular Program", source:"Google", beltSize:"4", kickSize:'8 – 9"', tags:[],
+   attended:35, daysSince:1, testing:false, balance:0,
+   memberships:[{program:"Adult Taekwondo", plan:"Option C · $110/mo", status:"active", nextDue:"Jul 5, 2026", overdue:0, contract:true}],
+   invoices:[["06/05/2026","Adult TKD monthly",110.00,"paid"]], notes:[]},
+
+  {id:"m4", first:"Johnny", last:"Northcutt", segment:"Active", belt:"Green", rank:"Green Belt", rankDate:"01/20/2026",
+   since:"Nov 2024", age:41, gender:"Male", guardians:[], phones:[["Mobile","(903) 555-7741"]], emails:["jnorthcutt@gmail.com"],
+   address:"1208 Shiloh Rd, Tyler, TX 75703", app:false, phase:"Regular Program", source:"Walk In", beltSize:"5", kickSize:'11 – 12"', tags:[],
+   attended:22, daysSince:21, testing:false, balance:67.90,
+   memberships:[{program:"Adult Taekwondo", plan:"Weekly · $33.95/wk", status:"active", nextDue:"Jun 16, 2026", overdue:67.90, contract:true}],
+   invoices:[["06/09/2026","Weekly",33.95,"over"],["06/02/2026","Weekly",33.95,"over"]], notes:[["06/10/2026","Hasn't been in 3 weeks — check in."]]},
+
+  {id:"m5", first:"Emily", last:"Wortham", segment:"Lead", belt:"", rank:"", rankDate:"",
+   since:"", entered:"Jun 22, 2025", age:0, gender:"", guardians:[["Rachel Wortham","Mom"]], phones:[["Mobile","(903) 555-3390"]], emails:["rachel.w@gmail.com"],
+   address:"Tyler, TX", app:false, phase:"Prospect", source:"Website", beltSize:"", kickSize:"", tags:["trial-booked"],
+   attended:0, daysSince:null, testing:false, balance:0, memberships:[],
+   invoices:[], notes:[["06/22/2025","Booked intro lesson. Daughter age 7."]]},
+
+  {id:"m6", first:"Jadon", last:"Johnson", segment:"Lead", belt:"", rank:"", rankDate:"",
+   since:"", entered:"Jun 1, 2026", age:0, gender:"Male", guardians:[], phones:[["Mobile","(903) 555-9921"]], emails:["jadon.j@gmail.com"],
+   address:"Whitehouse, TX", app:false, phase:"Trial", source:"Facebook", beltSize:"", kickSize:"", tags:["trial-active"],
+   attended:2, daysSince:4, testing:false, balance:0, memberships:[],
+   invoices:[], notes:[["06/10/2026","On free trial week, 2 classes in. Likes it."]]},
+
+  {id:"m7", first:"Mason", last:"Bell", segment:"Lead", belt:"", rank:"", rankDate:"",
+   since:"", entered:"Jun 13, 2026", age:0, gender:"Male", guardians:[], phones:[["Mobile","(903) 555-1147"]], emails:[],
+   address:"Tyler, TX", app:false, phase:"Prospect", source:"Walk In", beltSize:"", kickSize:"", tags:[],
+   attended:0, daysSince:null, testing:false, balance:0, memberships:[],
+   invoices:[], notes:[["06/13/2026","Walked in asking about adult classes."]]},
+
+  {id:"m8", first:"Oliver", last:"Johnson", segment:"Former", belt:"Green", rank:"Green Belt", rankDate:"",
+   since:"Mar 2022", age:38, gender:"Male", guardians:[], phones:[["Mobile","(903) 555-6612"]], emails:["oliver.j@gmail.com"],
+   address:"19 Oak Hollow, Whitehouse, TX 75791", app:false, phase:"Cancelled", source:"Referral", beltSize:"5", kickSize:'10 – 11"', tags:[],
+   attended:88, daysSince:null, testing:false, balance:0,
+   memberships:[{program:"Adult Taekwondo", plan:"Option C · $110/mo", status:"cancelled", nextDue:"—", overdue:0, contract:true}],
+   invoices:[["12/01/2025","Adult TKD monthly",110.00,"paid"]], notes:[["12/15/2025","Cancelled — moving out of state."]]},
+
+  {id:"m9", first:"Lucas", last:"Vega", segment:"Active", belt:"White", rank:"White Belt", rankDate:"05/30/2026",
+   since:"May 2026", age:8, gender:"Male", guardians:[["Maria Vega","Mom"]], phones:[["Mobile","(903) 555-2048"]], emails:["maria.vega@gmail.com"],
+   address:"742 Pine St, Tyler, TX 75701", app:true, phase:"New Member", source:"Website", beltSize:"0", kickSize:'1 – 2"', tags:["new-student"],
+   attended:8, daysSince:4, testing:false, balance:0,
+   memberships:[{program:"Juniors Taekwondo", plan:"Option D · $129/mo", status:"active", nextDue:"Jul 1, 2026", overdue:0, contract:true}],
+   invoices:[["05/30/2026","Option D down payment",129.00,"paid"]], notes:[]},
+
+  {id:"m10", first:"Ava", last:"Patel", segment:"Active", belt:"Brown", rank:"Brown Belt", rankDate:"12/12/2025",
+   since:"Jun 2023", age:15, gender:"Female", guardians:[["Neha Patel","Mom"]], phones:[["Mobile","(903) 555-8830"]], emails:["neha.patel@gmail.com"],
+   address:"55 Cedar Ln, Tyler, TX 75703", app:true, phase:"Regular Program", source:"Referral", beltSize:"3", kickSize:'7 – 8"', tags:[],
+   attended:51, daysSince:2, testing:true, balance:0,
+   memberships:[{program:"Teens Taekwondo", plan:"Option C · $110/mo", status:"active", nextDue:"Jul 3, 2026", overdue:0, contract:true}],
+   invoices:[["06/03/2026","Teens TKD monthly",110.00,"paid"]], notes:[]},
+
+  {id:"m11", first:"Noah", last:"Kim", segment:"Active", role:"Instructor", belt:"Black", rank:"Jr. Black Belt", rankDate:"04/01/2026",
+   since:"Sep 2021", age:12, gender:"Male", guardians:[["Grace Kim","Mom"],["David Kim","Dad"]], phones:[["Mobile","(903) 555-3322"]], emails:["grace.kim@gmail.com"],
+   address:"900 Maple Dr, Tyler, TX 75701", app:true, phase:"Leadership", source:"Referral", beltSize:"2", kickSize:'5 – 6"', tags:["leadership-track"],
+   attended:120, daysSince:18, testing:false, balance:0,
+   memberships:[{program:"Juniors Taekwondo", plan:"Option B · $95/mo", status:"active", nextDue:"Jul 1, 2026", overdue:0, contract:true}],
+   invoices:[["06/01/2026","Juniors TKD monthly",95.00,"paid"]], notes:[["06/12/2026","Missed 2 weeks — travel."]]},
+
+  {id:"m12", first:"Sofia", last:"Reyes", segment:"Active", belt:"Orange", rank:"Orange Belt", rankDate:"03/22/2026",
+   since:"Dec 2025", age:9, gender:"Female", guardians:[["Elena Reyes","Mom"]], phones:[["Mobile","(903) 555-4410"]], emails:["elena.reyes@gmail.com"],
+   address:"410 Birch Ave, Tyler, TX 75703", app:true, phase:"Regular Program", source:"Website", beltSize:"1", kickSize:'3 – 4"', tags:["gear-due"],
+   attended:24, daysSince:6, testing:true, balance:0,
+   memberships:[{program:"Juniors Taekwondo", plan:"Option B · $95/mo", status:"active", nextDue:"Jul 1, 2026", overdue:0, contract:true}],
+   invoices:[["06/01/2026","Juniors TKD monthly",95.00,"paid"]], notes:[]}
+];
+
+/* ========== STATE ========== */
+let activeFilter = null;   // 'overdue' | 'leads' | 'risk' | 'testing'
+let selectedId = null;
+let currentMember = null;
+
+const $ = s => document.querySelector(s);
+const money = n => "$" + Number(n).toFixed(2);
+const initials = m => (m.first[0]||"") + (m.last[0]||"");
+
+/* ========== FILTERS ========== */
+const RISK_DAYS = 14;
+function isOverdue(m){ return m.balance > 0; }
+function isLead(m){ return m.segment === "Lead"; }
+function isTrial(m){ return m.segment === "Trial"; }
+function isRisk(m){ return m.segment === "Active" && m.daysSince != null && m.daysSince >= RISK_DAYS; }
+function isTesting(m){ return m.testing === true; }
+const FILTERS = {
+  overdue:{label:"Overdue", test:isOverdue, alert:true},
+  leads:{label:"Leads", test:isLead},
+  trials:{label:"Trials", test:isTrial},
+  risk:{label:"At risk", test:isRisk},
+  testing:{label:"Testing", test:isTesting}
+};
+
+/* ========== RENDER: chips ========== */
+function renderChips(){
+  $("#chips").innerHTML = Object.keys(FILTERS).map(key=>{
+    const f = FILTERS[key];
+    const count = MEMBERS.filter(f.test).length;
+    const on = activeFilter===key;
+    return '<button class="chip'+(f.alert?' alert':'')+(on?' on':'')+'" onclick="toggleFilter(\''+key+'\')">'
+      + '<div class="c-count num">'+count+'</div>'
+      + '<div class="c-label">'+f.label+'</div></button>';
+  }).join("");
+}
+function toggleFilter(key){ activeFilter = (activeFilter===key)?null:key; renderChips(); renderList(); }
+function clearFilter(){ activeFilter=null; $("#search").value=""; renderChips(); renderList(); }
+
+/* ========== RENDER: list ========== */
+function filteredMembers(){
+  let list = MEMBERS.slice();
+  if(activeFilter) list = list.filter(FILTERS[activeFilter].test);
+  const q = $("#search").value.trim().toLowerCase();
+  if(q) list = list.filter(m => (m.first+" "+m.last).toLowerCase().includes(q));
+  return list;
+}
+function renderList(){
+  const pane = document.querySelector("main"); const sc = pane.scrollTop;
+  const list = filteredMembers();
+  $("#lhTitle").textContent = activeFilter ? FILTERS[activeFilter].label+" · "+list.length : "All members · "+list.length;
+  $("#lhClear").style.display = (activeFilter || $("#search").value) ? "block" : "none";
+  if(list.length===0){ $("#mlist").innerHTML = '<div class="mempty">No members match.</div>'; return; }
+  $("#mlist").innerHTML = list.map(m=>{
+    const segClass = m.segment==="Active"?"active":m.segment==="Lead"?"lead":m.segment==="Trial"?"trial":"former";
+    const beltC = BELT[m.belt] || "#C7CCD2";
+    const ring = m.belt ? '<span class="belt-ring" style="border-color:'+beltC+'"></span>' : '';
+    const sub = m.belt ? (m.rank) : (m.phase || m.segment);
+    const right = m.balance>0
+      ? '<span class="seg '+segClass+'">'+m.segment+'</span><div class="owe num">'+money(m.balance)+'</div>'
+      : '<span class="seg '+segClass+'">'+m.segment+'</span>';
+    const beltCell = m.belt
+      ? '<span class="belt-bar" style="background:'+beltC+'"></span>'+m.rank
+      : '<span class="c-dash">'+(m.phase||'—')+'</span>';
+    const planCell = m.memberships.length ? m.memberships[0].plan : '<span class="c-dash">—</span>';
+    const visitRisk = m.segment==="Active" && m.daysSince!=null && m.daysSince>=14;
+    const visitCell = m.daysSince!=null ? (m.daysSince+'d ago') : '<span class="c-dash">—</span>';
+    const phoneCell = m.phones.length ? m.phones[0][1] : '<span class="c-dash">—</span>';
+    return '<button class="mrow'+(m.id===selectedId?' sel':'')+'" onclick="openProfile(\''+m.id+'\')">'
+      + '<div class="c-name">'
+        + '<div class="av" style="background:'+beltC+'">'+ring+'<span style="color:'+(m.belt==="White"||m.belt==="Yellow"?"#15171C":"#fff")+'">'+initials(m)+'</span></div>'
+        + '<div class="minfo"><div class="mname">'+m.first+' '+m.last+'</div><div class="msub">'+sub+'</div></div>'
+      + '</div>'
+      + '<div class="col-d c-belt">'+beltCell+'</div>'
+      + '<div class="col-d c-plan">'+planCell+'</div>'
+      + '<div class="col-d c-visit'+(visitRisk?' risk':'')+'">'+visitCell+'</div>'
+      + '<div class="col-d c-phone">'+phoneCell+'</div>'
+      + '<div class="mright">'+right+'</div></button>';
+  }).join("");
+  pane.scrollTop = sc;
+}
+
+/* ========== shell navigation ========== */
+function setNavActive(sec){
+  document.querySelectorAll(".nav-item").forEach(n=>n.classList.toggle("active", n.dataset.sec===sec));
+}
+function showSection(sec){
+  document.querySelectorAll(".view").forEach(v=>v.classList.remove("on"));
+  $("#view-"+sec).classList.add("on");
+  setNavActive(sec);
+  if(sec==="dashboard") renderDashboard();
+  if(sec==="members") renderList();
+  if(sec==="memberships") renderMemberships();
+  if(sec==="checkout") renderCheckout();
+  if(sec==="pos") renderPOS();
+  if(sec==="calendar") renderCalendar();
+  document.querySelector("main").scrollTop = 0;
+  closeNav();
+}
+function toggleNav(){ $("#sidebar").classList.toggle("open"); $("#navBackdrop").classList.toggle("show"); }
+function closeNav(){ $("#sidebar").classList.remove("open"); $("#navBackdrop").classList.remove("show"); }
+function toggleRail(){ $("#sidebar").classList.toggle("rail"); }
+function goToFilter(key){ activeFilter = key; renderChips(); showSection("members"); }
+const APP_NAMES = { testing:"Testing", curriculum:"Curriculum", classplan:"Class Plan", leadership:"Leadership", gear:"Gear Order", certs:"Certificate", store:"Store" };
+function launchApp(key){ closeNav(); toast("Launches the "+APP_NAMES[key]+" app ↗"); }
+
+/* ========== dashboard (landing) ========== */
+function renderDashboard(){
+  const c = {}; Object.keys(FILTERS).forEach(k=> c[k]=MEMBERS.filter(FILTERS[k].test).length);
+  const overdueTotal = MEMBERS.filter(isOverdue).reduce((s,m)=>s+m.balance,0);
+  const active = MEMBERS.filter(m=>m.segment==="Active").length;
+  const leads = MEMBERS.filter(m=>m.segment==="Lead").length;
+  const cards = [
+    {k:"overdue", ico:"⚠", label:"Overdue", desc:money(overdueTotal)+" outstanding", alert:true},
+    {k:"leads",   ico:"★", label:"Leads",   desc:"in the pipeline"},
+    {k:"risk",    ico:"◷", label:"At risk",  desc:"14+ days no visit"},
+    {k:"testing", ico:"▲", label:"Testing",  desc:"eligible now"}
+  ];
+  let html = '<div class="dash">'
+    + '<div class="dash-hd"><h2>Dashboard</h2><div class="ds">'+active+' active members · '+leads+' leads in the pipeline</div></div>'
+    + '<div class="dash-sub">Needs you today</div><div class="dcards">';
+  cards.forEach(cd=>{
+    html += '<button class="dcard'+(cd.alert?' alert':'')+'" onclick="goToFilter(\''+cd.k+'\')">'
+      + '<div class="dc-top"><span class="dc-count num">'+c[cd.k]+'</span><span class="dc-ico">'+cd.ico+'</span></div>'
+      + '<div class="dc-label">'+cd.label+'</div><div class="dc-desc">'+cd.desc+'</div>'
+      + '<span class="dc-go">View →</span></button>';
+  });
+  html += '</div></div>';
+  $("#view-dashboard").innerHTML = html;
+}
+
+/* ========== memberships config ========== */
+let PROGRAMS = [
+  {id:"g1", name:"Juniors Taekwondo", ages:"Ages 7 to 12", members:42, uniform:true, plans:[
+    {name:"Option A", down:1400, monthly:0, months:1},
+    {name:"Option B", down:359, monthly:95, months:12},
+    {name:"Option C", down:259, monthly:110, months:12},
+    {name:"Option D", down:129, monthly:129, months:12}
+  ]},
+  {id:"g2", name:"Cubs", ages:"Ages 4 to 6", members:18, plans:[
+    {name:"Monthly", down:99, monthly:89, months:12},
+    {name:"Paid in full", down:950, monthly:0, months:1}
+  ]},
+  {id:"g3", name:"Teens & Adults Taekwondo", ages:"Ages 13 and up", members:25, uniform:true, plans:[
+    {name:"Option A", down:1400, monthly:0, months:1},
+    {name:"Option B", down:359, monthly:95, months:12},
+    {name:"Option C", down:259, monthly:110, months:12},
+    {name:"Option D", down:129, monthly:129, months:12}
+  ]},
+  {id:"g4", name:"Kickboxing", ages:"Teens & adults", members:12, plans:[
+    {name:"Monthly", down:99, monthly:99, months:12},
+    {name:"Paid in full", down:1000, monthly:0, months:1}
+  ]},
+  {id:"g5", name:"BJJ", ages:"All ages", members:8, plans:[
+    {name:"Monthly", down:119, monthly:119, months:12},
+    {name:"Paid in full", down:1200, monthly:0, months:1}
+  ]},
+  {id:"g6", name:"AMP'D", ages:"Add-on program", members:14, plans:[
+    {name:"Add-on", down:0, monthly:50, months:0}
+  ]},
+  {id:"gT", name:"Free Trial", ages:"One free week · any program", members:0, trial:true, plans:[
+    {name:"1 week trial", down:0, monthly:0, months:0}
+  ]},
+  {id:"gL", name:"Leadership", ages:"Invite · current members", members:9, free:true, plans:[
+    {name:"Leadership Team", down:0, monthly:0, months:0}
+  ]}
+];
+let editProgram = null, editPlans = [];
+
+function planLine(pl){
+  if(pl.down===0 && pl.monthly===0) return "Free";
+  if(pl.monthly>0 && pl.months>0) return (pl.down>0?(money(pl.down)+" down + "):"")+money(pl.monthly)+"/mo × "+pl.months;
+  if(pl.monthly>0 && pl.months===0) return money(pl.monthly)+"/mo · ongoing";
+  if(pl.monthly===0 && pl.down>0) return money(pl.down)+" · paid in full";
+  return "—";
+}
+function renderMemberships(){
+  let html = '<div class="bld"><div class="bld-hd"><h2>Memberships</h2><p>Your programs and their payment options. Checkout pages and member profiles read from here, so a price set once shows up everywhere it sells.</p></div>';
+  html += '<button class="newbtn" onclick="openProgramEdit(null)">＋ New program</button>';
+  html += PROGRAMS.map(g=>{
+    const plans = g.plans.map(pl=>'<div class="plan-line"><span class="pl-name">'+pl.name+'</span><span class="pl-terms">'+planLine(pl)+'</span></div>').join("");
+    return '<div class="prog-card"><div class="prog-top"><div>'
+      + '<div class="prog-name">'+g.name+'</div><div class="prog-ages">'+g.ages+'</div></div>'
+      + '<span class="prog-count">'+g.members+' active</span></div>'
+      + '<div class="prog-plans">'+plans+'</div>'
+      + '<button class="prog-edit" onclick="openProgramEdit(\''+g.id+'\')">Edit options</button></div>';
+  }).join("");
+  html += '<div class="proto-note">Prototype · mock data. Editing options here is what the per-program enrollment pages would read.</div></div>';
+  $("#view-memberships").innerHTML = html;
+}
+function openProgramEdit(id){
+  editProgram = id ? PROGRAMS.find(g=>g.id===id) : {id:"g"+(PROGRAMS.length+1), name:"", ages:"", members:0, plans:[]};
+  editPlans = editProgram.plans.map(pl=>({...pl}));
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head"><div><h3>'+(id?"Edit program":"New program")+'</h3><div class="sub">Program details and payment options</div></div>'
+    + '<button class="close" onclick="closeSheet()">×</button></div>'
+    + '<div class="sheet-body">'
+    + '<div class="medit"><label>Program name</label><input id="pg-name" value="'+editProgram.name+'" placeholder="e.g. Juniors Taekwondo"></div>'
+    + '<div class="medit"><label>Ages / who it is for</label><input id="pg-ages" value="'+editProgram.ages+'" placeholder="Ages 7 to 12"></div>'
+    + '<div class="opt-h">Payment options</div><div id="planRows"></div>'
+    + '<button class="addopt" onclick="addPlanRow()">＋ Add option</button>'
+    + '<button class="savebtn" onclick="saveProgram()">Save program</button></div>';
+  renderPlanRows();
+  openSheet();
+}
+function renderPlanRows(){
+  $("#planRows").innerHTML = editPlans.map((pl,i)=>
+    '<div class="planrow"><div class="planrow-top"><input class="pr-name" value="'+pl.name+'" placeholder="Option name">'
+    + '<button class="pr-del" onclick="removePlanRow('+i+')">×</button></div>'
+    + '<div class="frow2"><div class="medit"><label>Down</label><input class="pr-down" inputmode="decimal" value="'+pl.down+'"></div>'
+    + '<div class="medit"><label>Monthly</label><input class="pr-monthly" inputmode="decimal" value="'+pl.monthly+'"></div>'
+    + '<div class="medit"><label>Months</label><input class="pr-months" inputmode="numeric" value="'+pl.months+'"></div></div></div>'
+  ).join("") || '<div class="opt-empty">No options yet. Add one below.</div>';
+}
+function syncPlans(){
+  const rows = document.querySelectorAll("#planRows .planrow");
+  editPlans = Array.from(rows).map(r=>({
+    name: r.querySelector(".pr-name").value.trim() || "Option",
+    down: parseFloat(r.querySelector(".pr-down").value)||0,
+    monthly: parseFloat(r.querySelector(".pr-monthly").value)||0,
+    months: parseInt(r.querySelector(".pr-months").value,10)||0
+  }));
+}
+function addPlanRow(){ syncPlans(); editPlans.push({name:"",down:0,monthly:0,months:12}); renderPlanRows(); }
+function removePlanRow(i){ syncPlans(); editPlans.splice(i,1); renderPlanRows(); }
+function saveProgram(){
+  syncPlans();
+  const name = ($("#pg-name").value||"").trim();
+  if(!name){ toast("Give the program a name"); return; }
+  editProgram.name = name;
+  editProgram.ages = ($("#pg-ages").value||"").trim() || "—";
+  editProgram.plans = editPlans;
+  if(!PROGRAMS.includes(editProgram)) PROGRAMS.push(editProgram);
+  closeSheet();
+  renderMemberships();
+  toast("Program saved");
+}
+
+/* ========== checkout pages (in CRM, read shared PROGRAMS) ========== */
+let EVENTS = [
+  {id:"e1", title:"Summer Camp 2026", desc:"A full week of martial arts, games, and fun. Ages 5 to 12. Lunch included.", price:199, qty:true, date:"Jul 13, 2026", participants:[{memberId:"m1", paid:true}]}
+];
+// Testing dates are owned by Class Plan (cycle.testingDates). Synced here, read-only.
+let TESTING = [
+  {id:"t1", title:"Belt Testing · June 2026", date:"Jun 28, 2026", fee:60, desc:"Reserve your student's spot for the next belt testing. The fee covers the evaluation and certificate."},
+  {id:"t2", title:"Belt Testing · Sept 2026", date:"Sep 27, 2026", fee:60, desc:"Reserve your student's spot for the next belt testing. The fee covers the evaluation and certificate."}
+];
+// Weekly class grid synced from Class Plan (read-only). Only the trial flag is set here.
+// day: 0 Sun ... 6 Sat
+let SCHEDULE = [
+  {id:"s1", day:1, time:"5:30 PM", name:"Cubs Beginner", trial:true},
+  {id:"s2", day:1, time:"6:30 PM", name:"Juniors Advanced", trial:false},
+  {id:"s3", day:2, time:"6:00 PM", name:"Teens & Adults Beginner", trial:true},
+  {id:"s4", day:3, time:"5:30 PM", name:"Cubs Beginner", trial:true},
+  {id:"s5", day:3, time:"6:30 PM", name:"Juniors Advanced", trial:false},
+  {id:"s6", day:4, time:"6:00 PM", name:"Kickboxing (all levels)", trial:true},
+  {id:"s7", day:6, time:"10:00 AM", name:"Advanced Open Mat", trial:false},
+  {id:"s8", day:6, time:"11:00 AM", name:"Cubs Beginner", trial:true}
+];
+let cpKind="", cpItem=null, cp={planIdx:0, qty:1, addon:false};
+let cpTab="events";
+function cpSetTab(t){ cpTab=t; renderCheckout(); }
+function planToday(pl){ return pl.monthly>0 ? (pl.down + pl.monthly) : pl.down; }
+function testingStatus(t){
+  const today=new Date(); today.setHours(0,0,0,0);
+  const d=new Date(t.date);
+  const opens=new Date(d); opens.setDate(opens.getDate()-28);
+  const fmt=dt=>dt.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  if(today>d) return {state:"past", label:"Testing passed · open for backfill"};
+  if(today>=opens) return {state:"live", label:"Live now · public sign-ups open"};
+  return {state:"scheduled", label:"Page opens "+fmt(opens)+", 4 weeks before"};
+}
+function renderCheckout(){
+  let html = '<div class="bld"><div class="bld-hd"><h2>Checkout pages</h2><p>Public links your buyers use, organized by type.</p></div>';
+  html += '<div class="ck-tabs">'
+    + '<button class="ck-tab'+(cpTab==="events"?" on":"")+'" onclick="cpSetTab(\'events\')">Events</button>'
+    + '<button class="ck-tab'+(cpTab==="testing"?" on":"")+'" onclick="cpSetTab(\'testing\')">Testing</button>'
+    + '<button class="ck-tab'+(cpTab==="memberships"?" on":"")+'" onclick="cpSetTab(\'memberships\')">Memberships</button></div>';
+
+  html += '<div class="ck-list">';
+  if(cpTab==="events"){
+    html += '<button class="addopt" onclick="cpEditEvent(null)">＋ New event or product</button>';
+    html += EVENTS.map(e=>'<div class="prog-card"><div class="prog-top"><div>'
+      + '<div class="prog-name">'+e.title+'</div><div class="prog-ages">'+money(e.price)+' · '+e.participants.length+' signed up'+(e.date?(' · '+e.date):'')+'</div></div>'
+      + '<span class="prog-count" style="background:#FBF1DC;color:var(--gold)">Event</span></div>'
+      + '<div class="ck-btns"><button class="prog-edit" onclick="cpManageEvent(\''+e.id+'\')">Participants</button><button class="prog-edit" onclick="cpEditEvent(\''+e.id+'\')">Edit</button><button class="prog-edit ghost" onclick="cpOpen(\'event\',\''+e.id+'\')">Preview ↗</button></div></div>').join("");
+    html += '<div class="proto-note">Events auto-archive after their date and keep their sign-up stats.</div>';
+  } else if(cpTab==="testing"){
+    html += '<div class="ck-hint">Testing dates are set in Class Plan. Each page goes public 4 weeks before its date, and stays open afterward so you can backfill testers.</div>';
+    html += '<button class="addopt" onclick="launchApp(\'classplan\')">Set testing dates in Class Plan ↗</button>';
+    html += TESTING.map(t=>{
+      const st=testingStatus(t);
+      const badge = st.state==="live" ? '<span class="prog-count" style="background:#E4F5EE;color:var(--go)">Live</span>'
+        : st.state==="scheduled" ? '<span class="prog-count" style="background:var(--surface);color:var(--muted)">Scheduled</span>'
+        : '<span class="prog-count" style="background:#FBE9E9;color:var(--accent)">Past</span>';
+      return '<div class="prog-card"><div class="prog-top"><div>'
+        + '<div class="prog-name">'+t.title+'</div><div class="prog-ages">'+money(t.fee)+' · '+t.date+' · feeds the testing app</div></div>'+badge+'</div>'
+        + '<div class="ck-status '+st.state+'">'+st.label+'</div>'
+        + '<div class="ck-btns"><button class="prog-edit ghost" onclick="cpOpen(\'testing\',\''+t.id+'\')">Preview ↗</button></div></div>';
+    }).join("");
+  } else {
+    html += '<div class="ck-hint">The Free Trial page is the self-serve front door, prospects do everything themselves. Enrollment pages come from your programs; to add a program or change plans, edit it in Memberships.</div>';
+    html += '<div class="prog-card" style="border-color:#BFE6D6"><div class="prog-top"><div>'
+      + '<div class="prog-name">Free Trial</div><div class="prog-ages">One week free · any program · info, waiver, self-scheduler</div></div>'
+      + '<span class="prog-count">Trial</span></div>'
+      + '<div class="ck-btns"><button class="prog-edit" onclick="cpTrialClasses()">Set trial classes</button><button class="prog-edit ghost" onclick="cpOpen(\'trial\',\'trial\')">Preview flow ↗</button></div></div>';
+    html += '<button class="addopt" onclick="showSection(\'memberships\')">Edit programs & plans in Memberships ↗</button>';
+    html += PROGRAMS.filter(g=>!g.trial).map(g=>{
+      const minT = Math.min.apply(null, g.plans.map(planToday));
+      const today = g.free ? "Free" : "From "+money(minT)+" today";
+      return '<div class="prog-card"><div class="prog-top"><div>'
+        + '<div class="prog-name">'+g.name+' Enrollment</div><div class="prog-ages">'+today+' · '+g.plans.length+' option'+(g.plans.length>1?'s':'')+' · public link</div></div>'
+        + '<span class="prog-count">Joins roster</span></div>'
+        + '<div class="ck-btns"><button class="prog-edit" onclick="openProgramEdit(\''+g.id+'\')">Edit options</button><button class="prog-edit ghost" onclick="cpOpen(\'prog\',\''+g.id+'\')">Preview ↗</button></div></div>';
+    }).join("");
+  }
+  html += '</div></div>';
+  $("#view-checkout").innerHTML = html;
+}
+function cpOpen(kind,id){
+  cpKind=kind; cp={planIdx:0,qty:1,addon:false,slotIdx:null,waiver:false};
+  cpItem = kind==="prog" ? PROGRAMS.find(g=>g.id===id)
+         : kind==="testing" ? TESTING.find(t=>t.id===id)
+         : kind==="trial" ? null
+         : EVENTS.find(e=>e.id===id);
+  cpRender();
+  document.querySelectorAll(".view").forEach(v=>v.classList.remove("on"));
+  $("#view-checkoutpub").classList.add("on");
+  setNavActive("checkout");
+  document.querySelector("main").scrollTop=0;
+  closeNav();
+}
+function cpBack(){ showSection("checkout"); }
+function cpRender(){
+  if(cpKind==="trial") return cpRenderTrial();
+  const it=cpItem, isProg = cpKind==="prog", isTest = cpKind==="testing";
+  let html='<div class="pubbar"><button class="back" onclick="cpBack()">‹ Back to checkout pages</button><span class="tag">Preview</span></div>';
+  html+='<div class="pub"><div class="pub-brand"><div class="logo">BTKD</div><div class="school">Bares Taekwondo · Tyler, TX</div></div><div class="pub-card" id="cpBody">';
+  const title = isProg ? (it.name+" Enrollment") : it.title;
+  const desc = isProg ? ("Enroll in "+it.name+". "+(it.ages||"")) : it.desc;
+  html+='<div class="pub-hero"><h1>'+title+'</h1><p>'+desc+'</p></div>';
+  if(isProg){
+    html+='<div class="pub-sec"><div class="sh">'+(it.plans.every(p=>p.down===0&&p.monthly===0)?"Membership":"Choose how to pay")+'</div>';
+    it.plans.forEach((pl,i)=>{
+      const rec = pl.monthly>0 ? (pl.months>0 ? ("then "+(pl.months-1)+" × "+money(pl.monthly)+"/mo") : ("then "+money(pl.monthly)+"/mo")) : "one-time";
+      html+='<div class="planopt'+(i===0?' selected':'')+'" onclick="cpSelectPlan('+i+')"><span class="po-radio"></span>'
+        +'<div class="po-body"><div class="po-name">'+pl.name+'</div><div class="po-terms">'+planLine(pl)+'</div></div>'
+        +'<div class="po-price"><div class="po-today num">'+money(planToday(pl))+'</div><div class="po-rec">'+rec+'</div></div></div>';
+    });
+    html+='</div>';
+    if(it.uniform){
+      html+='<div class="pub-sec"><div class="sh">Add to your order</div><div class="addon">'
+        +'<span class="sw"><input type="checkbox" id="cpAddon" onchange="cpToggleAddon()"><span class="track"></span><span class="knob"></span></span>'
+        +'<div><div class="an">Beginner uniform</div><div class="ap">'+money(82.25)+' · sized and ready at first class</div></div></div></div>';
+    }
+    html+='<div class="pub-sec"><div class="sh">Student</div>'
+      +'<div class="fld"><label>Student full name</label><input placeholder="Student name"></div>'
+      +'<div class="fld"><label>Parent / guardian name</label><input placeholder="Guardian name"></div>'
+      +'<div class="frow"><div class="fld"><label>Email</label><input placeholder="you@email.com"></div><div class="fld"><label>Phone</label><input placeholder="(903) 555-0000"></div></div></div>';
+  } else if(isTest){
+    const st=testingStatus(it);
+    if(st.state!=="live") html+='<div class="pub-sec" style="background:'+(st.state==="scheduled"?'#FBF7EC':'#FBE9E9')+'"><div style="font-size:13px;font-weight:600;color:'+(st.state==="scheduled"?'#9A7B16':'var(--accent)')+'">'+(st.state==="scheduled"?"Not public yet · "+st.label:"Testing date passed · staff backfill only")+'</div></div>';
+    html+='<div class="pub-sec"><div class="sh">Testing fee</div><div class="addon"><div><div class="an">'+it.title+'</div><div class="ap">'+money(it.fee)+' · '+it.date+'</div></div></div></div>';
+    html+='<div class="pub-sec"><div class="sh">Student</div>'
+      +'<div class="fld"><label>Student full name</label><input placeholder="Student name"></div>'
+      +'<div class="fld"><label>Current rank / belt</label><input placeholder="e.g. Senior Yellow Belt"></div>'
+      +'<div class="fld"><label>Parent / guardian name</label><input placeholder="Guardian name"></div>'
+      +'<div class="frow"><div class="fld"><label>Email</label><input placeholder="you@email.com"></div><div class="fld"><label>Phone</label><input placeholder="(903) 555-0000"></div></div></div>';
+  } else {
+    if(it.qty){
+      html+='<div class="pub-sec"><div class="sh">How many?</div><div class="qty"><button onclick="cpBumpQty(-1)">−</button><span class="qv num" id="cpQv">1</span><button onclick="cpBumpQty(1)">+</button></div></div>';
+    }
+    html+='<div class="pub-sec"><div class="sh">Your info</div>'
+      +'<div class="fld"><label>Full name</label><input placeholder="Your name"></div>'
+      +'<div class="frow"><div class="fld"><label>Email</label><input placeholder="you@email.com"></div><div class="fld"><label>Phone</label><input placeholder="(903) 555-0000"></div></div></div>';
+  }
+  const progFree = isProg && it.plans.every(p=>p.down===0&&p.monthly===0);
+  if(!progFree){
+    html+='<div class="pub-sec"><div class="sh">Payment</div>'
+      +'<div class="fld"><label>Card number</label><input placeholder="1234 1234 1234 1234"></div>'
+      +'<div class="frow"><div class="fld"><label>Expiry</label><input placeholder="MM / YY"></div><div class="fld"><label>CVC</label><input placeholder="123"></div><div class="fld"><label>ZIP</label><input placeholder="75701"></div></div>'
+      +'<div class="lock">🔒 Secure checkout · powered by Stripe</div></div>';
+  }
+  html+='<div class="summary" id="cpSummary"></div></div></div>';
+  $("#view-checkoutpub").innerHTML=html;
+  cpRecompute();
+}
+function cpSelectPlan(i){ cp.planIdx=i; document.querySelectorAll("#view-checkoutpub .planopt").forEach((el,idx)=>el.classList.toggle("selected",idx===i)); cpRecompute(); }
+function cpBumpQty(d){ cp.qty=Math.max(1,cp.qty+d); $("#cpQv").textContent=cp.qty; cpRecompute(); }
+function cpToggleAddon(){ cp.addon=$("#cpAddon").checked; cpRecompute(); }
+function cpRecompute(){
+  const it=cpItem; let lines=[], items=0, recNote="";
+  if(cpKind==="prog"){
+    const pl=it.plans[cp.planIdx];
+    if(pl.monthly>0 && pl.months>0){
+      lines.push(["Down payment",pl.down]); items+=pl.down;
+      lines.push(["First month ("+pl.name+")",pl.monthly]); items+=pl.monthly;
+      recNote="Then "+(pl.months-1)+" monthly payments of "+money(pl.monthly)+", starting next cycle.";
+    } else if(pl.monthly>0){
+      if(pl.down>0){ lines.push(["Down payment",pl.down]); items+=pl.down; }
+      lines.push(["First month ("+pl.name+")",pl.monthly]); items+=pl.monthly;
+      recNote="Then "+money(pl.monthly)+" per month, ongoing.";
+    } else {
+      lines.push([it.name+" · "+pl.name,pl.down]); items+=pl.down;
+      recNote = (pl.down===0&&pl.monthly===0) ? "Free signup. No payment due." : "Paid in full. No further payments.";
+    }
+    if(it.uniform && cp.addon){ lines.push(["Beginner uniform",82.25]); items+=82.25; }
+  } else if(cpKind==="testing"){
+    lines.push([it.title,it.fee]); items+=it.fee;
+    recNote="Reserves a spot at the "+it.date+" testing.";
+  } else {
+    const sub=it.price*cp.qty; lines.push([it.title+(it.qty?(" × "+cp.qty):""),sub]); items+=sub;
+  }
+  const surcharge = items>0 ? (items*0.0315+0.55) : 0;
+  const total = items+surcharge;
+  let h=lines.map(l=>'<div class="sline">'+l[0]+'<span class="num">'+money(l[1])+'</span></div>').join("");
+  if(items>0) h+='<div class="sline">Card surcharge<span class="num">'+money(surcharge)+'</span></div>';
+  h+='<div class="sline tot">'+(total===0?"Total":(cpKind==="prog"?"Total today":"Total"))+'<span class="num">'+money(total)+'</span></div>';
+  if(recNote) h+='<div class="rec-note">'+recNote+'</div>';
+  const label = total===0 ? "Complete sign-up" : (cpKind==="prog"?"Enroll & pay "+money(total):cpKind==="testing"?"Sign up & pay "+money(total):"Pay "+money(total));
+  h+='<button class="paybtn" onclick="cpPay()">'+label+'</button>';
+  $("#cpSummary").innerHTML=h;
+}
+function cpPay(){
+  const it=cpItem; let msg, sys, head;
+  if(cpKind==="prog"){
+    const pl=it.plans[cp.planIdx];
+    const rec = pl.monthly>0 ? (pl.months>0 ? ((pl.months-1)+" monthly payments of "+money(pl.monthly)+" remain") : (money(pl.monthly)+"/mo continues")) : "you're paid in full";
+    head="You're a member"; sys="Added to your member list";
+    msg="Enrollment in "+it.name+" on the "+pl.name+" plan is confirmed. Card on file, and "+rec+"."+(it.uniform&&cp.addon?" Uniform ready at first class.":"");
+  } else if(cpKind==="testing"){
+    head="You're signed up"; sys="Added to the testing sheet";
+    msg="Your student is registered for "+it.title+" on "+it.date+". They'll show up automatically when the judge sheets are built.";
+  } else {
+    head="You're all set"; sys="New contact created";
+    msg="You're registered for "+it.title+". A receipt is on its way to your email.";
+  }
+  $("#cpBody").innerHTML='<div class="success"><div class="chk">✓</div><h2>'+head+'</h2><p>'+msg+'</p><div class="insys">✓ '+sys+'</div></div>';
+  document.querySelector("main").scrollTop=0;
+}
+
+let cpEditId=null;
+function cpEditEvent(id){
+  cpEditId = id || null;
+  const e = id ? EVENTS.find(x=>x.id===id) : {title:"",desc:"",price:0,date:""};
+  $("#sheet").innerHTML='<div class="grab"></div>'
+   +'<div class="sheet-head"><div><h3>'+(id?"Edit event":"New event")+'</h3><div class="sub">Public event or product page</div></div><button class="close" onclick="closeSheet()">×</button></div>'
+   +'<div class="sheet-body">'
+   +'<div class="medit"><label>Title</label><input id="ce-title" value="'+(e.title||"")+'" placeholder="e.g. Summer Camp 2026"></div>'
+   +'<div class="medit"><label>Description</label><textarea id="ce-desc" rows="3" placeholder="What it is, who it is for">'+(e.desc||"")+'</textarea></div>'
+   +'<div class="frow2"><div class="medit"><label>Price</label><input id="ce-price" inputmode="decimal" value="'+(e.price||0)+'"></div>'
+   +'<div class="medit"><label>Date</label><input id="ce-date" value="'+(e.date||"")+'" placeholder="Jul 14, 2026"></div></div>'
+   +'<button class="savebtn" onclick="cpSaveEvent()">Save event</button></div>';
+  openSheet();
+}
+function cpSaveEvent(){
+  const title=($("#ce-title").value||"").trim();
+  if(!title){ toast("Give the event a title"); return; }
+  const price=parseFloat($("#ce-price").value)||0;
+  const desc=($("#ce-desc").value||"").trim();
+  const date=($("#ce-date").value||"").trim();
+  if(cpEditId){ const e=EVENTS.find(x=>x.id===cpEditId); e.title=title; e.price=price; e.desc=desc; e.date=date; }
+  else { EVENTS.push({id:"e"+Date.now(), title, desc, price, date, qty:true, participants:[]}); }
+  closeSheet(); renderCheckout(); toast("Event saved");
+}
+function cpMemberName(id){ const m=MEMBERS.find(x=>x.id===id); return m? (m.first+" "+m.last) : "Unknown"; }
+/* ---- self-serve free trial: info, waiver, scheduler from Class Plan ---- */
+let cpSlots=[];
+function cpTrialSlots(){
+  const blackoutDays=CAL.filter(c=>c.type==="blackout").map(c=>new Date(c.date)).filter(d=>!isNaN(d));
+  const isBlackout=(d)=>blackoutDays.some(b=>sameDay(b,d));
+  const trialClasses=SCHEDULE.filter(s=>s.trial);
+  let slots=[], base=new Date(); base.setHours(0,0,0,0);
+  for(let i=1;i<=14 && slots.length<10;i++){
+    const d=new Date(base); d.setDate(d.getDate()+i);
+    if(isBlackout(d)) continue;
+    trialClasses.filter(s=>s.day===d.getDay()).forEach(s=>{
+      if(slots.length<10) slots.push({date:new Date(d), time:s.time, name:s.name, label:d.toLocaleDateString('en-US',{weekday:'short', month:'short', day:'numeric'})});
+    });
+  }
+  return slots;
+}
+function cpRenderSlots(){
+  $("#cpSlotList").innerHTML = cpSlots.length ? cpSlots.map((s,i)=>
+    '<div class="planopt'+(cp.slotIdx===i?' selected':'')+'" onclick="cpPickSlot('+i+')"><span class="po-radio"></span>'
+    +'<div class="po-body"><div class="po-name">'+s.label+' · '+s.time+'</div><div class="po-terms">'+s.name+'</div></div></div>'
+  ).join("") : '<div class="cart-empty">No open trial classes in the next two weeks. Call us and we will fit you in.</div>';
+}
+function cpPickSlot(i){ cp.slotIdx=i; cpRenderSlots(); }
+function cpToggleWaiver(){ cp.waiver=$("#cpWaiver").checked; }
+function cpRenderTrial(){
+  cpSlots=cpTrialSlots();
+  let html='<div class="pubbar"><button class="back" onclick="cpBack()">‹ Back to checkout pages</button><span class="tag">Free trial</span></div>';
+  html+='<div class="pub"><div class="pub-brand"><div class="logo">BTKD</div><div class="school">Bares Taekwondo · Tyler, TX</div></div><div class="pub-card" id="cpBody">';
+  html+='<div class="pub-hero"><h1>Start your free week</h1><p>One free week at Bares Taekwondo. Tell us about the student, sign the waiver, and pick your first class. No payment needed.</p></div>';
+  html+='<div class="pub-sec"><div class="sh">About the student</div>'
+    +'<div class="fld"><label>Student full name</label><input id="cp-tname" placeholder="Student name"></div>'
+    +'<div class="frow"><div class="fld"><label>Age</label><input id="cp-tage" inputmode="numeric" placeholder="Age"></div>'
+    +'<div class="fld"><label>Program of interest</label><select id="cp-tprog"><option value="">Not sure yet</option>'+PROGRAMS.map(g=>'<option>'+g.name+'</option>').join("")+'</select></div></div>'
+    +'<div class="fld"><label>Parent / guardian name</label><input id="cp-tguard" placeholder="Guardian name"></div>'
+    +'<div class="frow"><div class="fld"><label>Email</label><input id="cp-temail" placeholder="you@email.com"></div><div class="fld"><label>Phone</label><input id="cp-tphone" placeholder="(903) 555-0000"></div></div></div>';
+  html+='<div class="pub-sec"><div class="sh">Liability waiver</div>'
+    +'<div class="waiver">I understand that martial arts training involves physical activity and inherent risks. I release Bares Taekwondo, its instructors, and staff from liability for injury arising from participation, and I confirm the student is in suitable health to train. As parent or guardian I sign on behalf of any participant under 18.</div>'
+    +'<div class="addon"><span class="sw"><input type="checkbox" id="cpWaiver" onchange="cpToggleWaiver()"><span class="track"></span><span class="knob"></span></span><div><div class="an">I have read and agree</div><div class="ap">Counts as your signature</div></div></div></div>';
+  html+='<div class="pub-sec"><div class="sh">Pick your first class</div><div class="ck-hint" style="margin:-2px 0 10px">Only beginner classes show here. Times come straight from the class schedule.</div><div id="cpSlotList"></div></div>';
+  html+='<div class="pub-sec"><button class="paybtn" onclick="cpBookTrial()">Book my free trial</button><div class="ck-hint" style="margin-top:8px">You will get a confirmation and a reminder before class.</div></div>';
+  html+='</div></div>';
+  $("#view-checkoutpub").innerHTML=html;
+  cpRenderSlots();
+}
+function cpBookTrial(){
+  const name=($("#cp-tname").value||"").trim();
+  if(!name){ toast("Enter the student's name"); return; }
+  if(!$("#cpWaiver").checked){ toast("Please sign the waiver"); return; }
+  if(cp.slotIdx==null){ toast("Pick a class time"); return; }
+  const s=cpSlots[cp.slotIdx];
+  const prog=$("#cp-tprog").value||"";
+  const guard=($("#cp-tguard").value||"").trim();
+  const email=($("#cp-temail").value||"").trim();
+  const phone=($("#cp-tphone").value||"").trim();
+  const age=parseInt($("#cp-tage").value,10)||0;
+  const dstr=s.date.toLocaleDateString('en-US',{month:'short', day:'numeric', year:'numeric'});
+  const parts=name.split(" ");
+  const nm={id:"m"+Date.now(), first:parts[0]||name, last:parts.slice(1).join(" ")||"", segment:"Trial",
+    belt:"", rank:"", rankDate:"", since:"", entered:dstr, age:age, gender:"", guardians:guard?[[guard,"Guardian"]]:[], phones:phone?[["Mobile",phone]]:[], emails:email?[email]:[], address:"",
+    app:false, phase:"Free Trial", source:"Trial page", beltSize:"", kickSize:"", tags:["trial-booked"], attended:0, daysSince:null, testing:false, balance:0,
+    memberships:[{program:"Free Trial", plan:"1 week trial", status:"trial", nextDue:"—", overdue:0, contract:false, down:0, monthly:0, total:null, remaining:null, trial:true}],
+    invoices:[], notes:[[dstr,"Self-booked free trial"+(prog?" · interested in "+prog:"")+". First class "+s.label+" "+s.time+" ("+s.name+")."]]};
+  MEMBERS.push(nm);
+  CAL.push({id:"c"+Date.now(), type:"trial", title:"Trial · "+name, date:dstr, time:s.time, memberId:nm.id});
+  renderChips();
+  $("#cpBody").innerHTML='<div class="success"><div class="chk">✓</div><h2>You\'re booked!</h2><p>Your free trial is set for '+s.label+' at '+s.time+' ('+s.name+'). Check your email for a confirmation and a reminder before class.</p><div class="insys">✓ Added to roster as a trial · on the calendar</div></div>';
+  document.querySelector("main").scrollTop=0;
+}
+function cpTrialClasses(){
+  const days=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const rows=SCHEDULE.slice().sort((a,b)=>a.day-b.day).map(s=>
+    '<div class="tc-row"><div class="tc-info"><div class="tc-name">'+s.name+'</div><div class="tc-when">'+days[s.day]+' · '+s.time+'</div></div>'
+    +'<label class="sw"><input type="checkbox" '+(s.trial?"checked":"")+' onchange="cpToggleTrialClass(\''+s.id+'\',this.checked)"><span class="track"></span><span class="knob"></span></label></div>'
+  ).join("");
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Trial classes</h3><div class="sub">Schedule comes from Class Plan. Flag which classes a first-timer can book.</div></div><button class="close" onclick="closeSheet()">×</button></div>'
+    +'<div class="sheet-body">'+rows+'<button class="addopt" style="margin-top:6px" onclick="launchApp(\'classplan\')">Edit the schedule in Class Plan ↗</button></div>';
+  openSheet();
+}
+function cpToggleTrialClass(id,on){ const s=SCHEDULE.find(x=>x.id===id); if(s) s.trial=on; }
+function cpManageEvent(eid){
+  const e=EVENTS.find(x=>x.id===eid);
+  let html='<div class="pubbar"><button class="back" onclick="cpBack()">‹ Back to checkout pages</button><span class="tag">Event · participants</span></div>';
+  html+='<div class="pub"><div class="pub-card">';
+  html+='<div class="pub-hero"><h1>'+e.title+'</h1><p>'+money(e.price)+' · '+e.participants.length+' signed up</p></div>';
+  html+='<div class="pub-sec"><div class="sh">Participants</div>';
+  if(e.participants.length){
+    html+=e.participants.map(p=>'<div class="cart-line"><div class="cl-info"><div class="cl-label">'+cpMemberName(p.memberId)+'</div><div class="cl-sub">'+(p.paid?("Paid "+money(e.price)):"Unpaid")+'</div></div><button class="cl-del" onclick="cpRemoveParticipant(\''+e.id+'\',\''+p.memberId+'\')">×</button></div>').join("");
+  } else { html+='<div class="cart-empty">No participants yet.</div>'; }
+  html+='</div>';
+  html+='<div class="pub-sec"><button class="paybtn" style="background:var(--ink)" onclick="cpAddParticipant(\''+e.id+'\')">＋ Add participant & charge</button><div class="ck-hint" style="margin:10px 0 0">Same list POS writes to. Ring this event up at the desk and the buyer shows here too.</div></div>';
+  html+='</div></div>';
+  $("#view-checkoutpub").innerHTML=html;
+  document.querySelectorAll(".view").forEach(v=>v.classList.remove("on"));
+  $("#view-checkoutpub").classList.add("on");
+  setNavActive("checkout"); document.querySelector("main").scrollTop=0; closeNav();
+}
+function cpAddParticipant(eid){
+  const e=EVENTS.find(x=>x.id===eid);
+  const avail=MEMBERS.filter(m=>!e.participants.some(p=>p.memberId===m.id));
+  const body = avail.length ? avail.map(m=>'<button class="opt-btn" onclick="cpDoAddParticipant(\''+eid+'\',\''+m.id+'\')"><span class="oi">'+m.first.charAt(0)+'</span>'+m.first+' '+m.last+'</button>').join("") : '<div class="cart-empty">Everyone is already signed up.</div>';
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Add participant</h3><div class="sub">'+e.title+' · '+money(e.price)+' will be charged</div></div><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'</div>';
+  openSheet();
+}
+function cpDoAddParticipant(eid,mid){
+  const e=EVENTS.find(x=>x.id===eid);
+  if(!e.participants.some(p=>p.memberId===mid)) e.participants.push({memberId:mid, paid:true});
+  closeSheet(); toast(money(e.price)+" charged to "+cpMemberName(mid)); cpManageEvent(eid);
+}
+function cpRemoveParticipant(eid,mid){
+  const e=EVENTS.find(x=>x.id===eid);
+  e.participants=e.participants.filter(p=>p.memberId!==mid);
+  cpManageEvent(eid);
+}
+
+/* ========== POS (in CRM, reads shared PROGRAMS) ========== */
+let PRODUCTS = [
+  {id:"pr1", label:"Beginner uniform", amount:82.25},
+  {id:"pr2", label:"Testing fee", amount:60},
+  {id:"pr3", label:"Sparring gear package", amount:242.50}
+];
+let posSale = {memberId:null, lines:[]};
+function posBuyerName(){ if(!posSale.memberId) return "Walk-in / new buyer"; const m=MEMBERS.find(x=>x.id===posSale.memberId); return m? (m.first+" "+m.last) : "Walk-in / new buyer"; }
+function renderPOS(){
+  const s=posSale;
+  let html='<div class="bld"><div class="bld-hd"><h2>Point of sale</h2><p>Ring up a sale at the desk. Memberships read their options from your Memberships config.</p></div>';
+  html+='<div class="card pad pos-buyer"><div><div class="pb-lbl">Sold to</div><div class="pb-name">'+posBuyerName()+'</div></div><button class="pb-change" onclick="posPickBuyer()">Change</button></div>';
+  html+='<div class="pos-add"><button onclick="posAddMembership()">＋ Membership</button><button onclick="posAddProduct()">＋ Product</button><button onclick="posAddEvent()">＋ Event</button></div>';
+  html+='<div class="pos-packets">'+PACKETS.map(p=>'<button onclick="openPacket(\''+p.id+'\')"><span class="pk-ico">▤</span>'+p.label+(p.url?'':' · add')+'</button>').join("")+'</div>';
+  html+='<div class="card" style="margin-top:13px">';
+  if(s.lines.length){
+    s.lines.forEach((l,i)=>{
+      html+='<div class="cart-line"><div class="cl-info"><div class="cl-label">'+l.label+'</div>'+(l.sub?'<div class="cl-sub">'+l.sub+'</div>':'')+'</div>'
+        +'<div class="cl-amt num">'+money(l.amount)+'</div><button class="cl-del" onclick="posRemoveLine('+i+')">×</button></div>';
+    });
+  } else { html+='<div class="cart-empty">No items yet. Add a membership or product.</div>'; }
+  html+='</div>';
+  if(s.lines.length){
+    const sub=s.lines.reduce((a,l)=>a+l.amount,0);
+    html+='<div class="card pos-tot"><div class="sline2">Subtotal<span class="num">'+money(sub)+'</span></div></div>';
+    html+='<div class="tenders"><button class="tbtn" onclick="posTender(\'Cash\')">Cash</button><button class="tbtn" onclick="posTender(\'Card\')">Card +surcharge</button><button class="tbtn" onclick="posTender(\'Check\')">Check</button><button class="tbtn" onclick="posTender(\'Account\')">Charge to account</button></div>';
+  }
+  html+='<div class="proto-note">Prototype · sale resets after completion. Edit a program in Memberships and its plans update here too. Ring a membership for a member and it appears on their profile.</div></div>';
+  $("#view-pos").innerHTML=html;
+}
+function posPickBuyer(){
+  let body='<button class="opt-btn" onclick="posSetBuyer(null)"><span class="oi">＋</span>Walk-in / new buyer</button>';
+  body+=MEMBERS.map(m=>'<button class="opt-btn" onclick="posSetBuyer(\''+m.id+'\')"><span class="oi">'+m.first.charAt(0)+'</span>'+m.first+' '+m.last+'</button>').join("");
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Who is this sale for?</h3><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'</div>';
+  openSheet();
+}
+function posSetBuyer(id){ posSale.memberId=id; closeSheet(); renderPOS(); }
+function posAddMembership(){
+  const body=PROGRAMS.map(g=>'<button class="opt-btn" onclick="posPickPlan(\''+g.id+'\')"><span class="oi">◆</span><div style="flex:1"><div style="font-weight:700">'+g.name+'</div><div style="font-size:12.5px;color:var(--muted)">'+g.ages+'</div></div></button>').join("");
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Add membership</h3><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'</div>';
+  openSheet();
+}
+function posPickPlan(gid){
+  const g=PROGRAMS.find(x=>x.id===gid);
+  const body='<button class="addopt" onclick="openPacket(\'pricing\')">View pricing packet ↗</button>'+g.plans.map((pl,i)=>'<button class="opt-btn" onclick="posAddMemLine(\''+gid+'\','+i+')"><div style="flex:1"><div style="font-weight:700">'+pl.name+'</div><div style="font-size:12.5px;color:var(--muted)">'+planLine(pl)+'</div></div><div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(planToday(pl))+'</div></button>').join("");
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>'+g.name+'</h3><div class="sub">Due today shown · pick a plan</div></div><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'</div>';
+  openSheet();
+}
+function posAddMemLine(gid,idx){
+  const g=PROGRAMS.find(x=>x.id===gid), pl=g.plans[idx];
+  const rec = pl.monthly>0 ? (pl.months>0 ? ("then "+(pl.months-1)+" × "+money(pl.monthly)+"/mo") : ("then "+money(pl.monthly)+"/mo")) : "paid in full";
+  const planLbl = pl.name + (pl.monthly>0 ? (" · "+money(pl.monthly)+"/mo") : " · Paid in full");
+  posSale.lines.push({kind:"mem", label:g.name+" · "+pl.name, sub:rec, amount:planToday(pl), program:g.name, planLbl:planLbl, down:pl.down, monthly:pl.monthly, months:pl.months});
+  closeSheet(); renderPOS();
+}
+function posAddProduct(){
+  const body=PRODUCTS.map(p=>'<button class="opt-btn" onclick="posAddProdLine(\''+p.id+'\')"><div style="flex:1;font-weight:600">'+p.label+'</div><div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(p.amount)+'</div></button>').join("");
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Add product</h3><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'</div>';
+  openSheet();
+}
+function posAddProdLine(prid){ const p=PRODUCTS.find(x=>x.id===prid); posSale.lines.push({kind:"prod", label:p.label, amount:p.amount}); closeSheet(); renderPOS(); }
+function posAddEvent(){
+  const body=EVENTS.map(e=>'<button class="opt-btn" onclick="posAddEventLine(\''+e.id+'\')"><div style="flex:1"><div style="font-weight:700">'+e.title+'</div><div style="font-size:12.5px;color:var(--muted)">adds buyer to the participant list</div></div><div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(e.price)+'</div></button>').join("");
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Add event</h3><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'</div>';
+  openSheet();
+}
+function posAddEventLine(eid){ const e=EVENTS.find(x=>x.id===eid); posSale.lines.push({kind:"event", eventId:eid, label:e.title, amount:e.price}); closeSheet(); renderPOS(); }
+function posRemoveLine(i){ posSale.lines.splice(i,1); renderPOS(); }
+function posTender(method){
+  const sub=posSale.lines.reduce((a,l)=>a+l.amount,0);
+  const surcharge = method==="Card" ? (sub*0.0315+0.55) : 0;
+  const total=sub+surcharge;
+  const memLines=posSale.lines.filter(l=>l.kind==="mem");
+  const eventLines=posSale.lines.filter(l=>l.kind==="event");
+  const m = posSale.memberId ? MEMBERS.find(x=>x.id===posSale.memberId) : null;
+  let notes=[], badges=[];
+  if(memLines.length){
+    if(m){
+      memLines.forEach(l=>m.memberships.push({program:l.program, plan:l.planLbl, status:"active", nextDue:"next cycle", overdue:0, contract:true, down:l.down, monthly:l.monthly, total:l.months>0?l.months:null, remaining:l.months>0?(l.months-1):null}));
+      if(m.segment!=="Active") m.segment="Active";
+      notes.push(m.first+" "+m.last+" now carries "+(memLines.length>1?"these memberships":"this membership")+" on their profile.");
+      badges.push("Membership on profile");
+    } else { notes.push("New member created and added to your roster."); badges.push("Added to roster"); }
+  }
+  if(eventLines.length){
+    if(m){
+      eventLines.forEach(l=>{ const ev=EVENTS.find(x=>x.id===l.eventId); if(ev && !ev.participants.some(p=>p.memberId===m.id)) ev.participants.push({memberId:m.id, paid:true}); });
+      notes.push(m.first+" "+m.last+" added to "+(eventLines.length>1?"the event participant lists":eventLines[0].label+" participants")+".");
+      badges.push("On event list");
+    } else { notes.push("Event sign-up recorded."); }
+  }
+  const pm = method==="Account"?"charge to account":method.toLowerCase();
+  let h='<div class="bld"><div class="success"><div class="chk">✓</div><h2>Sale complete</h2>'
+    +'<p>'+money(total)+' paid by '+pm+(surcharge>0?(" (incl. "+money(surcharge)+" surcharge)"):"")+'.'+(notes.length?(" "+notes.join(" ")):"")+'</p>';
+  badges.forEach(b=>h+='<div class="insys" style="margin:6px 4px 0">✓ '+b+'</div>');
+  h+='<div style="margin-top:18px"><button class="newbtn" style="margin:0" onclick="posReset()">New sale</button></div></div></div>';
+  $("#view-pos").innerHTML=h;
+}
+function posReset(){ posSale={memberId:null, lines:[]}; renderPOS(); }
+
+/* ========== PDF packets (pricing list / enrollment packet) ========== */
+let PACKETS = [
+  {id:"pricing", label:"Pricing list", url:null, name:""},
+  {id:"enroll", label:"Enrollment packet", url:null, name:""}
+];
+let curPacket=null;
+function openPacket(id){
+  curPacket=id; closeSheet(); renderPDF();
+  document.querySelectorAll(".view").forEach(v=>v.classList.remove("on"));
+  $("#view-pdf").classList.add("on");
+  setNavActive("pos"); document.querySelector("main").scrollTop=0; closeNav();
+}
+function renderPDF(){
+  const p=PACKETS.find(x=>x.id===curPacket);
+  let html='<div class="pubbar"><button class="back" onclick="showSection(\'pos\')">‹ Back to POS</button><span class="tag">'+p.label+'</span></div>';
+  html+='<div class="pdf-wrap">';
+  if(p.url){
+    html+='<iframe class="pdf-frame" src="'+p.url+'"></iframe>';
+    html+='<div class="pdf-foot"><label class="pdf-up">Replace PDF<input type="file" accept="application/pdf" onchange="packetUpload(\''+p.id+'\',this)"></label><span class="pdf-name">'+(p.name||"")+'</span></div>';
+  } else {
+    html+='<div class="pdf-empty"><div class="pdf-ico">▤</div><div class="pdf-msg">No '+p.label.toLowerCase()+' loaded yet.</div><label class="pdf-up big">Upload PDF<input type="file" accept="application/pdf" onchange="packetUpload(\''+p.id+'\',this)"></label><div class="pdf-hint">Loads from this device for the session. Close to drop right back on the sale.</div></div>';
+  }
+  html+='</div>';
+  $("#view-pdf").innerHTML=html;
+}
+function packetUpload(id,input){
+  const f=input.files&&input.files[0]; if(!f) return;
+  const p=PACKETS.find(x=>x.id===id);
+  if(p.url){ try{URL.revokeObjectURL(p.url);}catch(e){} }
+  p.url=URL.createObjectURL(f); p.name=f.name;
+  renderPDF();
+}
+
+/* ========== calendar ========== */
+let CAL = [
+  {id:"c1", type:"trial", title:"Trial · Maya Wells", date:"Jun 17, 2026", time:"5:30 PM"},
+  {id:"c2", type:"private", title:"Private · John Cater", date:"Jun 19, 2026", time:"4:00 PM"},
+  {id:"c3", type:"blackout", title:"Closed · Staff training", date:"Jun 21, 2026", time:"All day"}
+];
+const CAL_TYPES = {
+  event:{label:"Events", color:"#C98A1A"},
+  testing:{label:"Testing", color:"#6D4FCF"},
+  trial:{label:"Trials", color:"#18A974"},
+  private:{label:"Private", color:"#2563EB"},
+  blackout:{label:"Blackout", color:"#5A6472"}
+};
+let calMonth=new Date(); calMonth.setDate(1); calMonth.setHours(0,0,0,0);
+let calSel=null, calSchedType="trial";
+let calFilters={event:true, testing:true, trial:true, private:true, blackout:true};
+function calAllItems(){
+  let items=[];
+  EVENTS.forEach(e=>{ if(e.date) items.push({type:"event", title:e.title, time:"", date:new Date(e.date), srcId:e.id}); });
+  TESTING.forEach(t=>{ if(t.date) items.push({type:"testing", title:t.title, time:"", date:new Date(t.date), srcId:t.id}); });
+  CAL.forEach(c=>{ items.push({type:c.type, title:c.title, time:c.time||"", date:new Date(c.date), srcId:c.id, memberId:c.memberId}); });
+  return items.filter(i=>!isNaN(i.date));
+}
+function sameDay(a,b){ return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
+function calItemsOn(d){ return calAllItems().filter(i=>calFilters[i.type] && sameDay(i.date,d)).sort((a,b)=>(a.time||"").localeCompare(b.time||"")); }
+function renderCalendar(){
+  const monthName=calMonth.toLocaleDateString('en-US',{month:'long', year:'numeric'});
+  let html='<div class="cal-bar"><h2>'+monthName+'</h2><button class="cal-nav" onclick="calStep(-1)">‹</button><button class="cal-nav" onclick="calStep(1)">›</button></div>';
+  html+='<div class="cal-legend">'+Object.keys(CAL_TYPES).map(k=>'<button class="cal-leg'+(calFilters[k]?'':' off')+'" onclick="calToggle(\''+k+'\')"><span class="dot" style="background:'+CAL_TYPES[k].color+'"></span>'+CAL_TYPES[k].label+'</button>').join("")+'</div>';
+  html+='<div class="cal-grid"><div class="cal-dow"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div><div class="cal-weeks">';
+  const startDow=calMonth.getDay();
+  const daysIn=new Date(calMonth.getFullYear(), calMonth.getMonth()+1, 0).getDate();
+  const today=new Date(); today.setHours(0,0,0,0);
+  for(let i=0;i<startDow;i++) html+='<div class="cal-day blank"></div>';
+  for(let d=1; d<=daysIn; d++){
+    const cur=new Date(calMonth.getFullYear(), calMonth.getMonth(), d);
+    const items=calItemsOn(cur);
+    const dots=items.slice(0,4).map(i=>'<span class="dot" style="background:'+CAL_TYPES[i.type].color+'"></span>').join("");
+    const cls='cal-day'+(sameDay(cur,today)?' today':'')+(calSel&&sameDay(cur,calSel)?' sel':'');
+    html+='<div class="'+cls+'" onclick="calPick('+d+')"><span class="dnum">'+d+'</span><div class="cal-dots">'+dots+'</div></div>';
+  }
+  html+='</div></div>';
+  html+='<div class="cal-acts"><button class="sched" onclick="calSchedule()">＋ Schedule</button><button class="gsync" onclick="calSync()">Sync Google Calendar</button></div>';
+  const sel=calSel||today;
+  const selItems=calItemsOn(sel);
+  html+='<div class="cal-agenda"><div class="ag-day">'+sel.toLocaleDateString('en-US',{weekday:'long', month:'long', day:'numeric'})+'</div>';
+  if(selItems.length){
+    html+=selItems.map(i=>{
+      const c=CAL_TYPES[i.type];
+      const meta=(i.time?i.time+' · ':'')+c.label;
+      const click=i.memberId?(' onclick="openProfile(\''+i.memberId+'\')"'):'';
+      return '<button class="ag-item"'+click+'><span class="ag-bar" style="background:'+c.color+'"></span><div class="ag-info"><div class="ag-title">'+i.title+'</div><div class="ag-meta">'+meta+'</div></div><span class="ag-type" style="background:'+c.color+'22;color:'+c.color+'">'+c.label+'</span></button>';
+    }).join("");
+  } else { html+='<div class="ag-empty">Nothing scheduled. Tap Schedule to add a trial, private lesson, or blackout.</div>'; }
+  html+='</div><div class="proto-note">Events and testing dates populate automatically. Scheduling a trial adds the student to your roster as a trial member.</div>';
+  $("#view-calendar").innerHTML=html;
+}
+function calStep(n){ calMonth.setMonth(calMonth.getMonth()+n); calSel=null; renderCalendar(); }
+function calToggle(k){ calFilters[k]=!calFilters[k]; renderCalendar(); }
+function calPick(d){ calSel=new Date(calMonth.getFullYear(), calMonth.getMonth(), d); renderCalendar(); }
+function calSync(){ toast("Two-way Google Calendar sync · planned integration"); }
+function calSchedule(){ calSchedType="trial"; calSchedSheet(); openSheet(); }
+function calSchedSheet(){
+  const t=calSchedType;
+  const dflt=(calSel||new Date());
+  const dstr=dflt.toLocaleDateString('en-US',{month:'short', day:'numeric', year:'numeric'});
+  let body='<div class="seg-pick">'
+    +'<button class="'+(t==="trial"?"on":"")+'" onclick="calSetType(\'trial\')">Trial</button>'
+    +'<button class="'+(t==="private"?"on":"")+'" onclick="calSetType(\'private\')">Private lesson</button>'
+    +'<button class="'+(t==="blackout"?"on":"")+'" onclick="calSetType(\'blackout\')">Blackout</button></div>';
+  const nameLabel=t==="trial"?"Student name":t==="private"?"Who (student or member)":"Reason";
+  const ph=t==="trial"?"New student":t==="private"?"e.g. John Cater":"e.g. Holiday closed";
+  body+='<div class="medit"><label>'+nameLabel+'</label><input id="cs-name" placeholder="'+ph+'"></div>';
+  body+='<div class="frow2"><div class="medit"><label>Date</label><input id="cs-date" value="'+dstr+'"></div>'
+    +'<div class="medit"><label>Time</label><input id="cs-time" value="'+(t==="blackout"?"All day":"5:30 PM")+'"></div></div>';
+  if(t==="trial") body+='<div class="ck-hint">Adds the student to your roster as a trial member so they get current-member emails. Convert or remove them from their profile after the trial.</div>';
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Schedule</h3><div class="sub">Trial, private lesson, or blackout day</div></div><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'<button class="savebtn" onclick="calSaveSched()">Add to calendar</button></div>';
+}
+function calSetType(t){
+  const n=$("#cs-name")?$("#cs-name").value:"";
+  const dt=$("#cs-date")?$("#cs-date").value:"";
+  const tm=$("#cs-time")?$("#cs-time").value:"";
+  calSchedType=t; calSchedSheet();
+  if($("#cs-name"))$("#cs-name").value=n;
+  if(dt&&$("#cs-date"))$("#cs-date").value=dt;
+  if(t!=="blackout"&&tm&&$("#cs-time"))$("#cs-time").value=tm;
+}
+function calSaveSched(){
+  const t=calSchedType;
+  const name=($("#cs-name").value||"").trim();
+  const date=($("#cs-date").value||"").trim();
+  const time=($("#cs-time").value||"").trim();
+  if(!name){ toast(t==="blackout"?"Add a reason":"Add a name"); return; }
+  if(!date || isNaN(new Date(date))){ toast("Enter a valid date like Jun 28, 2026"); return; }
+  let title, memberId=null;
+  if(t==="trial"){
+    const parts=name.split(" ");
+    const nm={id:"m"+Date.now(), first:parts[0]||name, last:parts.slice(1).join(" ")||"", segment:"Trial",
+      belt:"", rank:"", rankDate:"", since:"", entered:date, age:0, gender:"", guardians:[], phones:[], emails:[], address:"",
+      app:false, phase:"Free Trial", source:"Trial booking", beltSize:"", kickSize:"", tags:["trial-booked"], attended:0, daysSince:null, testing:false, balance:0,
+      memberships:[{program:"Free Trial", plan:"1 week trial", status:"trial", nextDue:"—", overdue:0, contract:false, down:0, monthly:0, total:null, remaining:null, trial:true}],
+      invoices:[], notes:[[date,"Trial booked."]]};
+    MEMBERS.push(nm); memberId=nm.id; title="Trial · "+name;
+  } else if(t==="private"){ title="Private · "+name; }
+  else { title="Closed · "+name; }
+  CAL.push({id:"c"+Date.now(), type:t, title, date, time, memberId});
+  calSel=new Date(date); calMonth=new Date(calSel.getFullYear(), calSel.getMonth(), 1);
+  closeSheet(); renderCalendar(); renderChips();
+  toast(t==="trial"?(name+" booked and added to roster"):"Added to calendar");
+}
+
+/* ========== RENDER: profile ========== */
+function openProfile(id){
+  selectedId = id;
+  currentMember = MEMBERS.find(m=>m.id===id);
+  renderProfile();
+  renderList();
+  document.querySelectorAll(".view").forEach(v=>v.classList.remove("on"));
+  $("#view-profile").classList.add("on");
+  setNavActive("members");   // profile is a sub-view of Members
+  document.querySelector("main").scrollTop = 0;
+  closeNav();
+}
+function backToList(){ showSection("members"); }
+function renderProfile(){
+  const m = currentMember;
+  const beltC = BELT[m.belt] || "#C7CCD2";
+  const segClass = m.segment==="Active"?"active":m.segment==="Lead"?"lead":m.segment==="Trial"?"trial":"former";
+  const segBg = m.segment==="Active"?"#E4F5EE":m.segment==="Lead"?"#FBF1DC":m.segment==="Trial"?"#E7F1FB":"#EDEFF2";
+  const segCol = m.segment==="Active"?"#18A974":m.segment==="Lead"?"#C98A1A":m.segment==="Trial"?"#2563EB":"#9AA1AC";
+  const ring = m.belt ? '<span class="belt-ring" style="border-color:'+beltC+'"></span>' : '';
+  const metaLines = [];
+  if(m.belt) metaLines.push(m.rank + (m.rankDate?" · "+m.rankDate:""));
+  if(m.since) metaLines.push("Member since "+m.since);
+  else if(m.entered) metaLines.push("Lead since "+m.entered);
+  if(m.age) metaLines.push("Age "+m.age);
+
+  let html = '<div class="pbar"><button class="back" onclick="backToList()">‹ Members</button></div>';
+  html += '<div class="phead">'
+    + '<div class="pav" style="background:'+beltC+'">'+ring+'<span style="color:'+(m.belt==="White"||m.belt==="Yellow"?"#15171C":"#fff")+'">'+initials(m)+'</span></div>'
+    + '<div class="phead-body">'
+    + '<div class="pname">'+m.first+' '+m.last+'</div>'
+    + '<div class="pmeta">'+metaLines.join("<br>")+'</div>'
+    + '<span class="pseg" style="background:'+segBg+';color:'+segCol+'">'+m.segment+(m.phase?" · "+m.phase:"")+'</span>'
+    + '</div></div>';
+
+  // quick actions
+  html += '<div class="qactions">'
+    + '<button class="qa primary" onclick="toast(\'Opens POS with '+m.first+' attached\')">＄ Ring up</button>'
+    + '<button class="qa" onclick="toast(\'Opens enrollment for '+m.first+'\')">＋ Membership</button>'
+    + '<button class="qa" onclick="toast(\'Opens message to '+m.first+'\')">✉ Message</button>'
+    + '<button class="qa" onclick="toast(\'Edit details for '+m.first+'\')">✎ Edit</button>'
+    + '</div>';
+
+  // two-column body wrapper on PC, single column on mobile
+  html += '<div class="psections">';
+
+  // contact (first — often the first thing you reach for)
+  html += '<div class="sec"><div class="sec-h">Contact</div><div class="card pad">';
+  if(m.guardians.length) html += kv("Guardians", m.guardians.map(g=>g[0]+" ("+g[1]+")").join("<br>"));
+  m.phones.forEach(p=> html += kv(p[0], p[1]));
+  if(m.emails.length) html += kv("Email", m.emails.join("<br>"));
+  if(m.address) html += kv("Address", m.address);
+  html += '</div></div>';
+
+  // training & gear (martial-arts-native)
+  html += '<div class="sec"><div class="sec-h">Training &amp; gear</div><div class="card pad">';
+  if(m.belt) html += '<div class="kv"><span class="k">Belt</span><span class="v"><span class="belt-bar" style="background:'+beltC+'"></span>'+m.rank+'</span></div>';
+  if(m.beltSize) html += kv("Belt size", m.beltSize);
+  if(m.kickSize) html += kv("Kick size", m.kickSize);
+  html += kv("Attendance", m.attended+" classes"+(m.daysSince!=null?" · last "+m.daysSince+"d ago":""));
+  html += kv("Student app", m.app?"Yes":"No");
+  if(m.source) html += kv("Source", m.source);
+  html += '</div></div>';
+
+  // notes
+  html += '<div class="sec"><div class="sec-h">Notes <span style="color:var(--accent);cursor:pointer" onclick="toast(\'Add a note\')">＋ Add</span></div><div class="card">';
+  if(m.notes.length){
+    m.notes.forEach(n=> html += '<div class="note"><div class="nt">'+n[1]+'</div><div class="nd">'+n[0]+'</div></div>');
+  } else { html += '<div class="note-empty">No notes yet.</div>'; }
+  html += '</div></div>';
+
+  // account
+  html += '<div class="sec"><div class="sec-h">Account</div><div class="card">';
+  html += '<div class="bal"><span class="bl">Balance owed</span><span class="bv num">'+money(m.balance)+'</span></div>';
+  if(m.invoices.length){
+    m.invoices.slice(0,3).forEach(iv=>{
+      const stc = iv[3]==="paid"?"paid":"over";
+      html += '<div class="inv"><div class="id">'+iv[1]+'<small>'+iv[0]+'</small></div>'
+        + '<div class="ia">'+money(iv[2])+'<div class="st '+stc+'">'+(iv[3]==="paid"?"Paid":"Overdue")+'</div></div></div>';
+    });
+    html += '<div class="linkrow" onclick="toast(\'Opens full invoice history\')">View all invoices →</div>';
+  } else {
+    html += '<div class="inv"><div class="id" style="color:var(--muted)">No invoices yet</div></div>';
+  }
+  html += '</div></div>';
+
+  // access & role (authorization)
+  const _role = m.role || "Student";
+  html += '<div class="sec"><div class="sec-h">Access &amp; role</div><div class="card pad role-row"><div><span class="role-badge '+_role.toLowerCase()+'">'+_role+'</span><div class="role-desc">'+roleDesc(_role)+'</div></div><button class="pb-change" onclick="openRole()">Set access</button></div></div>';
+
+  // memberships (near the bottom now, still a child-table block)
+  html += '<div class="sec"><div class="sec-h">Memberships</div>';
+  if(m.memberships.length){
+    html += '<div class="card">';
+    m.memberships.forEach((ms,i)=>{
+      const st = ms.status;
+      const pay = ms.status==="cancelled" ? '<span class="due">No active billing</span>'
+        : (ms.overdue>0
+            ? '<span class="due">Next due '+ms.nextDue+'</span><span class="od">Overdue '+money(ms.overdue)+'</span>'
+            : '<span class="due">Next due '+ms.nextDue+'</span>');
+      const sched = ms.status==="cancelled" ? ''
+        : (ms.total!=null && ms.remaining!=null) ? '<span class="due">'+ms.remaining+' of '+ms.total+' payments left</span>'
+        : (ms.monthly && ms.total==null) ? '<span class="due">Ongoing · '+money(ms.monthly)+'/mo</span>' : '';
+      html += '<div class="mem"><div class="mem-top"><div>'
+        + '<div class="mem-name">'+ms.program+'</div><div class="mem-plan">'+ms.plan+'</div></div>'
+        + '<span class="mstatus '+st+'">'+st.charAt(0).toUpperCase()+st.slice(1)+'</span></div>'
+        + '<div class="mem-pay">'+pay+sched+'</div>'
+        + '<div class="mem-foot">'
+        + (ms.contract?'<button class="vc" onclick="toast(\'Opens signed agreement\')">View contract</button>':'<span></span>')
+        + '<button class="act" onclick="memActions('+i+')">Actions ▾</button></div></div>';
+    });
+    html += '</div>';
+  } else {
+    html += '<div class="card pad" style="color:var(--muted);font-size:14px">No membership yet.</div>';
+  }
+  html += '<button class="add-mem" onclick="toast(\'Opens enrollment for '+m.first+'\')">＋ Sell / add membership</button></div>';
+
+  // stub accordions (fed by other apps)
+  html += '<div class="sec"><div class="sec-h">More</div>';
+  html += acc("Rank &amp; testing history", "Pulled from the testing app. Full belt progression and test results live there and surface here.");
+  html += acc("Attendance log", "Pulled from the class plan app. Class-by-class check-ins surface here.");
+  html += acc("Timeline", "Every touch across the system in one feed: payments, classes, messages, rank changes.");
+  html += '</div></div><div class="spacer"></div>';
+
+  $("#view-profile").innerHTML = html;
+}
+function kv(k,v){ return '<div class="kv"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>'; }
+function acc(title, body){ return '<details class="acc"><summary>'+title+'<span class="chev">⌄</span></summary><div class="ab">'+body+'</div></details>'; }
+
+/* ========== membership actions sheet ========== */
+function roleDesc(role){
+  return (role==="Owner"||role==="Admin") ? "Full access: front office (this CRM) and the floor apps."
+   : role==="Instructor" ? "Floor apps only (Testing, Curriculum, Class Plan, Leadership). No office or money screens."
+   : role==="Leader" ? "On the leadership team. Student app access plus leadership tools."
+   : "Student and parent app access. No staff tools.";
+}
+function openRole(){
+  const cur=currentMember.role||"Student";
+  const roles=[["Student","Student & parent app only"],["Leader","Leadership team member"],["Instructor","Floor apps · no office or money"],["Admin","Full office + floor access"]];
+  const body=roles.map(r=>'<button class="opt-btn'+(cur===r[0]?' on':'')+'" onclick="setRole(\''+r[0]+'\')"><span class="oi">'+r[0].charAt(0)+'</span><div style="flex:1"><div style="font-weight:700">'+r[0]+'</div><div style="font-size:12.5px;color:var(--muted)">'+r[1]+'</div></div>'+(cur===r[0]?'<span style="color:var(--go);font-weight:700">✓</span>':'')+'</button>').join("");
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Access &amp; role</h3><div class="sub">Sets what '+currentMember.first+' can open. This is the permission line into the floor apps.</div></div><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'<div class="proto-note" style="margin-top:6px">Leadership is a program they enroll in. Leader and Instructor here are access roles, separate from what they pay for.</div></div>';
+  openSheet();
+}
+function setRole(r){ currentMember.role=r; closeSheet(); renderProfile(); toast("Access set to "+r); }
+function memActions(i){
+  const ms = currentMember.memberships[i];
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head"><div><h3>'+ms.program+'</h3><div class="sub">'+ms.plan+'</div></div>'
+    + '<button class="close" onclick="closeSheet()">×</button></div>'
+    + '<div class="sheet-body">'
+    + '<button class="opt-btn" onclick="openMemEdit('+i+')"><span class="oi">✎</span>Edit plan &amp; payments</button>'
+    + '<button class="opt-btn" onclick="closeSheet();toast(\'Opens signed agreement\')"><span class="oi">▤</span>View digital contract</button>'
+    + (ms.status==="active"
+        ? '<button class="opt-btn" onclick="setMemStatus('+i+',\'paused\')"><span class="oi">❙❙</span>Pause membership</button>'
+        : ms.status==="paused"
+          ? '<button class="opt-btn" onclick="setMemStatus('+i+',\'active\')"><span class="oi">▶</span>Resume membership</button>' : '')
+    + (ms.status!=="cancelled" ? '<button class="opt-btn danger" onclick="setMemStatus('+i+',\'cancelled\')"><span class="oi">✕</span>Cancel membership</button>' : '')
+    + '</div>';
+  openSheet();
+}
+function setMemStatus(i, status){
+  currentMember.memberships[i].status = status;
+  if(status==="cancelled" || status==="paused") currentMember.memberships[i].overdue = currentMember.memberships[i].overdue; // keep balance
+  closeSheet();
+  renderProfile();
+  renderChips();
+  toast("Membership "+status);
+}
+function openMemEdit(i){
+  const ms = currentMember.memberships[i];
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head"><div><h3>Edit membership</h3><div class="sub">'+ms.program+'</div></div>'
+    + '<button class="close" onclick="closeSheet()">×</button></div>'
+    + '<div class="sheet-body">'
+    + '<div class="medit"><label>Plan</label><input id="me-plan" value="'+ms.plan+'"></div>'
+    + '<div class="frow2"><div class="medit"><label>Down payment</label><input id="me-down" inputmode="decimal" value="'+(ms.down!=null?ms.down:0)+'"></div>'
+    + '<div class="medit"><label>Monthly</label><input id="me-monthly" inputmode="decimal" value="'+(ms.monthly!=null?ms.monthly:0)+'"></div></div>'
+    + '<div class="frow2"><div class="medit"><label>Total payments</label><input id="me-total" inputmode="numeric" placeholder="ongoing" value="'+(ms.total!=null?ms.total:"")+'"></div>'
+    + '<div class="medit"><label>Payments remaining</label><input id="me-rem" inputmode="numeric" placeholder="ongoing" value="'+(ms.remaining!=null?ms.remaining:"")+'"></div></div>'
+    + '<button class="savebtn" onclick="saveMemEdit('+i+')">Save changes</button>'
+    + '</div>';
+  openSheet();
+}
+function saveMemEdit(i){
+  const ms = currentMember.memberships[i];
+  ms.plan = ($("#me-plan").value||"").trim() || ms.plan;
+  ms.down = parseFloat($("#me-down").value)||0;
+  ms.monthly = parseFloat($("#me-monthly").value)||0;
+  const tot = $("#me-total").value.trim(), rem = $("#me-rem").value.trim();
+  ms.total = tot==="" ? null : parseInt(tot,10);
+  ms.remaining = rem==="" ? null : parseInt(rem,10);
+  closeSheet();
+  renderProfile();
+  toast("Membership updated");
+}
+
+/* ========== sheet + toast plumbing ========== */
+function openSheet(){ $("#scrim").classList.add("on"); document.body.style.overflow="hidden"; }
+function closeSheet(){ $("#scrim").classList.remove("on"); document.body.style.overflow=""; }
+let toastTimer;
+function toast(msg){
+  const el=$("#toast"); el.textContent=msg; el.classList.add("on");
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove("on"),1800);
+}
+document.addEventListener("keydown",e=>{ if(e.key==="Escape"){ closeSheet(); closeNav(); } });
+
+/* ========== init ========== */
+renderChips();
+renderList();
+renderDashboard();
+</script>
+</body>
+</html>
