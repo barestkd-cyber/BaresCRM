@@ -161,6 +161,7 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .scrim.on{display:flex}
 .sheet{background:var(--surface);width:100%;max-width:480px;border-radius:20px 20px 0 0;max-height:92vh;overflow-y:auto;animation:slideup .25s cubic-bezier(.2,.7,.3,1)}
 @keyframes slideup{from{transform:translateY(100%)}to{transform:none}}
+@keyframes popin{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
 .sheet .grab{width:40px;height:4px;border-radius:2px;background:#CDD3DA;margin:10px auto 4px}
 .sheet-head{padding:6px 18px 0;display:flex;justify-content:space-between;align-items:flex-start}
 .sheet-head h3{font-family:'Space Grotesk',sans-serif;margin:0;font-size:20px}
@@ -335,6 +336,11 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 @media (min-width:900px){
   body{background:#DCE1E7}
   #app{max-width:none;height:100vh;display:flex;flex-direction:column;overflow:hidden;--cols:minmax(210px,1.7fr) 1.1fr 1.4fr 122px 150px 128px}
+  .scrim{align-items:center}
+  .sheet{max-width:440px;border-radius:18px;animation:popin .2s cubic-bezier(.2,.7,.3,1)}
+  .sheet.sheet-lg{max-width:780px}
+  .sheet-lg .spk-grid{grid-template-columns:260px 1fr;align-items:start}
+  .sheet .grab{display:none}
   .hamburger{display:none}
   .nav-backdrop{display:none!important}
   .shell{flex:1;overflow:hidden}
@@ -453,15 +459,25 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .tbtn{background:var(--go);color:#fff;font-weight:700;font-size:15px;padding:15px;border-radius:var(--radius)}
 .tbtn:active{transform:scale(.99)}
 .pos-grid{display:flex;flex-direction:column;gap:14px}
-@media(min-width:900px){.pos-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}}
+@media(min-width:900px){.pos-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:24px;align-items:start}}
 .pos-results{display:flex;flex-direction:column;gap:7px;margin-top:8px}
 .pos-sec-lbl{font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin:16px 2px 7px}
-.pos-prods{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
-.pos-prods button{background:var(--card);border:1.5px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 13px;text-align:left;color:var(--text);font-weight:600;font-size:13.5px;cursor:pointer}
-.pos-prods button:hover{border-color:var(--ink)}
-.pos-prods .pp-amt{display:block;margin-top:4px;font-family:'Space Grotesk',sans-serif;font-weight:700;color:var(--muted);font-size:12.5px}
+.pos-search-wrap{position:relative;margin-bottom:2px}
+.pos-search-wrap .search-ico{left:16px;font-size:19px}
+.pos-search{font-size:16px;padding:15px 16px 15px 44px}
+.pos-prods{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:11px}
+.pos-prods button{background:var(--card);border:1.5px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px 14px;min-height:86px;text-align:center;color:var(--text);font-weight:700;font-size:15px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;transition:border-color .15s,box-shadow .15s}
+.pos-prods button:hover{border-color:var(--ink);box-shadow:0 4px 14px rgba(0,0,0,.08)}
+.pos-prods .pp-amt{display:block;font-family:'Space Grotesk',sans-serif;font-weight:700;color:var(--muted);font-size:14px}
 .inv{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.pos-inv{display:block;padding:0;border-top:1px solid var(--line)}
 .inv-hd{display:flex;justify-content:space-between;gap:10px;padding:13px 15px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--muted);line-height:1.5}
+.inv-hd-pc{flex-direction:column;align-items:stretch;gap:13px;padding:18px}
+.inv-hd-pc .im-row{display:flex;align-items:center;gap:14px}
+.inv-hd-pc .im-row>span:first-child{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);flex:0 0 92px}
+.inv-hd-pc .im-field{flex:1;width:100%;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:11px 12px;font-size:14.5px;color:var(--text);font-family:inherit;outline:none}
+.inv-hd-pc .im-field:focus{border-color:var(--ink)}
+.inv-hd-pc .im-buyer{flex:1;display:flex;align-items:center;gap:8px;font-size:14.5px;color:var(--text);font-weight:600}
 .inv-tbl{width:100%;border-collapse:collapse}
 .inv-tbl th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:9px 15px;border-bottom:1px solid var(--line)}
 .inv-tbl th.r,.inv-tbl td.r{text-align:right;font-variant-numeric:tabular-nums}
@@ -482,6 +498,48 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .ed-lbl{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:12px 0 5px}
 .ed-in{width:100%;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:11px 12px;font-size:15px;outline:none;color:var(--text)}
 .ed-rm{width:100%;margin-top:10px;background:none;border:1.5px solid var(--accent);color:var(--accent);font-weight:700;font-size:13px;padding:11px;border-radius:var(--radius);cursor:pointer}
+.ed-tax{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;padding:12px 14px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--surface)}
+.ed-tax-lbl{font-weight:600;font-size:14px;color:var(--text)}
+.ed-tax-sub{font-size:12px;color:var(--muted);margin-top:2px}
+/* SPARK-style line modal */
+.spk-head{background:var(--ink);color:#fff;padding:13px 18px;margin:0;border-radius:18px 18px 0 0}
+.spk-head h3{color:#fff}
+.spk-head .close{color:#C7CCD2}
+.spk-body{padding:18px}
+.spk-grid{display:grid;grid-template-columns:1fr;gap:18px}
+.spk-card{background:#EAF3FB;border:1px solid #D5E6F5;border-radius:12px;padding:16px;align-self:start}
+.spk-card-ttl{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;color:var(--ink)}
+.spk-card-desc{font-size:13px;color:var(--muted);margin-top:2px}
+.spk-card-row{font-size:14px;color:var(--text);margin-top:10px}
+.spk-card-row b{color:var(--ink)}
+.spk-form{display:flex;flex-direction:column}
+.spk-label{font-size:13px;font-weight:700;color:var(--text);margin:14px 0 5px}
+.spk-form>.spk-label:first-child{margin-top:0}
+.spk-select{appearance:auto}
+.spk-price{display:flex;align-items:stretch}
+.spk-price .spk-dollar{display:flex;align-items:center;justify-content:center;width:40px;background:#EEF1F4;border:1.5px solid var(--line);border-right:none;border-radius:var(--radius-sm) 0 0 var(--radius-sm);color:var(--muted);font-weight:700}
+.spk-price .ed-in{border-radius:0 var(--radius-sm) var(--radius-sm) 0}
+.spk-qty-row{display:flex;align-items:center;gap:12px;margin-top:14px}
+.spk-qty{width:90px}
+.spk-tog{display:flex;align-items:center;gap:11px;margin-top:14px;cursor:pointer}
+.spk-tog-lbl{font-weight:700;font-size:14px;color:var(--text)}
+.spk-disc-hd{margin-top:18px;font-size:14px;color:var(--text)}
+.spk-disc-sub{color:var(--muted);font-weight:400}
+.spk-disc-row{display:flex;gap:10px;margin-top:8px;align-items:stretch}
+.spk-seg{display:flex;flex:0 0 auto;border:1.5px solid var(--line);border-radius:var(--radius-sm);overflow:hidden}
+.spk-seg-b{background:var(--surface);border:none;padding:0 14px;font-weight:700;font-size:13px;color:var(--muted);cursor:pointer}
+.spk-seg-b.active{background:var(--ink);color:#fff}
+.spk-disc-in{display:flex;flex:1;align-items:stretch}
+.spk-disc-in .ed-in{border-radius:var(--radius-sm) 0 0 var(--radius-sm);border-right:none}
+.spk-disc-in .spk-suf{display:flex;align-items:center;justify-content:center;width:40px;background:#EEF1F4;border:1.5px solid var(--line);border-left:none;border-radius:0 var(--radius-sm) var(--radius-sm) 0;color:var(--muted);font-weight:700}
+.spk-note{min-height:64px;resize:vertical;font-family:inherit}
+.spk-foot{display:flex;gap:10px;align-items:center;padding:14px 18px;border-top:1px solid var(--line);background:var(--surface);position:sticky;bottom:0;border-radius:0 0 18px 18px}
+.spk-foot .spk-add{margin-left:auto;background:#2563EB;color:#fff;border:none;font-weight:700;font-size:15.5px;padding:12px 30px;border-radius:var(--radius);cursor:pointer;box-shadow:0 4px 14px rgba(37,99,235,.4);transition:transform .12s,box-shadow .12s}
+.spk-foot .spk-add:hover{box-shadow:0 6px 18px rgba(37,99,235,.5);transform:translateY(-1px)}
+.spk-foot .spk-cancel{background:#EEF1F4;color:var(--ink);border:1.5px solid var(--line);font-weight:700;font-size:14.5px;padding:11px 22px;border-radius:var(--radius);cursor:pointer}
+.spk-foot .spk-cancel:hover{background:#E2E6EB}
+.spk-foot .spk-rm{background:none;border:1.5px solid var(--accent);color:var(--accent);font-weight:700;font-size:13px;padding:10px 16px;border-radius:var(--radius);cursor:pointer}
+.spk-foot .spk-rm:hover{background:var(--accent);color:#fff}
 </style>
 </head>
 <body>
@@ -1261,26 +1319,40 @@ let PRODUCTS = [
   {id:"pr2", label:"Testing fee", amount:60},
   {id:"pr3", label:"Sparring gear package", amount:242.50}
 ];
-function posBlank(){ return {memberId:null, lines:[], discount:0, adminFee:0, taxRate:0.0825, notes:'', staff:'Staff'}; }
+function posBlank(){ return {memberId:null, lines:[], discount:0, adminFee:0, taxRate:0.0825, notes:'', date:new Date().toISOString().slice(0,10), staff:'Bares, Race'}; }
 let posSale = posBlank();
+function posStaffList(){
+  const list=['Bares, Race'];
+  MEMBERS.forEach(m=>{ if(m.role==='Instructor'||m.role==='Admin'){ const n=m.last+', '+m.first; if(!list.includes(n)) list.push(n); } });
+  return list;
+}
 function posBuyerName(){ if(!posSale.memberId) return "Walk-in / new buyer"; const m=MEMBERS.find(x=>x.id===posSale.memberId); return m? (m.first+" "+m.last) : "Walk-in / new buyer"; }
 function renderPOS(){
   const s=posSale, t=posTotals();
-  const today=new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
   let html='<div class="bld"><div class="bld-hd"><h2>Point of sale</h2><p>Search a buyer or item on the left, build the invoice on the right.</p></div>';
   html+='<div class="pos-grid">';
   html+='<div>';
-  html+='<div style="position:relative"><span class="search-ico">⌕</span><input class="search" placeholder="Search a buyer or item..." oninput="posSearch(this.value)"></div>';
+  html+='<div class="pos-search-wrap"><span class="search-ico">⌕</span><input class="search pos-search" placeholder="Search contacts, products or \'*\' for top 40..." oninput="posSearch(this.value)"></div>';
   html+='<div id="posResults" class="pos-results"></div>';
   html+='<div class="inv-add" style="margin-top:10px"><button onclick="posAddMembership()">＋ Membership</button><button onclick="posAddEvent()">＋ Event</button></div>';
-  html+='<div class="pos-sec-lbl">Products</div><div class="pos-prods">'+PRODUCTS.map(p=>'<button onclick="posAddProdLine(\''+p.id+'\')">'+p.label+'<span class="pp-amt">'+money(p.amount)+'</span></button>').join("")+'</div>';
+  html+='<div class="pos-sec-lbl">Quick List Products</div><div class="pos-prods">'+PRODUCTS.map(p=>'<button onclick="posAddProdLine(\''+p.id+'\')">'+p.label+'<span class="pp-amt">'+money(p.amount)+'</span></button>').join("")+'</div>';
   html+='<div class="pos-sec-lbl">Reference</div><div class="inv-add">'+PACKETS.map(p=>'<button onclick="openPacket(\''+p.id+'\')">▤ '+p.label+(p.url?'':' · add')+'</button>').join("")+'</div>';
   html+='</div>';
-  html+='<div><div class="inv">';
-  html+='<div class="inv-hd"><div>Invoice · '+today+'<br>Sold to: <b style="color:var(--text)">'+posBuyerName()+'</b> <button class="pb-change" style="font-size:11px;padding:1px 7px" onclick="posPickBuyer()">change</button></div><div style="text-align:right">Prepared by<br><b style="color:var(--text)">'+(s.staff||"Staff")+'</b></div></div>';
+  html+='<div><div class="inv pos-inv">';
+  html+='<div class="inv-hd inv-hd-pc">';
+  html+='<div class="im-row"><span>Sold to</span><span class="im-buyer">'+posBuyerName()+' <button class="pb-change" style="font-size:11px;padding:1px 7px" onclick="posPickBuyer()">change</button></span></div>';
+  html+='<div class="im-row"><span>Staff</span><select class="im-field" onchange="posSale.staff=this.value">'+posStaffList().map(n=>'<option'+(n===s.staff?' selected':'')+'>'+n+'</option>').join("")+'</select></div>';
+  html+='<div class="im-row"><span>Invoice Date</span><input type="date" class="im-field" value="'+s.date+'" onchange="posSale.date=this.value"></div>';
+  html+='</div>';
   html+='<table class="inv-tbl"><thead><tr><th style="width:48px">Qty</th><th>Description</th><th class="r">Price</th></tr></thead><tbody>';
   if(s.lines.length){
-    s.lines.forEach((l,i)=>{ html+='<tr onclick="posEditLine('+i+')"><td class="qty">'+(l.qty||1)+'</td><td>'+l.label+(l.sub?'<div style="font-size:12px;color:var(--muted)">'+l.sub+'</div>':'')+'</td><td class="r">'+money(t.lineTotal(l))+'</td></tr>'; });
+    s.lines.forEach((l,i)=>{
+      const meta=[]; if(l.sub) meta.push(l.sub);
+      if(l.discVal) meta.push("Discount "+(l.discType==="amt"?money(l.discVal)+" ea":l.discVal+"% off"));
+      if(l.orderIt) meta.push("Order it");
+      const sub=meta.length?'<div style="font-size:12px;color:var(--muted)">'+meta.join(" · ")+'</div>':"";
+      html+='<tr onclick="posEditLine('+i+')"><td class="qty">'+(l.qty||1)+'</td><td>'+l.label+sub+'</td><td class="r">'+money(t.lineTotal(l))+'</td></tr>';
+    });
   } else { html+='<tr><td colspan="3" class="inv-empty" style="padding:24px 15px">No items yet. Search or tap a product to add.</td></tr>'; }
   html+='</tbody></table>';
   html+='<div class="inv-tot">';
@@ -1288,7 +1360,6 @@ function renderPOS(){
   if(s.adminFee) html+='<div class="tl">Admin fee<span class="num">'+money(s.adminFee)+'</span></div>';
   html+='<div class="tl">Sales tax<span class="num">'+money(t.tax)+'</span></div>';
   html+='<div class="tl grand">Total<span class="num">'+money(t.total)+'</span></div>';
-  html+='<div class="tl">Amount owed<span class="num">'+money(t.owed)+'</span></div>';
   html+='</div></div>';
   html+='<div class="inv-add"><button onclick="posAmountSheet(\'discount\')">＋ Discount</button><button onclick="posAmountSheet(\'fee\')">＋ Admin fee</button></div>';
   html+='<textarea class="inv-notes" placeholder="Invoice notes..." oninput="posSale.notes=this.value">'+(s.notes||"")+'</textarea>';
@@ -1320,20 +1391,20 @@ function posAddMemLine(gid,idx){
   const rec = pl.monthly>0 ? (pl.months>0 ? ("then "+(pl.months-1)+" × "+money(pl.monthly)+"/mo") : ("then "+money(pl.monthly)+"/mo")) : "paid in full";
   const planLbl = pl.name + (pl.monthly>0 ? (" · "+money(pl.monthly)+"/mo") : " · Paid in full");
   posSale.lines.push({kind:"mem", label:g.name+" · "+pl.name, sub:rec, amount:planToday(pl), program:g.name, planLbl:planLbl, down:pl.down, monthly:pl.monthly, months:pl.months});
-  closeSheet(); renderPOS();
+  renderPOS(); posEditLine(posSale.lines.length-1, true);
 }
 function posAddProduct(){
   const body=PRODUCTS.map(p=>'<button class="opt-btn" onclick="posAddProdLine(\''+p.id+'\')"><div style="flex:1;font-weight:600">'+p.label+'</div><div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(p.amount)+'</div></button>').join("");
   $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Add product</h3><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'</div>';
   openSheet();
 }
-function posAddProdLine(prid){ const p=PRODUCTS.find(x=>x.id===prid); posSale.lines.push({kind:"prod", label:p.label, amount:p.amount}); closeSheet(); renderPOS(); }
+function posAddProdLine(prid){ const p=PRODUCTS.find(x=>x.id===prid); posSale.lines.push({kind:"prod", label:p.label, amount:p.amount, retail:p.amount}); renderPOS(); posEditLine(posSale.lines.length-1, true); }
 function posAddEvent(){
   const body=EVENTS.map(e=>'<button class="opt-btn" onclick="posAddEventLine(\''+e.id+'\')"><div style="flex:1"><div style="font-weight:700">'+e.title+'</div><div style="font-size:12.5px;color:var(--muted)">adds buyer to the participant list</div></div><div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(e.price)+'</div></button>').join("");
   $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Add event</h3><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'</div>';
   openSheet();
 }
-function posAddEventLine(eid){ const e=EVENTS.find(x=>x.id===eid); posSale.lines.push({kind:"event", eventId:eid, label:e.title, amount:e.price}); closeSheet(); renderPOS(); }
+function posAddEventLine(eid){ const e=EVENTS.find(x=>x.id===eid); posSale.lines.push({kind:"event", eventId:eid, label:e.title, amount:e.price}); renderPOS(); posEditLine(posSale.lines.length-1, true); }
 function posRemoveLine(i){ posSale.lines.splice(i,1); closeSheet(); renderPOS(); }
 function posTender(method){
   const {total}=posTotals();
@@ -1365,10 +1436,18 @@ function posTender(method){
 }
 function posReset(){ posSale=posBlank(); renderPOS(); }
 
+function posLineDisc(l){
+  const qty=l.qty||1, gross=qty*l.amount;
+  if(!l.discVal) return 0;
+  let d = l.discType==="amt" ? l.discVal*qty : (l.amount*(l.discVal/100))*qty;
+  if(d>gross) d=gross;
+  return +d.toFixed(2);
+}
+function posLineNet(l){ return +(((l.qty||1)*l.amount)-posLineDisc(l)).toFixed(2); }
 function posTotals(){
-  const s=posSale, lt=l=>(l.qty||1)*l.amount;
+  const s=posSale, lt=posLineNet;
   const itemsTotal=s.lines.reduce((a,l)=>a+lt(l),0);
-  const taxBase=s.lines.filter(l=>l.kind==="prod").reduce((a,l)=>a+lt(l),0);
+  const taxBase=s.lines.filter(posLineTaxable).reduce((a,l)=>a+lt(l),0);
   const tax=+(taxBase*(s.taxRate||0)).toFixed(2);
   const total=+(itemsTotal-(s.discount||0)+(s.adminFee||0)+tax).toFixed(2);
   return {itemsTotal, tax, total, owed:total, lineTotal:lt};
@@ -1377,26 +1456,66 @@ function posSearch(q){
   const box=document.getElementById("posResults"); if(!box) return;
   q=(q||"").toLowerCase().trim();
   if(!q){ box.innerHTML=""; return; }
+  const all = q==="*";
   let h="";
-  MEMBERS.filter(m=>(m.first+" "+m.last).toLowerCase().includes(q)).slice(0,5)
+  MEMBERS.filter(m=>all||(m.first+" "+m.last).toLowerCase().includes(q)).slice(0,all?40:5)
     .forEach(m=>h+='<button class="opt-btn" onclick="posSetBuyer(\''+m.id+'\')"><span class="oi">'+m.first.charAt(0)+'</span><div style="flex:1">'+m.first+' '+m.last+'<div style="font-size:12px;color:var(--muted)">set as buyer</div></div></button>');
-  PRODUCTS.filter(p=>p.label.toLowerCase().includes(q)).slice(0,5)
+  PRODUCTS.filter(p=>all||p.label.toLowerCase().includes(q)).slice(0,all?40:5)
     .forEach(p=>h+='<button class="opt-btn" onclick="posAddProdLine(\''+p.id+'\')"><span class="oi">▦</span><div style="flex:1">'+p.label+'</div><div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(p.amount)+'</div></button>');
   box.innerHTML = h || '<div class="inv-empty" style="padding:14px">No matches.</div>';
 }
-function posEditLine(i){
+function posLineTaxable(l){ return l.taxable!==undefined ? l.taxable : l.kind==="prod"; }
+const POS_CATEGORIES=["Equipment","Apparel","Tuition","Testing","Private Lessons","Misc"];
+function posDefaultCat(l){ return l.kind==="mem"?"Tuition":l.kind==="event"?"Testing":"Equipment"; }
+let posEditDiscType="pct";
+function posSwitch(id,on,label){ return '<label class="spk-tog"><span class="sw"><input type="checkbox" id="'+id+'"'+(on?" checked":"")+'><span class="track"></span><span class="knob"></span></span><span class="spk-tog-lbl">'+label+'</span></label>'; }
+function posEditLine(i,isNew){
   const l=posSale.lines[i];
-  const body='<div style="padding:2px"><div style="font-weight:700;margin-bottom:4px">'+l.label+'</div>'
-    +'<label class="ed-lbl">Quantity</label><input id="edQty" class="ed-in" type="number" min="1" value="'+(l.qty||1)+'">'
-    +'<label class="ed-lbl">Unit price</label><input id="edPrice" class="ed-in" type="number" step="0.01" value="'+l.amount+'">'
-    +'<button class="tbtn" style="width:100%;margin-top:14px" onclick="posSaveLine('+i+')">Save line</button>'
-    +'<button class="ed-rm" onclick="posRemoveLine('+i+')">Remove from invoice</button></div>';
-  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Edit line</h3><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'</div>';
+  const taxable=posLineTaxable(l);
+  const cat=l.category||posDefaultCat(l);
+  posEditDiscType=l.discType||"pct";
+  const card='<div class="spk-card"><div class="spk-card-ttl">'+l.label+'</div>'
+    +(l.sub?'<div class="spk-card-desc">'+l.sub+'</div>':'')
+    +'<div class="spk-card-row"><b>Price:</b> '+money(l.amount)+'</div></div>';
+  const form='<div class="spk-form">'
+    +'<label class="spk-label">Income Category</label>'
+    +'<select id="edCat" class="ed-in spk-select">'+POS_CATEGORIES.map(c=>'<option'+(c===cat?" selected":"")+'>'+c+'</option>').join("")+'</select>'
+    +'<label class="spk-label">Price</label>'
+    +'<div class="spk-price"><span class="spk-dollar">$</span><input id="edPrice" class="ed-in" type="number" step="0.01" value="'+l.amount+'"></div>'
+    +'<div class="spk-qty-row"><label class="spk-label" style="margin:0">Qty</label><input id="edQty" class="ed-in spk-qty" type="number" min="1" value="'+(l.qty||1)+'"></div>'
+    +posSwitch("edTax",taxable,"Sales Tax")
+    +posSwitch("edOrder",!!l.orderIt,"Order It")
+    +'<div class="spk-disc-hd"><b>Apply Discount?</b> <span class="spk-disc-sub">applies to each qty.</span></div>'
+    +'<div class="spk-disc-row"><div class="spk-seg"><button type="button" class="spk-seg-b'+(posEditDiscType==="pct"?" active":"")+'" id="discPct" onclick="posSetDiscType(\'pct\')">% Off</button><button type="button" class="spk-seg-b'+(posEditDiscType==="amt"?" active":"")+'" id="discAmt" onclick="posSetDiscType(\'amt\')">$ Off</button></div>'
+    +'<div class="spk-disc-in"><input id="edDisc" class="ed-in" type="number" step="0.01" min="0" value="'+(l.discVal||0)+'"><span class="spk-suf" id="discSuf">'+(posEditDiscType==="amt"?"$":"%")+'</span></div></div>'
+    +'<label class="spk-label">Notes</label><textarea id="edNote" class="ed-in spk-note">'+(l.note||"")+'</textarea>'
+    +'</div>';
+  const foot='<div class="spk-foot">'
+    +'<button class="spk-cancel" onclick="posEditCancel('+i+','+(isNew?"true":"false")+')">Cancel</button>'
+    +(isNew?'':'<button class="spk-rm" onclick="posRemoveLine('+i+')">Remove</button>')
+    +'<button class="spk-add" onclick="posSaveLine('+i+')">'+(isNew?"Add":"Save")+'</button></div>';
+  $("#sheet").classList.add("sheet-lg");
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head spk-head"><h3>'+(isNew?"Add to invoice":"Edit line")+'</h3><button class="close" onclick="posEditCancel('+i+','+(isNew?"true":"false")+')">×</button></div>'
+    +'<div class="sheet-body spk-body"><div class="spk-grid">'+card+form+'</div></div>'+foot;
   openSheet();
 }
+function posSetDiscType(t){
+  posEditDiscType=t;
+  document.getElementById("discPct").classList.toggle("active",t==="pct");
+  document.getElementById("discAmt").classList.toggle("active",t==="amt");
+  document.getElementById("discSuf").textContent = t==="amt"?"$":"%";
+}
+function posEditCancel(i,isNew){ if(isNew) posSale.lines.splice(i,1); closeSheet(); renderPOS(); }
 function posSaveLine(i){
-  posSale.lines[i].qty=parseInt(document.getElementById("edQty").value,10)||1;
-  posSale.lines[i].amount=parseFloat(document.getElementById("edPrice").value)||0;
+  const l=posSale.lines[i];
+  l.qty=parseInt(document.getElementById("edQty").value,10)||1;
+  l.amount=parseFloat(document.getElementById("edPrice").value)||0;
+  l.taxable=document.getElementById("edTax").checked;
+  l.orderIt=document.getElementById("edOrder").checked;
+  l.category=document.getElementById("edCat").value;
+  l.discType=posEditDiscType;
+  l.discVal=parseFloat(document.getElementById("edDisc").value)||0;
+  l.note=document.getElementById("edNote").value;
   closeSheet(); renderPOS();
 }
 function posAmountSheet(kind){
@@ -1756,7 +1875,7 @@ function saveMemEdit(i){
 
 /* ========== sheet + toast plumbing ========== */
 function openSheet(){ $("#scrim").classList.add("on"); document.body.style.overflow="hidden"; }
-function closeSheet(){ $("#scrim").classList.remove("on"); document.body.style.overflow=""; }
+function closeSheet(){ $("#scrim").classList.remove("on"); $("#sheet").classList.remove("sheet-lg"); document.body.style.overflow=""; }
 let toastTimer;
 function toast(msg){
   const el=$("#toast"); el.textContent=msg; el.classList.add("on");
