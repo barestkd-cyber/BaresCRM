@@ -452,6 +452,36 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .tenders{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:13px}
 .tbtn{background:var(--go);color:#fff;font-weight:700;font-size:15px;padding:15px;border-radius:var(--radius)}
 .tbtn:active{transform:scale(.99)}
+.pos-grid{display:flex;flex-direction:column;gap:14px}
+@media(min-width:900px){.pos-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}}
+.pos-results{display:flex;flex-direction:column;gap:7px;margin-top:8px}
+.pos-sec-lbl{font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin:16px 2px 7px}
+.pos-prods{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
+.pos-prods button{background:var(--card);border:1.5px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 13px;text-align:left;color:var(--text);font-weight:600;font-size:13.5px;cursor:pointer}
+.pos-prods button:hover{border-color:var(--ink)}
+.pos-prods .pp-amt{display:block;margin-top:4px;font-family:'Space Grotesk',sans-serif;font-weight:700;color:var(--muted);font-size:12.5px}
+.inv{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.inv-hd{display:flex;justify-content:space-between;gap:10px;padding:13px 15px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--muted);line-height:1.5}
+.inv-tbl{width:100%;border-collapse:collapse}
+.inv-tbl th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:9px 15px;border-bottom:1px solid var(--line)}
+.inv-tbl th.r,.inv-tbl td.r{text-align:right;font-variant-numeric:tabular-nums}
+.inv-tbl td{padding:11px 15px;border-bottom:1px solid var(--line);font-size:14px;cursor:pointer}
+.inv-tbl tbody tr:hover td{background:var(--surface)}
+.inv-tbl .qty{color:var(--muted);font-variant-numeric:tabular-nums}
+.inv-empty{text-align:center;color:var(--muted);font-size:13.5px;cursor:default}
+.inv-tot{padding:13px 15px;display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line)}
+.inv-tot .tl{display:flex;justify-content:space-between;font-size:13.5px;color:var(--muted)}
+.inv-tot .tl .num{color:var(--text);font-variant-numeric:tabular-nums}
+.inv-tot .tl.disc .num{color:var(--go)}
+.inv-tot .tl.grand{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:19px;color:var(--text);border-top:1px solid var(--line);padding-top:10px;margin-top:2px}
+.inv-add{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}
+.inv-add button{flex:1 1 auto;background:var(--card);border:1.5px solid var(--line);box-shadow:var(--shadow);color:var(--text);font-weight:700;font-size:12.5px;padding:10px;border-radius:var(--radius);cursor:pointer}
+.inv-add button:hover{border-color:var(--ink)}
+.inv-notes{width:100%;background:var(--card);border:1.5px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);color:var(--text);font-family:inherit;font-size:13.5px;padding:11px;min-height:62px;margin-top:11px;resize:vertical;outline:none}
+.inv-notes:focus{border-color:var(--ink)}
+.ed-lbl{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:12px 0 5px}
+.ed-in{width:100%;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:11px 12px;font-size:15px;outline:none;color:var(--text)}
+.ed-rm{width:100%;margin-top:10px;background:none;border:1.5px solid var(--accent);color:var(--accent);font-weight:700;font-size:13px;padding:11px;border-radius:var(--radius);cursor:pointer}
 </style>
 </head>
 <body>
@@ -1231,28 +1261,40 @@ let PRODUCTS = [
   {id:"pr2", label:"Testing fee", amount:60},
   {id:"pr3", label:"Sparring gear package", amount:242.50}
 ];
-let posSale = {memberId:null, lines:[]};
+function posBlank(){ return {memberId:null, lines:[], discount:0, adminFee:0, taxRate:0.0825, notes:'', staff:'Staff'}; }
+let posSale = posBlank();
 function posBuyerName(){ if(!posSale.memberId) return "Walk-in / new buyer"; const m=MEMBERS.find(x=>x.id===posSale.memberId); return m? (m.first+" "+m.last) : "Walk-in / new buyer"; }
 function renderPOS(){
-  const s=posSale;
-  let html='<div class="bld"><div class="bld-hd"><h2>Point of sale</h2><p>Ring up a sale at the desk. Memberships read their options from your Memberships config.</p></div>';
-  html+='<div class="card pad pos-buyer"><div><div class="pb-lbl">Sold to</div><div class="pb-name">'+posBuyerName()+'</div></div><button class="pb-change" onclick="posPickBuyer()">Change</button></div>';
-  html+='<div class="pos-add"><button onclick="posAddMembership()">＋ Membership</button><button onclick="posAddProduct()">＋ Product</button><button onclick="posAddEvent()">＋ Event</button></div>';
-  html+='<div class="pos-packets">'+PACKETS.map(p=>'<button onclick="openPacket(\''+p.id+'\')"><span class="pk-ico">▤</span>'+p.label+(p.url?'':' · add')+'</button>').join("")+'</div>';
-  html+='<div class="card" style="margin-top:13px">';
-  if(s.lines.length){
-    s.lines.forEach((l,i)=>{
-      html+='<div class="cart-line"><div class="cl-info"><div class="cl-label">'+l.label+'</div>'+(l.sub?'<div class="cl-sub">'+l.sub+'</div>':'')+'</div>'
-        +'<div class="cl-amt num">'+money(l.amount)+'</div><button class="cl-del" onclick="posRemoveLine('+i+')">×</button></div>';
-    });
-  } else { html+='<div class="cart-empty">No items yet. Add a membership or product.</div>'; }
+  const s=posSale, t=posTotals();
+  const today=new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+  let html='<div class="bld"><div class="bld-hd"><h2>Point of sale</h2><p>Search a buyer or item on the left, build the invoice on the right.</p></div>';
+  html+='<div class="pos-grid">';
+  html+='<div>';
+  html+='<div style="position:relative"><span class="search-ico">⌕</span><input class="search" placeholder="Search a buyer or item..." oninput="posSearch(this.value)"></div>';
+  html+='<div id="posResults" class="pos-results"></div>';
+  html+='<div class="inv-add" style="margin-top:10px"><button onclick="posAddMembership()">＋ Membership</button><button onclick="posAddEvent()">＋ Event</button></div>';
+  html+='<div class="pos-sec-lbl">Products</div><div class="pos-prods">'+PRODUCTS.map(p=>'<button onclick="posAddProdLine(\''+p.id+'\')">'+p.label+'<span class="pp-amt">'+money(p.amount)+'</span></button>').join("")+'</div>';
+  html+='<div class="pos-sec-lbl">Reference</div><div class="inv-add">'+PACKETS.map(p=>'<button onclick="openPacket(\''+p.id+'\')">▤ '+p.label+(p.url?'':' · add')+'</button>').join("")+'</div>';
   html+='</div>';
+  html+='<div><div class="inv">';
+  html+='<div class="inv-hd"><div>Invoice · '+today+'<br>Sold to: <b style="color:var(--text)">'+posBuyerName()+'</b> <button class="pb-change" style="font-size:11px;padding:1px 7px" onclick="posPickBuyer()">change</button></div><div style="text-align:right">Prepared by<br><b style="color:var(--text)">'+(s.staff||"Staff")+'</b></div></div>';
+  html+='<table class="inv-tbl"><thead><tr><th style="width:48px">Qty</th><th>Description</th><th class="r">Price</th></tr></thead><tbody>';
   if(s.lines.length){
-    const sub=s.lines.reduce((a,l)=>a+l.amount,0);
-    html+='<div class="card pos-tot"><div class="sline2">Subtotal<span class="num">'+money(sub)+'</span></div></div>';
-    html+='<div class="tenders"><button class="tbtn" onclick="posTender(\'Cash\')">Cash</button><button class="tbtn" onclick="posTender(\'Card\')">Card +surcharge</button><button class="tbtn" onclick="posTender(\'Check\')">Check</button><button class="tbtn" onclick="posTender(\'Account\')">Charge to account</button></div>';
-  }
-  html+='<div class="proto-note">Prototype · sale resets after completion. Edit a program in Memberships and its plans update here too. Ring a membership for a member and it appears on their profile.</div></div>';
+    s.lines.forEach((l,i)=>{ html+='<tr onclick="posEditLine('+i+')"><td class="qty">'+(l.qty||1)+'</td><td>'+l.label+(l.sub?'<div style="font-size:12px;color:var(--muted)">'+l.sub+'</div>':'')+'</td><td class="r">'+money(t.lineTotal(l))+'</td></tr>'; });
+  } else { html+='<tr><td colspan="3" class="inv-empty" style="padding:24px 15px">No items yet. Search or tap a product to add.</td></tr>'; }
+  html+='</tbody></table>';
+  html+='<div class="inv-tot">';
+  if(s.discount) html+='<div class="tl disc">Discount<span class="num">−'+money(s.discount)+'</span></div>';
+  if(s.adminFee) html+='<div class="tl">Admin fee<span class="num">'+money(s.adminFee)+'</span></div>';
+  html+='<div class="tl">Sales tax<span class="num">'+money(t.tax)+'</span></div>';
+  html+='<div class="tl grand">Total<span class="num">'+money(t.total)+'</span></div>';
+  html+='<div class="tl">Amount owed<span class="num">'+money(t.owed)+'</span></div>';
+  html+='</div></div>';
+  html+='<div class="inv-add"><button onclick="posAmountSheet(\'discount\')">＋ Discount</button><button onclick="posAmountSheet(\'fee\')">＋ Admin fee</button></div>';
+  html+='<textarea class="inv-notes" placeholder="Invoice notes..." oninput="posSale.notes=this.value">'+(s.notes||"")+'</textarea>';
+  if(s.lines.length) html+='<div class="tenders" style="margin-top:11px"><button class="tbtn" onclick="posTender(\'Cash\')">Cash</button><button class="tbtn" onclick="posTender(\'Card\')">Card</button><button class="tbtn" onclick="posTender(\'Check\')">Check</button><button class="tbtn" onclick="posTender(\'Account\')">Charge to account</button></div>';
+  html+='</div></div>';
+  html+='<div class="proto-note">Prototype · admin fee and card surcharge still pending the fee-model decision. Sales tax applies to products only. Sale resets after completion.</div></div>';
   $("#view-pos").innerHTML=html;
 }
 function posPickBuyer(){
@@ -1292,11 +1334,9 @@ function posAddEvent(){
   openSheet();
 }
 function posAddEventLine(eid){ const e=EVENTS.find(x=>x.id===eid); posSale.lines.push({kind:"event", eventId:eid, label:e.title, amount:e.price}); closeSheet(); renderPOS(); }
-function posRemoveLine(i){ posSale.lines.splice(i,1); renderPOS(); }
+function posRemoveLine(i){ posSale.lines.splice(i,1); closeSheet(); renderPOS(); }
 function posTender(method){
-  const sub=posSale.lines.reduce((a,l)=>a+l.amount,0);
-  const surcharge = method==="Card" ? (sub*0.0315+0.55) : 0;
-  const total=sub+surcharge;
+  const {total}=posTotals();
   const memLines=posSale.lines.filter(l=>l.kind==="mem");
   const eventLines=posSale.lines.filter(l=>l.kind==="event");
   const m = posSale.memberId ? MEMBERS.find(x=>x.id===posSale.memberId) : null;
@@ -1318,12 +1358,61 @@ function posTender(method){
   }
   const pm = method==="Account"?"charge to account":method.toLowerCase();
   let h='<div class="bld"><div class="success"><div class="chk">✓</div><h2>Sale complete</h2>'
-    +'<p>'+money(total)+' paid by '+pm+(surcharge>0?(" (incl. "+money(surcharge)+" surcharge)"):"")+'.'+(notes.length?(" "+notes.join(" ")):"")+'</p>';
+    +'<p>'+money(total)+' paid by '+pm+'.'+(notes.length?(" "+notes.join(" ")):"")+'</p>';
   badges.forEach(b=>h+='<div class="insys" style="margin:6px 4px 0">✓ '+b+'</div>');
   h+='<div style="margin-top:18px"><button class="newbtn" style="margin:0" onclick="posReset()">New sale</button></div></div></div>';
   $("#view-pos").innerHTML=h;
 }
-function posReset(){ posSale={memberId:null, lines:[]}; renderPOS(); }
+function posReset(){ posSale=posBlank(); renderPOS(); }
+
+function posTotals(){
+  const s=posSale, lt=l=>(l.qty||1)*l.amount;
+  const itemsTotal=s.lines.reduce((a,l)=>a+lt(l),0);
+  const taxBase=s.lines.filter(l=>l.kind==="prod").reduce((a,l)=>a+lt(l),0);
+  const tax=+(taxBase*(s.taxRate||0)).toFixed(2);
+  const total=+(itemsTotal-(s.discount||0)+(s.adminFee||0)+tax).toFixed(2);
+  return {itemsTotal, tax, total, owed:total, lineTotal:lt};
+}
+function posSearch(q){
+  const box=document.getElementById("posResults"); if(!box) return;
+  q=(q||"").toLowerCase().trim();
+  if(!q){ box.innerHTML=""; return; }
+  let h="";
+  MEMBERS.filter(m=>(m.first+" "+m.last).toLowerCase().includes(q)).slice(0,5)
+    .forEach(m=>h+='<button class="opt-btn" onclick="posSetBuyer(\''+m.id+'\')"><span class="oi">'+m.first.charAt(0)+'</span><div style="flex:1">'+m.first+' '+m.last+'<div style="font-size:12px;color:var(--muted)">set as buyer</div></div></button>');
+  PRODUCTS.filter(p=>p.label.toLowerCase().includes(q)).slice(0,5)
+    .forEach(p=>h+='<button class="opt-btn" onclick="posAddProdLine(\''+p.id+'\')"><span class="oi">▦</span><div style="flex:1">'+p.label+'</div><div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(p.amount)+'</div></button>');
+  box.innerHTML = h || '<div class="inv-empty" style="padding:14px">No matches.</div>';
+}
+function posEditLine(i){
+  const l=posSale.lines[i];
+  const body='<div style="padding:2px"><div style="font-weight:700;margin-bottom:4px">'+l.label+'</div>'
+    +'<label class="ed-lbl">Quantity</label><input id="edQty" class="ed-in" type="number" min="1" value="'+(l.qty||1)+'">'
+    +'<label class="ed-lbl">Unit price</label><input id="edPrice" class="ed-in" type="number" step="0.01" value="'+l.amount+'">'
+    +'<button class="tbtn" style="width:100%;margin-top:14px" onclick="posSaveLine('+i+')">Save line</button>'
+    +'<button class="ed-rm" onclick="posRemoveLine('+i+')">Remove from invoice</button></div>';
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Edit line</h3><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'</div>';
+  openSheet();
+}
+function posSaveLine(i){
+  posSale.lines[i].qty=parseInt(document.getElementById("edQty").value,10)||1;
+  posSale.lines[i].amount=parseFloat(document.getElementById("edPrice").value)||0;
+  closeSheet(); renderPOS();
+}
+function posAmountSheet(kind){
+  const cur = kind==="discount" ? posSale.discount : posSale.adminFee;
+  const title = kind==="discount" ? "Discount" : "Admin fee";
+  const body='<div style="padding:2px"><label class="ed-lbl">'+title+' amount ($)</label>'
+    +'<input id="edAmt" class="ed-in" type="number" step="0.01" min="0" value="'+(cur||0)+'">'
+    +'<button class="tbtn" style="width:100%;margin-top:14px" onclick="posSaveAmount(\''+kind+'\')">Apply</button></div>';
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>'+title+'</h3><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'</div>';
+  openSheet();
+}
+function posSaveAmount(kind){
+  const v=parseFloat(document.getElementById("edAmt").value)||0;
+  if(kind==="discount") posSale.discount=v; else posSale.adminFee=v;
+  closeSheet(); renderPOS();
+}
 
 /* ========== PDF packets (pricing list / enrollment packet) ========== */
 let PACKETS = [
