@@ -737,7 +737,19 @@ function closeNav(){ $("#sidebar").classList.remove("open"); $("#navBackdrop").c
 function toggleRail(){ $("#sidebar").classList.toggle("rail"); }
 function goToFilter(key){ activeFilter = key; renderChips(); showSection("members"); }
 const APP_NAMES = { testing:"Testing", curriculum:"Curriculum", classplan:"Class Plan", leadership:"Leadership", gear:"Gear Order", certs:"Certificate", store:"Store" };
-function launchApp(key){ closeNav(); toast("Launches the "+APP_NAMES[key]+" app ↗"); }
+function launchApp(key){
+  closeNav();
+  const urls = {
+    testing: 'https://testing.barestkd.fit',
+    curriculum: 'https://curriculum.barestkd.fit',
+    classplan: 'https://classplan.barestkd.fit',
+    leadership: 'https://leadership.barestkd.fit',
+    gear: 'https://barestkd-cyber.github.io/gear-order',
+    certs: 'https://barestkd-cyber.github.io/cert-tool'
+  };
+  if(urls[key]) window.open(urls[key], '_blank', 'noopener');
+  else toast('Unknown app: '+key);
+}
 
 /* ========== dashboard (landing) ========== */
 function renderDashboard(){
