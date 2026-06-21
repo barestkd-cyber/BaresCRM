@@ -550,9 +550,77 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .spk-foot .spk-cancel{background:var(--card);border-color:#BFC6CF}
 .spk-foot .spk-cancel:hover{background:#EEF1F4}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://portal.barestkd.fit/shared/auth.js?v=2"></script>
 </head>
 <body>
-<div id="app">
+
+<style>#pw-reset-modal.active{display:flex!important;}</style>
+
+<!-- ============ STAFF-ONLY AUTH DOOR (shared BTKD module) ============ -->
+<div id="pw-reset-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:#1a1a1a;border:1px solid #333;border-radius:10px;padding:28px;width:100%;max-width:340px;display:flex;flex-direction:column;gap:14px;">
+    <div style="font-family:'Space Grotesk',system-ui,sans-serif;font-weight:800;font-size:1.3rem;letter-spacing:3px;color:#c9920a;">Reset Password</div>
+    <div style="font-size:0.8rem;color:#888;line-height:1.5;font-family:system-ui,sans-serif;">Enter your email address and we'll send you a reset link.</div>
+    <input type="email" id="pw-reset-email" placeholder="your@email.com" style="width:100%;background:#111;border:1px solid #333;color:white;padding:10px 12px;border-radius:6px;font-size:0.9rem;outline:none;box-sizing:border-box;">
+    <div id="pw-reset-err" style="color:#c8102e;font-size:0.75rem;display:none;"></div>
+    <div id="pw-reset-success" style="color:#4caf50;font-size:0.8rem;display:none;">Reset email sent! Check your inbox.</div>
+    <button onclick="submitPasswordReset()" style="width:100%;padding:11px;background:#c9920a;border:none;border-radius:6px;font-family:'Space Grotesk',system-ui,sans-serif;font-weight:800;font-size:1rem;letter-spacing:3px;cursor:pointer;color:#fff;">Send Reset Link</button>
+    <button onclick="document.getElementById('pw-reset-modal').classList.remove('active')" style="width:100%;padding:10px;background:none;border:1px solid #333;border-radius:6px;color:#888;font-family:system-ui,sans-serif;font-size:0.85rem;cursor:pointer;">Cancel</button>
+  </div>
+</div>
+<div id="new-password-modal" style="display:none;position:fixed;inset:0;background:#0d0d0d;z-index:1001;align-items:center;justify-content:center;">
+  <div style="background:#1a1a1a;border:1px solid #333;border-radius:10px;padding:28px;width:100%;max-width:340px;display:flex;flex-direction:column;gap:14px;">
+    <div style="font-family:'Space Grotesk',system-ui,sans-serif;font-weight:800;font-size:1.3rem;letter-spacing:3px;color:#c9920a;">Set New Password</div>
+    <div style="font-size:0.8rem;color:#888;line-height:1.5;font-family:system-ui,sans-serif;">Enter your new password below.</div>
+    <input type="password" id="new-password-input" placeholder="New password" style="width:100%;background:#111;border:1px solid #333;color:white;padding:10px 12px;border-radius:6px;font-size:0.9rem;outline:none;box-sizing:border-box;">
+    <input type="password" id="new-password-confirm" placeholder="Confirm new password" style="width:100%;background:#111;border:1px solid #333;color:white;padding:10px 12px;border-radius:6px;font-size:0.9rem;outline:none;box-sizing:border-box;">
+    <div id="new-password-err" style="color:#c8102e;font-size:0.75rem;display:none;"></div>
+    <button onclick="submitNewPassword()" style="width:100%;padding:11px;background:#c9920a;border:none;border-radius:6px;font-family:'Space Grotesk',system-ui,sans-serif;font-weight:800;font-size:1rem;letter-spacing:3px;cursor:pointer;color:#fff;">Update Password</button>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div id="crm-loading" style="display:flex;position:fixed;inset:0;background:#0d0d0d;z-index:999;align-items:center;justify-content:center;flex-direction:column;gap:16px;">
+  <img src="https://raw.githubusercontent.com/barestkd-cyber/curriculum/main/BaresTKDPatch.png" style="width:80px;opacity:0.7;" onerror="this.style.display='none'">
+  <div style="font-family:'Space Grotesk',system-ui,sans-serif;font-weight:800;font-size:1rem;letter-spacing:3px;color:#888;">LOADING...</div>
+</div>
+
+<!-- LOGIN -->
+<div id="crm-login" style="display:none;position:fixed;inset:0;background:#0d0d0d;z-index:998;align-items:center;justify-content:center;">
+  <div style="width:90%;max-width:360px;background:#161920;border:1px solid #252830;border-top:3px solid #c9920a;border-radius:10px;padding:32px 24px;">
+    <img src="https://raw.githubusercontent.com/barestkd-cyber/curriculum/main/BaresTKDPatch.png" style="width:64px;display:block;margin:0 auto 16px;" onerror="this.style.display='none'">
+    <div style="font-family:'Space Grotesk',system-ui,sans-serif;font-weight:800;font-size:1.6rem;letter-spacing:3px;color:#e8eaf0;text-align:center;margin-bottom:4px;">BARESTKD</div>
+    <div style="font-size:0.72rem;color:#888;text-align:center;letter-spacing:2px;text-transform:uppercase;margin-bottom:24px;font-family:system-ui,sans-serif;">Office CRM</div>
+    <div style="margin-bottom:12px;">
+      <label style="display:block;font-size:0.65rem;letter-spacing:1.5px;text-transform:uppercase;color:#888;margin-bottom:6px;font-family:system-ui,sans-serif;">Email</label>
+      <input type="email" id="crm-email" placeholder="your@email.com" style="width:100%;background:#111;border:1px solid #333;color:white;padding:10px 12px;border-radius:6px;font-size:0.9rem;outline:none;box-sizing:border-box;">
+    </div>
+    <div style="margin-bottom:16px;">
+      <label style="display:block;font-size:0.65rem;letter-spacing:1.5px;text-transform:uppercase;color:#888;margin-bottom:6px;font-family:system-ui,sans-serif;">Password</label>
+      <div style="position:relative;">
+        <input type="password" id="crm-password" placeholder="Password" style="width:100%;background:#111;border:1px solid #333;color:white;padding:10px 40px 10px 12px;border-radius:6px;font-size:0.9rem;outline:none;box-sizing:border-box;">
+        <button onclick="var i=document.getElementById('crm-password');i.type=i.type==='password'?'text':'password';" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:0.9rem;color:#888;">👁</button>
+      </div>
+    </div>
+    <div id="crm-login-err" style="color:#c8102e;font-size:0.75rem;margin-bottom:10px;display:none;">Incorrect email or password.</div>
+    <button onclick="doCrmLogin()" style="width:100%;padding:12px;background:#c9920a;border:none;border-radius:6px;font-family:'Space Grotesk',system-ui,sans-serif;font-weight:800;font-size:1rem;letter-spacing:3px;cursor:pointer;color:#111;">Sign In</button>
+    <div style="text-align:center;margin-top:14px;font-size:0.75rem;color:#888;font-family:system-ui,sans-serif;">Access restricted to staff.</div>
+    <div style="text-align:center;margin-top:8px;font-size:0.75rem;font-family:system-ui,sans-serif;"><span onclick="doPasswordReset()" style="color:#888;cursor:pointer;text-decoration:underline;">Forgot password?</span></div>
+  </div>
+</div>
+
+<!-- ACCESS DENIED -->
+<div id="crm-denied" style="display:none;position:fixed;inset:0;background:#0d0d0d;z-index:1000;align-items:center;justify-content:center;">
+  <div style="width:90%;max-width:360px;background:#161920;border:1px solid #252830;border-top:3px solid #c8102e;border-radius:10px;padding:32px 24px;text-align:center;">
+    <img src="https://raw.githubusercontent.com/barestkd-cyber/curriculum/main/BaresTKDPatch.png" style="width:64px;display:block;margin:0 auto 16px;" onerror="this.style.display='none'">
+    <div style="font-family:'Space Grotesk',system-ui,sans-serif;font-weight:800;font-size:1.6rem;letter-spacing:3px;color:#e8eaf0;margin-bottom:8px;">NO ACCESS</div>
+    <div style="font-size:0.85rem;color:#aaa;line-height:1.5;margin-bottom:20px;font-family:system-ui,sans-serif;">This area is staff only. The BaresTKD CRM is restricted to instructors and admin.</div>
+    <button onclick="BTKD.signOut().then(function(){location.reload();})" style="width:100%;padding:12px;background:#c9920a;border:none;border-radius:6px;font-family:'Space Grotesk',system-ui,sans-serif;font-weight:800;font-size:1rem;letter-spacing:3px;cursor:pointer;color:#111;">Sign Out</button>
+  </div>
+</div>
+
+<div id="app" style="display:none">
   <div class="belt"></div>
   <header>
     <button class="hamburger" onclick="toggleNav()" aria-label="Menu">☰</button>
@@ -1892,10 +1960,107 @@ function toast(msg){
 }
 document.addEventListener("keydown",e=>{ if(e.key==="Escape"){ closeSheet(); closeNav(); } });
 
-/* ========== init ========== */
-renderChips();
-renderList();
-renderDashboard();
+/* ========== staff-only auth door (shared BTKD module) ========== */
+const sb = BTKD.sb;
+let currentUser = null, currentRole = null, _crmBooted = false;
+
+// The CRM's original boot — now only runs once the staff gate passes.
+function bootCrm(){
+  if(_crmBooted) return;
+  _crmBooted = true;
+  renderChips();
+  renderList();
+  renderDashboard();
+}
+
+function showCrmApp(){
+  document.getElementById('crm-loading').style.display = 'none';
+  document.getElementById('crm-login').style.display = 'none';
+  document.getElementById('app').style.display = '';   // reveal — CSS sets the real display
+  bootCrm();
+}
+function crmIsStaff(){ return currentRole === 'admin' || currentRole === 'instructor'; }
+function showCrmDenied(){
+  document.getElementById('crm-loading').style.display = 'none';
+  document.getElementById('crm-login').style.display = 'none';
+  document.getElementById('crm-denied').style.display = 'flex';
+}
+
+async function initAuth(){
+  // Password recovery link? Surface the new-password modal and stop normal init.
+  const recovering = await BTKD.initResetHandler({ onRecovery: () => {
+    document.getElementById('crm-loading').style.display = 'none';
+    document.getElementById('new-password-modal').style.display = 'flex';
+  }});
+  if(recovering) return;
+
+  // Launched from the portal with a session in the URL? Adopt it.
+  await BTKD.pickupSessionFromURL();
+
+  const session = await BTKD.getSession();
+  if(session?.user){
+    currentUser = session.user;
+    currentRole = await BTKD.getMyRole();
+    if(!crmIsStaff()){ showCrmDenied(); return; }
+    showCrmApp();
+  } else {
+    document.getElementById('crm-loading').style.display = 'none';
+    document.getElementById('crm-login').style.display = 'flex';
+  }
+}
+
+async function doCrmLogin(){
+  const email = document.getElementById('crm-email').value.trim();
+  const pw = document.getElementById('crm-password').value;
+  const err = document.getElementById('crm-login-err');
+  err.style.display = 'none';
+  const { user, error } = await BTKD.signIn({ email, password: pw });
+  if(error){ err.style.display = 'block'; return; }
+  currentUser = user;
+  currentRole = await BTKD.getMyRole();
+  if(!crmIsStaff()){ showCrmDenied(); return; }
+  showCrmApp();
+}
+
+function doPasswordReset(){
+  document.getElementById('pw-reset-email').value = '';
+  document.getElementById('pw-reset-err').style.display = 'none';
+  document.getElementById('pw-reset-success').style.display = 'none';
+  document.getElementById('pw-reset-modal').classList.add('active');
+}
+async function submitPasswordReset(){
+  const email = document.getElementById('pw-reset-email').value.trim();
+  const err = document.getElementById('pw-reset-err');
+  const success = document.getElementById('pw-reset-success');
+  err.style.display = 'none'; success.style.display = 'none';
+  if(!email){ err.textContent = 'Please enter a valid email address.'; err.style.display = 'block'; return; }
+  const { error } = await BTKD.sendPasswordReset(email, 'https://crm.barestkd.fit');
+  if(error){ err.textContent = error; err.style.display = 'block'; return; }
+  success.style.display = 'block';
+  setTimeout(() => document.getElementById('pw-reset-modal').classList.remove('active'), 3000);
+}
+async function submitNewPassword(){
+  const pw = document.getElementById('new-password-input').value;
+  const confirm = document.getElementById('new-password-confirm').value;
+  const err = document.getElementById('new-password-err');
+  err.style.display = 'none';
+  if(!pw || pw.length < 6){ err.textContent = 'Password must be at least 6 characters.'; err.style.display = 'block'; return; }
+  if(pw !== confirm){ err.textContent = 'Passwords do not match.'; err.style.display = 'block'; return; }
+  const { user, error } = await BTKD.completePasswordReset(pw);
+  if(error){ err.textContent = error; err.style.display = 'block'; return; }
+  alert('Password updated! You are now signed in.');
+  document.getElementById('new-password-modal').style.display = 'none';
+  currentUser = user;
+  currentRole = await BTKD.getMyRole();
+  if(!crmIsStaff()){ showCrmDenied(); return; }
+  showCrmApp();
+}
+
+document.addEventListener('keydown', e => {
+  if(e.key === 'Enter' && document.getElementById('crm-login').style.display === 'flex') doCrmLogin();
+});
+
+initAuth();
 </script>
 </body>
 </html>
