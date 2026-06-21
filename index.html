@@ -711,93 +711,51 @@ const BELT = {
 };
 
 /* ========== MOCK MEMBERS (becomes the shared roster table) ========== */
-const MEMBERS = [
-  {id:"m1", first:"Mia", last:"Cater", segment:"Active", belt:"Yellow", rank:"Senior Yellow Belt", rankDate:"04/11/2026",
-   since:"Sep 2024", age:6, gender:"Female", guardians:[["Maranda Cater","Mom"],["Danny Cater","Dad"]],
-   phones:[["Mobile","(903) 530-1145"]], emails:["Maranda.cater@yahoo.com"], address:"13695 Eastside Rd, Tyler, TX 75707",
-   app:true, phase:"Regular Program", source:"Walk In", beltSize:"00", kickSize:'8.125 – 8.625"', tags:["bought-gear"],
-   attended:16, daysSince:3, testing:false, balance:179.00,
-   memberships:[
-     {program:"Juniors Taekwondo", plan:"Option B · $95/mo", status:"active", nextDue:"Jul 1, 2026", overdue:129.00, contract:true, down:359, monthly:95, total:12, remaining:9},
-     {program:"AMP'D Add-on", plan:"$50/mo", status:"active", nextDue:"Jul 1, 2026", overdue:50.00, contract:true, down:0, monthly:50, total:null, remaining:null}
-   ],
-   invoices:[["06/12/2026","Juniors TKD monthly",95.00,"over"],["06/12/2026","AMP'D monthly",50.00,"over"],["05/12/2026","Juniors TKD monthly",95.00,"paid"]],
-   notes:[]},
+let MEMBERS = [];
 
-  {id:"m2", first:"John", last:"Cater", segment:"Active", belt:"Red", rank:"Red Belt", rankDate:"02/08/2026",
-   since:"Jan 2023", age:34, gender:"Male", guardians:[], phones:[["Mobile","(903) 530-2210"]], emails:["john.cater@gmail.com"],
-   address:"13695 Eastside Rd, Tyler, TX 75707", app:true, phase:"Regular Program", source:"Referral", beltSize:"5", kickSize:'10 – 11"', tags:["leadership-track"],
-   attended:62, daysSince:5, testing:true, balance:0,
-   memberships:[{program:"Adult Taekwondo", plan:"Option A · Paid in full", status:"active", nextDue:"—", overdue:0, contract:true}],
-   invoices:[["01/15/2026","Option A paid in full",1400.00,"paid"]], notes:[["05/02/2026","Asked about leadership program."]]},
+async function loadMembers(){
+  const { data: rows, error } = await sb.from('contacts').select('*').order('last_name');
+  if(error){ console.error('loadMembers contacts error', error); return; }
+  const { data: gl } = await sb.from('student_guardians').select('student_id,email,label');
+  const guardiansById = {};
+  (gl||[]).forEach(g=>{ (guardiansById[g.student_id] = guardiansById[g.student_id] || []).push([g.email, g.label || 'Guardian']); });
 
-  {id:"m3", first:"Sarah", last:"Chen", segment:"Active", belt:"Blue", rank:"Blue Belt", rankDate:"03/14/2026",
-   since:"Aug 2024", age:29, gender:"Female", guardians:[], phones:[["Mobile","(903) 555-0182"]], emails:["sarah.chen@gmail.com"],
-   address:"305 Rice Rd, Tyler, TX 75703", app:true, phase:"Regular Program", source:"Google", beltSize:"4", kickSize:'8 – 9"', tags:[],
-   attended:35, daysSince:1, testing:false, balance:0,
-   memberships:[{program:"Adult Taekwondo", plan:"Option C · $110/mo", status:"active", nextDue:"Jul 5, 2026", overdue:0, contract:true}],
-   invoices:[["06/05/2026","Adult TKD monthly",110.00,"paid"]], notes:[]},
+  const COLORS = ['White','Yellow','Orange','Green','Purple','Blue','Brown','Red','Black'];
+  const deriveBelt = r => { if(!r) return ''; return COLORS.find(c => r.includes(c)) || ''; };
+  const cap = s => s ? s.charAt(0).toUpperCase()+s.slice(1) : '';
+  const fmtSince = d => { if(!d) return ''; const dt = new Date(d); return isNaN(dt) ? '' : dt.toLocaleDateString('en-US',{month:'short',year:'numeric'}); };
 
-  {id:"m4", first:"Johnny", last:"Northcutt", segment:"Active", belt:"Green", rank:"Green Belt", rankDate:"01/20/2026",
-   since:"Nov 2024", age:41, gender:"Male", guardians:[], phones:[["Mobile","(903) 555-7741"]], emails:["jnorthcutt@gmail.com"],
-   address:"1208 Shiloh Rd, Tyler, TX 75703", app:false, phase:"Regular Program", source:"Walk In", beltSize:"5", kickSize:'11 – 12"', tags:[],
-   attended:22, daysSince:21, testing:false, balance:67.90,
-   memberships:[{program:"Adult Taekwondo", plan:"Weekly · $33.95/wk", status:"active", nextDue:"Jun 16, 2026", overdue:67.90, contract:true}],
-   invoices:[["06/09/2026","Weekly",33.95,"over"],["06/02/2026","Weekly",33.95,"over"]], notes:[["06/10/2026","Hasn't been in 3 weeks — check in."]]},
-
-  {id:"m5", first:"Emily", last:"Wortham", segment:"Lead", belt:"", rank:"", rankDate:"",
-   since:"", entered:"Jun 22, 2025", age:0, gender:"", guardians:[["Rachel Wortham","Mom"]], phones:[["Mobile","(903) 555-3390"]], emails:["rachel.w@gmail.com"],
-   address:"Tyler, TX", app:false, phase:"Prospect", source:"Website", beltSize:"", kickSize:"", tags:["trial-booked"],
-   attended:0, daysSince:null, testing:false, balance:0, memberships:[],
-   invoices:[], notes:[["06/22/2025","Booked intro lesson. Daughter age 7."]]},
-
-  {id:"m6", first:"Jadon", last:"Johnson", segment:"Lead", belt:"", rank:"", rankDate:"",
-   since:"", entered:"Jun 1, 2026", age:0, gender:"Male", guardians:[], phones:[["Mobile","(903) 555-9921"]], emails:["jadon.j@gmail.com"],
-   address:"Whitehouse, TX", app:false, phase:"Trial", source:"Facebook", beltSize:"", kickSize:"", tags:["trial-active"],
-   attended:2, daysSince:4, testing:false, balance:0, memberships:[],
-   invoices:[], notes:[["06/10/2026","On free trial week, 2 classes in. Likes it."]]},
-
-  {id:"m7", first:"Mason", last:"Bell", segment:"Lead", belt:"", rank:"", rankDate:"",
-   since:"", entered:"Jun 13, 2026", age:0, gender:"Male", guardians:[], phones:[["Mobile","(903) 555-1147"]], emails:[],
-   address:"Tyler, TX", app:false, phase:"Prospect", source:"Walk In", beltSize:"", kickSize:"", tags:[],
-   attended:0, daysSince:null, testing:false, balance:0, memberships:[],
-   invoices:[], notes:[["06/13/2026","Walked in asking about adult classes."]]},
-
-  {id:"m8", first:"Oliver", last:"Johnson", segment:"Former", belt:"Green", rank:"Green Belt", rankDate:"",
-   since:"Mar 2022", age:38, gender:"Male", guardians:[], phones:[["Mobile","(903) 555-6612"]], emails:["oliver.j@gmail.com"],
-   address:"19 Oak Hollow, Whitehouse, TX 75791", app:false, phase:"Cancelled", source:"Referral", beltSize:"5", kickSize:'10 – 11"', tags:[],
-   attended:88, daysSince:null, testing:false, balance:0,
-   memberships:[{program:"Adult Taekwondo", plan:"Option C · $110/mo", status:"cancelled", nextDue:"—", overdue:0, contract:true}],
-   invoices:[["12/01/2025","Adult TKD monthly",110.00,"paid"]], notes:[["12/15/2025","Cancelled — moving out of state."]]},
-
-  {id:"m9", first:"Lucas", last:"Vega", segment:"Active", belt:"White", rank:"White Belt", rankDate:"05/30/2026",
-   since:"May 2026", age:8, gender:"Male", guardians:[["Maria Vega","Mom"]], phones:[["Mobile","(903) 555-2048"]], emails:["maria.vega@gmail.com"],
-   address:"742 Pine St, Tyler, TX 75701", app:true, phase:"New Member", source:"Website", beltSize:"0", kickSize:'1 – 2"', tags:["new-student"],
-   attended:8, daysSince:4, testing:false, balance:0,
-   memberships:[{program:"Juniors Taekwondo", plan:"Option D · $129/mo", status:"active", nextDue:"Jul 1, 2026", overdue:0, contract:true}],
-   invoices:[["05/30/2026","Option D down payment",129.00,"paid"]], notes:[]},
-
-  {id:"m10", first:"Ava", last:"Patel", segment:"Active", belt:"Brown", rank:"Brown Belt", rankDate:"12/12/2025",
-   since:"Jun 2023", age:15, gender:"Female", guardians:[["Neha Patel","Mom"]], phones:[["Mobile","(903) 555-8830"]], emails:["neha.patel@gmail.com"],
-   address:"55 Cedar Ln, Tyler, TX 75703", app:true, phase:"Regular Program", source:"Referral", beltSize:"3", kickSize:'7 – 8"', tags:[],
-   attended:51, daysSince:2, testing:true, balance:0,
-   memberships:[{program:"Teens Taekwondo", plan:"Option C · $110/mo", status:"active", nextDue:"Jul 3, 2026", overdue:0, contract:true}],
-   invoices:[["06/03/2026","Teens TKD monthly",110.00,"paid"]], notes:[]},
-
-  {id:"m11", first:"Noah", last:"Kim", segment:"Active", role:"Instructor", belt:"Black", rank:"Jr. Black Belt", rankDate:"04/01/2026",
-   since:"Sep 2021", age:12, gender:"Male", guardians:[["Grace Kim","Mom"],["David Kim","Dad"]], phones:[["Mobile","(903) 555-3322"]], emails:["grace.kim@gmail.com"],
-   address:"900 Maple Dr, Tyler, TX 75701", app:true, phase:"Leadership", source:"Referral", beltSize:"2", kickSize:'5 – 6"', tags:["leadership-track"],
-   attended:120, daysSince:18, testing:false, balance:0,
-   memberships:[{program:"Juniors Taekwondo", plan:"Option B · $95/mo", status:"active", nextDue:"Jul 1, 2026", overdue:0, contract:true}],
-   invoices:[["06/01/2026","Juniors TKD monthly",95.00,"paid"]], notes:[["06/12/2026","Missed 2 weeks — travel."]]},
-
-  {id:"m12", first:"Sofia", last:"Reyes", segment:"Active", belt:"Orange", rank:"Orange Belt", rankDate:"03/22/2026",
-   since:"Dec 2025", age:9, gender:"Female", guardians:[["Elena Reyes","Mom"]], phones:[["Mobile","(903) 555-4410"]], emails:["elena.reyes@gmail.com"],
-   address:"410 Birch Ave, Tyler, TX 75703", app:true, phase:"Regular Program", source:"Website", beltSize:"1", kickSize:'3 – 4"', tags:["gear-due"],
-   attended:24, daysSince:6, testing:true, balance:0,
-   memberships:[{program:"Juniors Taekwondo", plan:"Option B · $95/mo", status:"active", nextDue:"Jul 1, 2026", overdue:0, contract:true}],
-   invoices:[["06/01/2026","Juniors TKD monthly",95.00,"paid"]], notes:[]}
-];
+  MEMBERS = (rows||[]).map(c => ({
+    id: c.id,
+    first: c.first_name || '',
+    last: c.last_name || '',
+    segment: cap(c.segment),
+    belt: deriveBelt(c.rank),
+    rank: c.rank || '',
+    rankDate: c.rank_date || '',
+    since: fmtSince(c.joined_on),
+    entered: fmtSince(c.entered_on),
+    age: c.dob ? Math.floor((Date.now() - new Date(c.dob)) / 3.15576e10) : 0,
+    gender: c.gender || '',
+    guardians: guardiansById[c.id] || [],
+    phones: [],
+    emails: [],
+    address: c.address || '',
+    app: !!c.uses_app,
+    phase: c.program || '',
+    source: c.source || '',
+    beltSize: c.belt_size || '',
+    kickSize: c.kick_size || '',
+    tags: [],
+    attended: 0,
+    daysSince: null,
+    testing: false,
+    balance: 0,
+    memberships: [],
+    invoices: [],
+    notes: []
+  }));
+}
 
 /* ========== STATE ========== */
 let activeFilter = null;   // 'overdue' | 'leads' | 'risk' | 'testing'
@@ -1965,9 +1923,10 @@ const sb = BTKD.sb;
 let currentUser = null, currentRole = null, _crmBooted = false;
 
 // The CRM's original boot — now only runs once the staff gate passes.
-function bootCrm(){
+async function bootCrm(){
   if(_crmBooted) return;
   _crmBooted = true;
+  await loadMembers();
   renderChips();
   renderList();
   renderDashboard();
