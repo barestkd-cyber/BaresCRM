@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>BaresTKD · Roster Check-In</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;900&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{--bg:#0c0e13;--surface:#15181f;--surface2:#1b202a;--border:#2a3039;--text:#eef2ee;
     --muted:#8b95a3;--faint:#3a414d;--gold:#c9920a;--red:#b3231f;--green:#2ecc71;}
@@ -117,7 +117,13 @@
 <script>
 const URL='https://akdncbzxiwvihfcyijvm.supabase.co';
 const KEY='sb_publishable_uSGIk4_Tt1_BOmPBoC_U5A_Kp2032f5';
-const sb=supabase.createClient(URL,KEY);
+let sb=null;
+function initSb(){
+  if(sb) return true;
+  if(typeof supabase==='undefined' || !supabase || !supabase.createClient) return false;
+  sb=supabase.createClient(URL,KEY);
+  return true;
+}
 
 const PROG_GATE={'prog-cubs':'Cubs','prog-juniors':'TKD','prog-teen':'TKD','prog-forms':'TKD',
   'prog-sparring':'TKD','prog-kick':'Kickboxing','prog-ampd':"AMP'D",'prog-leader':'Leadership'};
@@ -132,7 +138,9 @@ function nameOf(id){ const c=CONTACTS[id]; return c?((c.first_name||'')+' '+(c.l
 
 async function doLogin(){
   document.getElementById('loginErr').textContent='';
+  if(!initSb()){ document.getElementById('loginErr').textContent='Login service did not load. Check your connection and refresh the page.'; return; }
   const email=document.getElementById('email').value.trim(), pw=document.getElementById('pw').value;
+  if(!email||!pw){ document.getElementById('loginErr').textContent='Enter your email and password.'; return; }
   const { error }=await sb.auth.signInWithPassword({email,password:pw});
   if(error){ document.getElementById('loginErr').textContent=error.message; return; }
   boot();
@@ -140,6 +148,7 @@ async function doLogin(){
 async function doSignOut(){ await sb.auth.signOut(); location.reload(); }
 
 async function boot(){
+  if(!initSb()) return;
   const { data:{ session } }=await sb.auth.getSession();
   if(!session){ return; }
   me=session.user.email||'staff';
