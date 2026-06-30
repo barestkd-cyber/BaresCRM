@@ -707,7 +707,7 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
       </div>
       <div class="fld" style="width:150px;">
         <label style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">Date</label>
-        <input id="att-date" type="date" onchange="attRenderRoster()" style="width:100%;background:#fff;border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px 13px;font-size:15px;font-family:inherit;color:var(--text);outline:none;">
+        <input id="att-date" type="date" onchange="attFillClasses();attRenderRoster()" style="width:100%;background:#fff;border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px 13px;font-size:15px;font-family:inherit;color:var(--text);outline:none;">
       </div>
     </div>
     <div class="search-wrap" style="padding:8px 0 6px;">
@@ -810,13 +810,22 @@ async function attLoadData(){
 }
 function attMember(id){ return MEMBERS.find(m=>m.id===id); }
 function attTier(rank){ if(!rank) return -1; const r=rank.toLowerCase(); for(let i=ATT_BELT_ORDER.length-1;i>=0;i--) if(r.includes(ATT_BELT_ORDER[i])) return i; return -1; }
+function attFillClasses(){
+  const sel=document.getElementById('att-class'); if(!sel) return;
+  const d=document.getElementById('att-date');
+  const dateVal=d.value?new Date(d.value+'T12:00:00'):new Date();
+  const dayIdx=(dateVal.getDay()+6)%7; // 0=Mon … 6=Sun
+  const todays=ATT_CLASSES.map((c,i)=>({c,i})).filter(x=>x.c.day===dayIdx);
+  if(!todays.length){
+    sel.innerHTML='<option value="-1">No classes scheduled this day</option>';
+  } else {
+    sel.innerHTML=todays.map(x=>`<option value="${x.i}">${x.c.label}</option>`).join('');
+  }
+}
 async function renderAttendance(){
   if(!ATT_LOADED) await attLoadData();
-  const sel=document.getElementById('att-class');
-  if(sel && !sel.options.length){
-    sel.innerHTML=ATT_CLASSES.map((c,i)=>`<option value="${i}">${c.label}</option>`).join('');
-    const d=document.getElementById('att-date'); if(d && !d.value) d.valueAsDate=new Date();
-  }
+  const d=document.getElementById('att-date'); if(d && !d.value) d.valueAsDate=new Date();
+  attFillClasses();
   await attRenderRoster();
 }
 async function attRenderRoster(){
