@@ -638,7 +638,7 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
       <button class="nav-item" data-sec="memberships" onclick="showSection('memberships')"><span class="ni">◆</span><span class="nl">Memberships</span></button>
       <button class="nav-item" data-sec="checkout" onclick="showSection('checkout')"><span class="ni">▥</span><span class="nl">Checkout pages</span></button>
       <div class="nav-sep">Shared</div>
-      <button class="nav-item launch" onclick="location.href='checkin.html'"><span class="ni">◎</span><span class="nl">Attendance</span><span class="soon">soon</span></button>
+      <button class="nav-item" data-sec="attendance" onclick="showSection('attendance')"><span class="ni">◎</span><span class="nl">Attendance</span></button>
       <div class="nav-sep">Martial Arts</div>
       <button class="nav-item launch" onclick="launchApp('testing')"><span class="ni">✓</span><span class="nl">Testing</span><span class="ext">↗</span></button>
       <button class="nav-item launch" onclick="launchApp('curriculum')"><span class="ni">▤</span><span class="nl">Curriculum</span><span class="ext">↗</span></button>
@@ -696,6 +696,31 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 
       <!-- ===== PDF PACKET VIEWER ===== -->
       <section class="view" id="view-pdf"></section>
+
+      <section class="view" id="view-attendance">
+  <div style="padding:18px;max-width:680px;">
+    <h2 style="margin-bottom:14px;">Roster Check-In</h2>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+      <div style="flex:1;min-width:180px;">
+        <label style="display:block;font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:#8b95a3;margin-bottom:5px;">Class</label>
+        <select id="att-class" onchange="attRenderRoster()" style="width:100%;padding:11px;border-radius:8px;background:#15181f;border:1px solid #2a3039;color:#eef2ee;"></select>
+      </div>
+      <div style="width:150px;">
+        <label style="display:block;font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:#8b95a3;margin-bottom:5px;">Date</label>
+        <input id="att-date" type="date" onchange="attRenderRoster()" style="width:100%;padding:11px;border-radius:8px;background:#15181f;border:1px solid #2a3039;color:#eef2ee;">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;margin:14px 0 6px;">
+      <input id="att-search" oninput="attRenderRoster()" placeholder="Find a name…" style="flex:1;padding:10px;border-radius:8px;background:#15181f;border:1px solid #2a3039;color:#eef2ee;">
+      <button id="att-allbtn" onclick="attToggleAll()" style="padding:9px 14px;border-radius:8px;background:#15181f;border:1px solid #2a3039;color:#8b95a3;cursor:pointer;">In range</button>
+    </div>
+    <div id="att-count" style="font-size:.8rem;color:#8b95a3;margin-bottom:10px;"></div>
+    <div id="att-roster"></div>
+    <div style="position:sticky;bottom:0;background:#0c0e13;padding:14px 0;display:flex;border-top:1px solid #2a3039;margin-top:10px;">
+      <button onclick="attSave()" style="margin-left:auto;background:#c9920a;color:#15171c;border:none;border-radius:8px;font-weight:700;padding:12px 24px;cursor:pointer;">Save</button>
+    </div>
+  </div>
+</section>
     </main>
   </div>
 </div>
@@ -755,6 +780,76 @@ async function loadMembers(){
     invoices: [],
     notes: []
   }));
+}
+
+/* ===== Attendance roster check-in ===== */
+let ENROLLMENTS=[], ATT_CLASSES=[], ATT_PRESENT=new Set(), ATT_SAVED=new Set(), ATT_SHOWALL=false, ATT_LOADED=false;
+const ATT_PROG_GATE={'prog-cubs':'Cubs','prog-juniors':'TKD','prog-teen':'TKD','prog-forms':'TKD','prog-sparring':'TKD','prog-kick':'Kickboxing','prog-ampd':"AMP'D",'prog-leader':'Leadership'};
+const ATT_BELT_ORDER=['white','yellow','orange','green','purple','blue','brown','red','black'];
+const ATT_RANGE={'WHI-ORG':[0,2],'WHI-BLU':[0,5],'GR-BLK':[3,8],'BR-BLK':[6,8]};
+async function attLoadData(){
+  const [enr,sched]=await Promise.all([
+    sb.from('enrollments').select('student_id,program').eq('status','active'),
+    sb.from('schedule_template').select('day,time,label,belt,prog_css')
+  ]);
+  ENROLLMENTS=enr.data||[];
+  const order=['MON','TUE','WED','THU','FRI','SAT'];
+  let rows=(sched.data||[]).slice().sort((a,b)=>(a.day-b.day)||((a.time||'').localeCompare(b.time||'')));
+  if(rows.length){
+    ATT_CLASSES=rows.map(r=>({label:(r.label||'Class')+(r.belt?(' · '+r.belt):'')+(r.time?('  '+order[r.day]+' '+r.time):''),program:ATT_PROG_GATE[r.prog_css]||'TKD',belt:r.belt||'',day:r.day}));
+  }else{
+    const progs=[...new Set(ENROLLMENTS.map(e=>e.program))];
+    ATT_CLASSES=progs.map(p=>({label:p+' (all enrolled)',program:p,belt:'',day:null}));
+  }
+  const todayIdx=(new Date().getDay()+6)%7;
+  ATT_CLASSES.sort((a,b)=>(a.day===todayIdx?-1:0)-(b.day===todayIdx?-1:0));
+  ATT_LOADED=true;
+}
+function attMember(id){ return MEMBERS.find(m=>m.id===id); }
+function attTier(rank){ if(!rank) return -1; const r=rank.toLowerCase(); for(let i=ATT_BELT_ORDER.length-1;i>=0;i--) if(r.includes(ATT_BELT_ORDER[i])) return i; return -1; }
+async function renderAttendance(){
+  if(!ATT_LOADED) await attLoadData();
+  const sel=document.getElementById('att-class');
+  if(sel && !sel.options.length){
+    sel.innerHTML=ATT_CLASSES.map((c,i)=>`<option value="${i}">${c.label}</option>`).join('');
+    const d=document.getElementById('att-date'); if(d && !d.value) d.valueAsDate=new Date();
+  }
+  await attRenderRoster();
+}
+async function attRenderRoster(){
+  const sel=document.getElementById('att-class'); if(!sel||!ATT_CLASSES.length) return;
+  const cls=ATT_CLASSES[+sel.value]||ATT_CLASSES[0];
+  const date=document.getElementById('att-date').value||new Date().toISOString().slice(0,10);
+  const { data:ex }=await sb.from('attendance').select('student_id').eq('class_label',cls.label).eq('class_date',date);
+  ATT_SAVED=new Set((ex||[]).map(r=>r.student_id)); ATT_PRESENT=new Set(ATT_SAVED);
+  const ids=[...new Set(ENROLLMENTS.filter(e=>e.program===cls.program).map(e=>e.student_id))];
+  let list=ids.map(attMember).filter(Boolean);
+  if(!ATT_SHOWALL && ATT_RANGE[cls.belt]){ const [lo,hi]=ATT_RANGE[cls.belt]; list=list.filter(m=>{const t=attTier(m.rank);return t<0||(t>=lo&&t<=hi);}); }
+  const q=(document.getElementById('att-search').value||'').trim().toLowerCase();
+  if(q) list=list.filter(m=>((m.first+' '+m.last).toLowerCase().includes(q)));
+  list.sort((a,b)=>(a.first+a.last).localeCompare(b.first+b.last));
+  const box=document.getElementById('att-roster');
+  box.innerHTML=list.length?list.map(m=>{
+    const on=ATT_PRESENT.has(m.id);
+    return '<div onclick="attToggle(\''+m.id+'\')" style="display:flex;align-items:center;gap:12px;padding:12px 14px;margin-bottom:7px;border-radius:9px;cursor:pointer;border:1px solid '+(on?'#2ecc71':'#2a3039')+';background:'+(on?'rgba(46,204,113,.08)':'#15181f')+';"><div style="flex:1;font-weight:600;color:#eef2ee;">'+m.first+' '+m.last+' <span style="font-size:.78rem;color:#8b95a3;font-weight:400;">'+(m.rank||'')+'</span></div><div style="width:24px;height:24px;border-radius:50%;border:2px solid '+(on?'#2ecc71':'#3a414d')+';background:'+(on?'#2ecc71':'transparent')+';color:#fff;display:flex;align-items:center;justify-content:center;font-size:.8rem;">'+(on?'✓':'')+'</div></div>';
+  }).join(''):'<div style="color:#8b95a3;padding:24px;text-align:center;">No one enrolled in this class\'s program.</div>';
+  document.getElementById('att-count').textContent=ATT_PRESENT.size+' present · '+list.length+' on roster · '+cls.program;
+  document.getElementById('att-allbtn').textContent=ATT_SHOWALL?'Show all':'In range';
+}
+function attToggle(id){ ATT_PRESENT.has(id)?ATT_PRESENT.delete(id):ATT_PRESENT.add(id); attRenderRoster(); }
+function attToggleAll(){ ATT_SHOWALL=!ATT_SHOWALL; attRenderRoster(); }
+async function attSave(){
+  const sel=document.getElementById('att-class'); const cls=ATT_CLASSES[+sel.value]||ATT_CLASSES[0];
+  const date=document.getElementById('att-date').value||new Date().toISOString().slice(0,10);
+  let me='staff'; try{ const s=await BTKD.getSession(); me=(s&&s.user&&s.user.email)||'staff'; }catch(e){}
+  const adds=[...ATT_PRESENT].filter(id=>!ATT_SAVED.has(id)).map(id=>({student_id:id,class_label:cls.label,program:cls.program,class_date:date,status:'confirmed',source:'staff',recorded_by:me}));
+  const removes=[...ATT_SAVED].filter(id=>!ATT_PRESENT.has(id));
+  try{
+    if(adds.length){ const {error}=await sb.from('attendance').upsert(adds,{onConflict:'student_id,class_label,class_date',ignoreDuplicates:true}); if(error) throw error; }
+    for(const id of removes){ await sb.from('attendance').delete().eq('student_id',id).eq('class_label',cls.label).eq('class_date',date); }
+    ATT_SAVED=new Set(ATT_PRESENT);
+    toast(ATT_PRESENT.size+' checked in');
+  }catch(e){ toast('Save failed: '+(e.message||e)); }
 }
 
 /* ========== STATE ========== */
@@ -852,6 +947,7 @@ function showSection(sec){
   if(sec==="checkout") renderCheckout();
   if(sec==="pos") renderPOS();
   if(sec==="calendar") renderCalendar();
+  if(sec==="attendance") renderAttendance();
   document.querySelector("main").scrollTop = 0;
   closeNav();
 }
