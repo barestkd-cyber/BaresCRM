@@ -1893,10 +1893,16 @@ function renderProfile(){
   if(m.belt) html += '<div class="kv"><span class="k">Belt</span><span class="v"><span class="belt-bar" style="background:'+beltC+'"></span>'+m.rank+'</span></div>';
   if(m.beltSize) html += kv("Belt size", m.beltSize);
   if(m.kickSize) html += kv("Kick size", m.kickSize);
-  html += kv("Attendance", m.attended+" classes"+(m.daysSince!=null?" · last "+m.daysSince+"d ago":""));
   html += kv("Student app", m.app?"Yes":"No");
   if(m.source) html += kv("Source", m.source);
   html += '</div></div>';
+
+  // attendance (real, from the attendance table)
+  html += '<div class="sec"><div class="sec-h">Attendance'
+    + '<span style="float:right;display:inline-flex;gap:6px;">'
+    + '<button class="prof-att-tg" data-w="cycle" onclick="profAttSetWindow(\'cycle\')" style="font-size:11px;font-weight:700;padding:4px 9px;border-radius:7px;border:1.5px solid var(--ink);background:var(--surface);color:var(--ink);cursor:pointer;">This cycle</button>'
+    + '<button class="prof-att-tg" data-w="20wk" onclick="profAttSetWindow(\'20wk\')" style="font-size:11px;font-weight:700;padding:4px 9px;border-radius:7px;border:1.5px solid var(--line);background:#fff;color:var(--muted);cursor:pointer;">20 weeks</button>'
+    + '</span></div><div class="card pad" id="prof-att">Loading…</div></div>';
 
   // notes
   html += '<div class="sec"><div class="sec-h">Notes <span style="color:var(--accent);cursor:pointer" onclick="toast(\'Add a note\')">＋ Add</span></div><div class="card">';
@@ -1959,9 +1965,39 @@ function renderProfile(){
   html += '</div></div><div class="spacer"></div>';
 
   $("#view-profile").innerHTML = html;
+  loadProfileAttendance(m.id);
 }
 function kv(k,v){ return '<div class="kv"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>'; }
 function acc(title, body){ return '<details class="acc"><summary>'+title+'<span class="chev">⌄</span></summary><div class="ab">'+body+'</div></details>'; }
+let PROF_ATT_WIN='cycle';
+async function profCycleStart(){
+  try{ const {data}=await sb.from('cycle_data').select('*').order('updated_at',{ascending:false}).limit(1).single();
+    if(data){ const sd=data.startDate||data.start_date; if(sd) return new Date(sd+'T00:00:00'); } }catch(e){}
+  return null;
+}
+async function loadProfileAttendance(id){
+  const box=document.getElementById('prof-att'); if(!box) return;
+  let start;
+  if(PROF_ATT_WIN==='20wk'){ start=new Date(); start.setDate(start.getDate()-140); }
+  else { start=await profCycleStart(); if(!start){ start=new Date(); start.setDate(start.getDate()-70); } }
+  const startStr=start.toISOString().slice(0,10);
+  const {data,error}=await sb.from('attendance').select('class_date,class_label').eq('student_id',id).gte('class_date',startStr).order('class_date',{ascending:false});
+  if(error){ box.innerHTML='<div style="color:var(--muted);font-size:14px">Could not load attendance.</div>'; return; }
+  const rows=data||[]; const total=rows.length; const last=rows.length?rows[0].class_date:null;
+  let h='<div class="kv"><span class="k">Classes this window</span><span class="v">'+total+'</span></div>';
+  h+='<div class="kv"><span class="k">Last seen</span><span class="v">'+(last||'—')+'</span></div>';
+  if(rows.length){
+    h+='<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:6px;">';
+    rows.slice(0,15).forEach(r=>{ h+='<div class="tc-row"><div class="tc-info"><div class="tc-name">'+String(r.class_label||'').replace(/\s{2,}/g,' · ')+'</div><div class="tc-when">'+r.class_date+'</div></div></div>'; });
+    h+='</div>';
+  } else { h+='<div style="color:var(--muted);font-size:13px;margin-top:6px;">No check-ins in this window.</div>'; }
+  box.innerHTML=h;
+}
+function profAttSetWindow(w){ PROF_ATT_WIN=w;
+  document.querySelectorAll('.prof-att-tg').forEach(b=>{ const on=b.dataset.w===w;
+    b.style.background=on?'var(--surface)':'#fff'; b.style.color=on?'var(--ink)':'var(--muted)'; b.style.borderColor=on?'var(--ink)':'var(--line)'; });
+  loadProfileAttendance(currentMember.id);
+}
 
 /* ========== membership actions sheet ========== */
 function roleDesc(role){
