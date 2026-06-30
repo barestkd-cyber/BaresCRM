@@ -877,16 +877,27 @@ async function attSave(){
     toast(ATT_PRESENT.size+' checked in');
   }catch(e){ toast('Save failed: '+(e.message||e)); }
 }
+function attVisitLabel(dateStr){
+  if(!dateStr) return null;
+  const d=new Date(dateStr+'T12:00:00');
+  const now=new Date(); now.setHours(12,0,0,0);
+  const days=Math.round((now-d)/86400000);
+  if(days<=0) return 'today';
+  if(days===1) return 'yesterday';
+  const mm=String(d.getMonth()+1).padStart(2,'0');
+  const dd=String(d.getDate()).padStart(2,'0');
+  const yy=String(d.getFullYear()).slice(-2);
+  return mm+dd+yy;
+}
 async function attComputeLastVisits(){
   try{
     const { data }=await sb.from('attendance').select('student_id,class_date');
     if(!data) return;
     const last={};
     data.forEach(r=>{ if(!last[r.student_id] || r.class_date>last[r.student_id]) last[r.student_id]=r.class_date; });
-    const today=new Date();
     MEMBERS.forEach(m=>{
       const d=last[m.id];
-      if(d){ m.lastVisit=d; m.daysSince=Math.floor((today-new Date(d+'T12:00:00'))/86400000); }
+      if(d){ m.lastVisit=d; m.visitLabel=attVisitLabel(d); }
     });
     if(typeof renderList==='function') renderList();
   }catch(e){}
@@ -957,7 +968,7 @@ function renderList(){
       : '<span class="c-dash">'+(m.phase||'—')+'</span>';
     const planCell = m.memberships.length ? m.memberships[0].plan : '<span class="c-dash">—</span>';
     const visitRisk = m.segment==="Active" && m.daysSince!=null && m.daysSince>=14;
-    const visitCell = m.daysSince!=null ? (m.daysSince+'d ago') : '<span class="c-dash">—</span>';
+    const visitCell = m.visitLabel ? m.visitLabel : '<span class="c-dash">—</span>';
     const phoneCell = m.phones.length ? m.phones[0][1] : '<span class="c-dash">—</span>';
     return '<button class="mrow'+(m.id===selectedId?' sel':'')+'" onclick="openProfile(\''+m.id+'\')">'
       + '<div class="c-name">'
