@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>BaresTKD · Roster Check-In</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;900&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{--bg:#0c0e13;--surface:#15181f;--surface2:#1b202a;--border:#2a3039;--text:#eef2ee;
+    --muted:#8b95a3;--faint:#3a414d;--gold:#c9920a;--red:#b3231f;--green:#2ecc71;}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{background:var(--bg);color:var(--text);font-family:'Source Sans 3',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;padding-bottom:96px;}
+  .wrap{max-width:560px;margin:0 auto;padding:16px;}
+  .logo{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:.05em;
+    text-transform:uppercase;}.logo .ac{color:var(--gold);}
+  .sub{color:var(--muted);font-size:.82rem;margin-top:2px;}
+
+  /* login */
+  #login{max-width:340px;margin:18vh auto 0;}
+  #login input{width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);
+    border-radius:9px;padding:13px;font-size:1rem;margin-top:10px;font-family:inherit;outline:none;}
+  #login input:focus{border-color:var(--gold);}
+  .btn{width:100%;background:var(--gold);color:#15171c;border:none;border-radius:9px;
+    font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:1.05rem;letter-spacing:.06em;
+    text-transform:uppercase;padding:14px;cursor:pointer;margin-top:12px;}
+  .btn:active{transform:translateY(1px);}
+  .err{color:var(--red);font-size:.85rem;margin-top:10px;min-height:1.1em;}
+
+  .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .signout{background:none;border:1px solid var(--border);color:var(--muted);border-radius:7px;
+    padding:7px 12px;font-size:.78rem;cursor:pointer;font-family:inherit;}
+
+  label.fld{display:block;font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+    font-weight:700;margin:0 0 5px;}
+  select,.search input{width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);
+    border-radius:9px;padding:12px;font-size:1rem;font-family:inherit;outline:none;}
+  select:focus,.search input:focus{border-color:var(--gold);}
+  .row2{display:flex;gap:10px;}.row2 .fld-wrap{flex:1;}
+  .search{margin:14px 0 6px;}
+  .meta{display:flex;align-items:center;justify-content:space-between;margin:14px 0 8px;}
+  .meta .cnt{font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;font-size:.8rem;color:var(--muted);}
+  .toggle{background:var(--surface);border:1px solid var(--border);color:var(--muted);border-radius:6px;
+    padding:6px 10px;font-size:.72rem;cursor:pointer;font-family:inherit;}
+  .toggle.on{border-color:var(--gold);color:var(--text);}
+
+  .stud{display:flex;align-items:center;gap:12px;width:100%;background:var(--surface);border:1px solid var(--border);
+    border-radius:9px;padding:12px 13px;margin-bottom:7px;cursor:pointer;}
+  .stud.present{background:rgba(46,204,113,.08);border-color:rgba(46,204,113,.42);}
+  .nm{flex:1;font-weight:600;font-size:1rem;}
+  .rk{font-size:.74rem;color:var(--muted);font-weight:400;}
+  .chk{width:26px;height:26px;border-radius:50%;border:2px solid var(--faint);flex-shrink:0;display:flex;
+    align-items:center;justify-content:center;color:transparent;font-weight:700;font-size:.85rem;}
+  .stud.present .chk{background:var(--green);border-color:var(--green);color:#fff;}
+  .empty{color:var(--muted);text-align:center;padding:30px 10px;font-size:.9rem;}
+
+  .footer{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(to top,var(--bg) 72%,transparent);
+    padding:14px 16px 18px;}
+  .footinner{max-width:560px;margin:0 auto;display:flex;align-items:center;gap:12px;}
+  .tally{font-family:'Source Sans 3';color:var(--muted);font-size:.92rem;}.tally b{color:var(--green);font-size:1.3rem;}
+  .save{margin-left:auto;background:var(--gold);color:#15171c;border:none;border-radius:8px;
+    font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:1rem;letter-spacing:.06em;
+    text-transform:uppercase;padding:13px 26px;cursor:pointer;}
+  .save:disabled{opacity:.5;}
+  .toast{position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-20px);opacity:0;z-index:50;
+    background:var(--green);color:#0c0e13;font-weight:700;padding:11px 22px;border-radius:9px;transition:.25s;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .toast.bad{background:var(--red);color:#fff;}
+</style>
+</head>
+<body>
+<div id="errbar" style="display:none;background:#b3231f;color:#fff;padding:11px 14px;font-size:.85rem;font-weight:600;text-align:center;"></div>
+<div class="wrap">
+  <!-- LOGIN -->
+  <div id="login">
+    <div class="logo">Bares<span class="ac">TKD</span></div>
+    <div class="sub">Roster check-in. Staff sign-in. <span style="color:var(--gold)">v5</span> · <span id="jsflag" style="color:var(--red)">js OFF</span></div>
+    <input id="email" type="email" placeholder="Email" autocomplete="username">
+    <input id="pw" type="password" placeholder="Password" autocomplete="current-password">
+    <button class="btn" id="signinBtn" onclick="doLogin()">Sign In</button>
+    <div class="err" id="loginErr"></div>
+  </div>
+
+  <!-- APP -->
+  <div id="app" style="display:none;">
+    <div class="topbar">
+      <div><div class="logo">Bares<span class="ac">TKD</span></div><div class="sub" id="today"></div></div>
+      <button class="signout" onclick="doSignOut()">Sign out</button>
+    </div>
+
+    <div class="row2">
+      <div class="fld-wrap"><label class="fld">Class</label>
+        <select id="classSel" onchange="renderRoster()"></select></div>
+      <div class="fld-wrap" style="flex:0 0 132px;"><label class="fld">Date</label>
+        <input id="dateSel" type="date" onchange="renderRoster()" style="width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:12px;font-family:inherit;"></div>
+    </div>
+
+    <div class="search"><label class="fld">Find a name</label><input id="q" type="text" placeholder="Type to filter…" oninput="renderRoster()"></div>
+
+    <div class="meta">
+      <div class="cnt" id="rosterCnt"></div>
+      <button class="toggle" id="allToggle" onclick="toggleAll()">In range</button>
+    </div>
+    <div id="roster"></div>
+  </div>
+</div>
+
+<div class="footer" id="footer" style="display:none;">
+  <div class="footinner">
+    <div class="tally"><b id="presentN">0</b> present</div>
+    <button class="save" id="saveBtn" onclick="save()">Save</button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+function showErr(m){ const b=document.getElementById('errbar'); if(b){ b.style.display='block'; b.textContent='Error: '+m; } }
+window.addEventListener('error', e=>showErr(e.message||(e.error&&e.error.message)||'script error'));
+window.addEventListener('unhandledrejection', e=>showErr((e.reason&&e.reason.message)||e.reason||'promise rejected'));
+try{ var jf=document.getElementById('jsflag'); if(jf){ jf.textContent='js ON'; jf.style.color='var(--green)'; } }catch(e){}
+
+const URL='https://akdncbzxiwvihfcyijvm.supabase.co';
+const KEY='sb_publishable_uSGIk4_Tt1_BOmPBoC_U5A_Kp2032f5';
+let sb=null;
+function initSb(){
+  if(sb) return true;
+  if(typeof supabase==='undefined' || !supabase || !supabase.createClient) return false;
+  sb=supabase.createClient(URL,KEY);
+  return true;
+}
+
+const PROG_GATE={'prog-cubs':'Cubs','prog-juniors':'TKD','prog-teen':'TKD','prog-forms':'TKD',
+  'prog-sparring':'TKD','prog-kick':'Kickboxing','prog-ampd':"AMP'D",'prog-leader':'Leadership'};
+const BELT_ORDER=['white','yellow','orange','green','purple','blue','brown','red','black'];
+const RANGE={'WHI-ORG':[0,2],'WHI-BLU':[0,5],'GR-BLK':[3,8],'BR-BLK':[6,8]}; // others = show all
+
+let CLASSES=[], ENROLL=[], CONTACTS={}, present=new Set(), savedNow=new Set(), showAll=false, me='';
+
+function tier(rank){ if(!rank) return -1; const r=rank.toLowerCase();
+  for(let i=BELT_ORDER.length-1;i>=0;i--) if(r.includes(BELT_ORDER[i])) return i; return -1; }
+function nameOf(id){ const c=CONTACTS[id]; return c?((c.first_name||'')+' '+(c.last_name||'')).trim():'?'; }
+
+async function doLogin(){
+  const el=document.getElementById('loginErr'); el.textContent='Working…';
+  if(!initSb()){ el.textContent='Login service did not load. Refresh the page.'; return; }
+  const email=document.getElementById('email').value.trim(), pw=document.getElementById('pw').value;
+  if(!email||!pw){ el.textContent='Enter your email and password.'; return; }
+  el.textContent='Contacting server…';
+  try{
+    const call=sb.auth.signInWithPassword({email,password:pw});
+    const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('No response in 12s — network or key issue')),12000));
+    const { data, error }=await Promise.race([call,timeout]);
+    if(error){ el.textContent='Failed: '+error.message; showErr(error.message); return; }
+    if(!data || !data.session){ el.textContent='No session came back. Check the key.'; return; }
+    el.textContent='Signed in. Loading roster…';
+    boot();
+  }catch(e){ el.textContent='Error: '+(e.message||e); showErr(e.message||e); }
+}
+try{ var _b=document.getElementById('signinBtn'); if(_b) _b.addEventListener('click', doLogin); }catch(e){}
+async function doSignOut(){ await sb.auth.signOut(); location.reload(); }
+
+async function boot(){
+  if(!initSb()) return;
+  const { data:{ session } }=await sb.auth.getSession();
+  if(!session){ return; }
+  me=session.user.email||'staff';
+  document.getElementById('login').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('footer').style.display='block';
+  document.getElementById('today').textContent=new Date().toLocaleDateString([], {weekday:'long',month:'short',day:'numeric'});
+  document.getElementById('dateSel').valueAsDate=new Date();
+
+  // load schedule, enrollment, contacts
+  const [sched, enr, con] = await Promise.all([
+    sb.from('schedule_template').select('day,time,label,belt,prog_css,duration'),
+    sb.from('enrollments').select('student_id,program').eq('status','active'),
+    sb.from('contacts').select('id,first_name,last_name,rank')
+  ]);
+  ENROLL = enr.data || [];
+  (con.data||[]).forEach(c=>CONTACTS[c.id]=c);
+
+  // build class list from schedule; fall back to one per program if schedule empty
+  let rows = sched.data || [];
+  if(rows.length){
+    const order=['MON','TUE','WED','THU','FRI','SAT'];
+    rows.sort((a,b)=> (a.day-b.day) || ((a.time||'').localeCompare(b.time||'')));
+    CLASSES = rows.map(r=>({
+      label:(r.label||'Class')+(r.belt?(' · '+r.belt):'')+(r.time?('  '+order[r.day]+' '+r.time):''),
+      program: PROG_GATE[r.prog_css]||'TKD', belt:r.belt||'', day:r.day
+    }));
+  } else {
+    const progs=[...new Set(ENROLL.map(e=>e.program))];
+    CLASSES = progs.map(p=>({label:p+' (all enrolled)', program:p, belt:'', day:null}));
+  }
+  // default to today's classes first
+  const todayIdx=(new Date().getDay()+6)%7;
+  CLASSES.sort((a,b)=> (a.day===todayIdx?-1:0)-(b.day===todayIdx?-1:0));
+  document.getElementById('classSel').innerHTML=CLASSES.map((c,i)=>`<option value="${i}">${c.label}</option>`).join('');
+  renderRoster();
+}
+
+function currentClass(){ return CLASSES[+document.getElementById('classSel').value]; }
+function rosterFor(cls){
+  const ids=ENROLL.filter(e=>e.program===cls.program).map(e=>e.student_id);
+  let list=[...new Set(ids)].map(id=>CONTACTS[id]).filter(Boolean);
+  if(!showAll && RANGE[cls.belt]){ const [lo,hi]=RANGE[cls.belt];
+    list=list.filter(c=>{ const t=tier(c.rank); return t<0 || (t>=lo&&t<=hi); }); } // fail-open
+  return list.sort((a,b)=>nameOf(a.id).localeCompare(nameOf(b.id)));
+}
+
+async function renderRoster(){
+  const cls=currentClass(); if(!cls) return;
+  const date=document.getElementById('dateSel').value;
+  // load what's already saved for this class+date
+  const { data:existing }=await sb.from('attendance').select('student_id')
+    .eq('class_label',cls.label).eq('class_date',date);
+  savedNow=new Set((existing||[]).map(r=>r.student_id));
+  present=new Set(savedNow);
+
+  const q=document.getElementById('q').value.trim().toLowerCase();
+  let list=rosterFor(cls);
+  if(q) list=list.filter(c=>nameOf(c.id).toLowerCase().includes(q));
+
+  document.getElementById('allToggle').textContent=showAll?'Show all':'In range';
+  document.getElementById('allToggle').classList.toggle('on',showAll);
+  document.getElementById('rosterCnt').textContent=list.length+' on roster · '+cls.program;
+  document.getElementById('roster').innerHTML = list.length? list.map(c=>{
+    const on=present.has(c.id);
+    return `<div class="stud ${on?'present':''}" onclick="toggle('${c.id}')">
+      <div class="nm">${nameOf(c.id)} <span class="rk">${c.rank||''}</span></div>
+      <div class="chk">✓</div></div>`;
+  }).join('') : '<div class="empty">No one enrolled in this class\'s program.</div>';
+  updateTally();
+}
+function toggle(id){ present.has(id)?present.delete(id):present.add(id);
+  renderRosterLight(); }
+function renderRosterLight(){ // re-render without re-querying
+  const cls=currentClass(); const q=document.getElementById('q').value.trim().toLowerCase();
+  let list=rosterFor(cls); if(q) list=list.filter(c=>nameOf(c.id).toLowerCase().includes(q));
+  document.getElementById('roster').innerHTML=list.map(c=>{const on=present.has(c.id);
+    return `<div class="stud ${on?'present':''}" onclick="toggle('${c.id}')">
+      <div class="nm">${nameOf(c.id)} <span class="rk">${c.rank||''}</span></div><div class="chk">✓</div></div>`;}).join('');
+  updateTally();
+}
+function updateTally(){ document.getElementById('presentN').textContent=present.size; }
+function toggleAll(){ showAll=!showAll; renderRoster(); }
+
+async function save(){
+  const cls=currentClass(); const date=document.getElementById('dateSel').value;
+  const btn=document.getElementById('saveBtn'); btn.disabled=true;
+  // additions = present now and not already saved
+  const adds=[...present].filter(id=>!savedNow.has(id)).map(id=>({
+    student_id:id, class_label:cls.label, program:cls.program, class_date:date,
+    status:'confirmed', source:'staff', recorded_by:me }));
+  // removals = was saved, now unchecked
+  const removes=[...savedNow].filter(id=>!present.has(id));
+  try{
+    if(adds.length){ const { error }=await sb.from('attendance')
+        .upsert(adds,{onConflict:'student_id,class_label,class_date',ignoreDuplicates:true});
+      if(error) throw error; }
+    for(const id of removes){ await sb.from('attendance').delete()
+        .eq('student_id',id).eq('class_label',cls.label).eq('class_date',date); }
+    savedNow=new Set(present);
+    toast(present.size+' checked in for '+cls.program);
+  }catch(e){ toast('Save failed: '+(e.message||e),true); }
+  btn.disabled=false;
+}
+let _tt; function toast(m,bad){ const t=document.getElementById('toast'); t.textContent=m;
+  t.classList.toggle('bad',!!bad); t.classList.add('show'); clearTimeout(_tt);
+  _tt=setTimeout(()=>t.classList.remove('show'),2600); }
+
+// resume session if already logged in
+boot();
+</script>
+</body>
+</html>
