@@ -703,11 +703,11 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
       <div class="fld" style="flex:1;min-width:180px;">
         <label style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">Class</label>
-        <select id="att-class" onchange="attRenderRoster()"></select>
+        <select id="att-class" onchange="attRefresh()"></select>
       </div>
       <div class="fld" style="width:150px;">
         <label style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">Date</label>
-        <input id="att-date" type="date" onchange="attFillClasses();attRenderRoster()" style="width:100%;background:#fff;border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px 13px;font-size:15px;font-family:inherit;color:var(--text);outline:none;">
+        <input id="att-date" type="date" onchange="attFillClasses();attRefresh()" style="width:100%;background:#fff;border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:12px 13px;font-size:15px;font-family:inherit;color:var(--text);outline:none;">
       </div>
     </div>
     <div class="search-wrap" style="padding:8px 0 6px;">
@@ -826,16 +826,23 @@ async function renderAttendance(){
   if(!ATT_LOADED) await attLoadData();
   const d=document.getElementById('att-date'); if(d && !d.value) d.valueAsDate=new Date();
   attFillClasses();
-  await attRenderRoster();
+  await attRefresh();
 }
-async function attRenderRoster(){
+async function attLoadSaved(){
   const sel=document.getElementById('att-class'); if(!sel||!ATT_CLASSES.length) return;
   const cls=ATT_CLASSES[+sel.value]||ATT_CLASSES[0];
   const date=document.getElementById('att-date').value||new Date().toISOString().slice(0,10);
   const { data:ex }=await sb.from('attendance').select('student_id').eq('class_label',cls.label).eq('class_date',date);
-  ATT_SAVED=new Set((ex||[]).map(r=>r.student_id)); ATT_PRESENT=new Set(ATT_SAVED);
+  ATT_SAVED=new Set((ex||[]).map(r=>r.student_id));
+  ATT_PRESENT=new Set(ATT_SAVED);
+  if(typeof ATT_EXTRA!=='undefined') ATT_EXTRA=new Set();
+}
+function attRenderRoster(){
+  const sel=document.getElementById('att-class'); if(!sel||!ATT_CLASSES.length) return;
+  const cls=ATT_CLASSES[+sel.value]||ATT_CLASSES[0];
   const ids=[...new Set(ENROLLMENTS.filter(e=>e.program===cls.program).map(e=>e.student_id))];
   let list=ids.map(attMember).filter(Boolean);
+  if(typeof ATT_EXTRA!=='undefined'){ [...ATT_EXTRA].forEach(id=>{ if(!ids.includes(id)){ const m=attMember(id); if(m) list.push(m); } }); }
   if(!ATT_SHOWALL && ATT_RANGE[cls.belt]){ const [lo,hi]=ATT_RANGE[cls.belt]; list=list.filter(m=>{const t=attTier(m.rank);return t<0||(t>=lo&&t<=hi);}); }
   const q=(document.getElementById('att-search').value||'').trim().toLowerCase();
   if(q) list=list.filter(m=>((m.first+' '+m.last).toLowerCase().includes(q)));
@@ -854,6 +861,7 @@ async function attRenderRoster(){
   document.getElementById('att-count').textContent=ATT_PRESENT.size+' present · '+list.length+' on roster';
   document.getElementById('att-allbtn').textContent=ATT_SHOWALL?'Show all':'In range';
 }
+async function attRefresh(){ await attLoadSaved(); attRenderRoster(); }
 function attToggle(id){ ATT_PRESENT.has(id)?ATT_PRESENT.delete(id):ATT_PRESENT.add(id); attRenderRoster(); }
 function attToggleAll(){ ATT_SHOWALL=!ATT_SHOWALL; attRenderRoster(); }
 async function attSave(){
