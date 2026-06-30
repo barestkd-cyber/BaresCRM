@@ -877,6 +877,20 @@ async function attSave(){
     toast(ATT_PRESENT.size+' checked in');
   }catch(e){ toast('Save failed: '+(e.message||e)); }
 }
+async function attComputeLastVisits(){
+  try{
+    const { data }=await sb.from('attendance').select('student_id,class_date');
+    if(!data) return;
+    const last={};
+    data.forEach(r=>{ if(!last[r.student_id] || r.class_date>last[r.student_id]) last[r.student_id]=r.class_date; });
+    const today=new Date();
+    MEMBERS.forEach(m=>{
+      const d=last[m.id];
+      if(d){ m.lastVisit=d; m.daysSince=Math.floor((today-new Date(d+'T12:00:00'))/86400000); }
+    });
+    if(typeof renderList==='function') renderList();
+  }catch(e){}
+}
 
 /* ========== STATE ========== */
 let activeFilter = null;   // 'overdue' | 'leads' | 'risk' | 'testing'
@@ -2085,6 +2099,7 @@ async function bootCrm(){
   if(_crmBooted) return;
   _crmBooted = true;
   await loadMembers();
+  await attComputeLastVisits();
   renderChips();
   renderList();
   renderDashboard();
