@@ -719,6 +719,12 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
       <button class="lh-clear" id="att-allbtn" onclick="attToggleAll()" style="background:none;border:none;cursor:pointer;">In range</button>
     </div>
     <div class="mlist" id="att-roster" style="padding:0;"></div>
+    <div style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px;">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);margin:0 2px 8px;">Not on the roster? Add anyone</div>
+      <div class="search-wrap" style="padding:0;"><span class="search-ico" style="left:14px;">⌕</span>
+      <input id="att-add" class="search" oninput="attAddSearch()" placeholder="Search all members"></div>
+      <div id="att-add-results" style="margin-top:8px;"></div>
+    </div>
     <div style="position:sticky;bottom:0;background:var(--surface);padding:12px 0;display:flex;border-top:1px solid var(--line);">
       <button onclick="attSave()" style="margin-left:auto;background:var(--go);color:#fff;font-weight:700;padding:13px 28px;border-radius:12px;font-size:15px;border:none;cursor:pointer;">Save attendance</button>
     </div>
@@ -786,8 +792,8 @@ async function loadMembers(){
 }
 
 /* ===== Attendance roster check-in ===== */
-let ENROLLMENTS=[], ATT_CLASSES=[], ATT_PRESENT=new Set(), ATT_SAVED=new Set(), ATT_SHOWALL=false, ATT_LOADED=false;
-const ATT_PROG_GATE={'prog-cubs':'Cubs','prog-juniors':'TKD','prog-teen':'TKD','prog-forms':'TKD','prog-sparring':'TKD','prog-kick':'Kickboxing','prog-ampd':"AMP'D",'prog-leader':'Leadership'};
+let ENROLLMENTS=[], ATT_CLASSES=[], ATT_PRESENT=new Set(), ATT_SAVED=new Set(), ATT_SHOWALL=false, ATT_LOADED=false, ATT_EXTRA=new Set();
+const ATT_PROG_GATE={'prog-cubs':'Cubs','prog-juniors':'Juniors','prog-teen':'Teens/Adults','prog-forms':['Juniors','Teens/Adults'],'prog-sparring':['Juniors','Teens/Adults'],'prog-kick':'Kickboxing','prog-ampd':"AMP'D",'prog-leader':'Leadership'};
 const ATT_BELT_ORDER=['white','yellow','orange','green','purple','blue','brown','red','black'];
 const ATT_RANGE={'WHI-ORG':[0,2],'WHI-BLU':[0,5],'GR-BLK':[3,8],'BR-BLK':[6,8]};
 async function attLoadData(){
@@ -840,7 +846,8 @@ async function attLoadSaved(){
 function attRenderRoster(){
   const sel=document.getElementById('att-class'); if(!sel||!ATT_CLASSES.length) return;
   const cls=ATT_CLASSES[+sel.value]||ATT_CLASSES[0];
-  const ids=[...new Set(ENROLLMENTS.filter(e=>e.program===cls.program).map(e=>e.student_id))];
+  const wanted=Array.isArray(cls.program)?cls.program:[cls.program];
+  const ids=[...new Set(ENROLLMENTS.filter(e=>wanted.includes(e.program)).map(e=>e.student_id))];
   let list=ids.map(attMember).filter(Boolean);
   if(typeof ATT_EXTRA!=='undefined'){ [...ATT_EXTRA].forEach(id=>{ if(!ids.includes(id)){ const m=attMember(id); if(m) list.push(m); } }); }
   if(!ATT_SHOWALL && ATT_RANGE[cls.belt]){ const [lo,hi]=ATT_RANGE[cls.belt]; list=list.filter(m=>{const t=attTier(m.rank);return t<0||(t>=lo&&t<=hi);}); }
@@ -864,6 +871,19 @@ function attRenderRoster(){
 async function attRefresh(){ await attLoadSaved(); attRenderRoster(); }
 function attToggle(id){ ATT_PRESENT.has(id)?ATT_PRESENT.delete(id):ATT_PRESENT.add(id); attRenderRoster(); }
 function attToggleAll(){ ATT_SHOWALL=!ATT_SHOWALL; attRenderRoster(); }
+function attAddSearch(){
+  const q=(document.getElementById('att-add').value||'').trim().toLowerCase();
+  const box=document.getElementById('att-add-results');
+  if(q.length<2){ box.innerHTML=''; return; }
+  const hits=MEMBERS.filter(m=>((m.first+' '+m.last).toLowerCase().includes(q))).slice(0,6);
+  box.innerHTML=hits.map(m=>'<button class="mrow" onclick="attAdd(\''+m.id+'\')"><div class="c-name"><div class="av" style="background:'+(BELT[m.belt]||'#C7CCD2')+'"><span style="color:'+((m.belt==='White'||m.belt==='Yellow')?'#15171C':'#fff')+'">'+initials(m)+'</span></div><div class="minfo"><div class="mname">'+m.first+' '+m.last+'</div><div class="msub">'+(m.rank||'')+'</div></div></div><div class="mright"><span class="seg trial">Add</span></div></button>').join('');
+}
+function attAdd(id){
+  ATT_PRESENT.add(id); ATT_EXTRA.add(id);
+  document.getElementById('att-add').value='';
+  document.getElementById('att-add-results').innerHTML='';
+  attRenderRoster();
+}
 async function attSave(){
   const sel=document.getElementById('att-class'); const cls=ATT_CLASSES[+sel.value]||ATT_CLASSES[0];
   const date=document.getElementById('att-date').value||new Date().toISOString().slice(0,10);
