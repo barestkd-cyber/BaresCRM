@@ -853,7 +853,7 @@ function attRenderRoster(){
   if(!ATT_SHOWALL && ATT_RANGE[cls.belt]){ const [lo,hi]=ATT_RANGE[cls.belt]; list=list.filter(m=>{const t=attTier(m.rank);return t<0||(t>=lo&&t<=hi);}); }
   const q=(document.getElementById('att-search').value||'').trim().toLowerCase();
   if(q) list=list.filter(m=>((m.first+' '+m.last).toLowerCase().includes(q)));
-  list.sort((a,b)=>(a.first+a.last).localeCompare(b.first+b.last));
+  list.sort((a,b)=>{ const sa=ATT_SAVED.has(a.id), sb2=ATT_SAVED.has(b.id); if(sa!==sb2) return sa?-1:1; return (a.first+a.last).localeCompare(b.first+b.last); });
   const box=document.getElementById('att-roster');
   box.innerHTML=list.length?list.map(m=>{
     const on=ATT_PRESENT.has(m.id);
@@ -894,6 +894,7 @@ async function attSave(){
     if(adds.length){ const {error}=await sb.from('attendance').upsert(adds,{onConflict:'student_id,class_label,class_date',ignoreDuplicates:true}); if(error) throw error; }
     for(const id of removes){ await sb.from('attendance').delete().eq('student_id',id).eq('class_label',cls.label).eq('class_date',date); }
     ATT_SAVED=new Set(ATT_PRESENT);
+    attRenderRoster();
     toast(ATT_PRESENT.size+' checked in');
   }catch(e){ toast('Save failed: '+(e.message||e)); }
 }
