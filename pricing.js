@@ -56,7 +56,27 @@
     specialty_both:       'bundle_tkd_both_specialties'
   };
 
-  var FAMILY_CODES = ['tkd_family_second', 'tkd_family_third_plus'];
+  // A family-position plan is data-marked (family_position) or code-marked
+  // (juniors_family_second, adults_family_third_plus, legacy tkd_family_*).
+  function isFamilyPlan(p) {
+    return !!p && (p.family_position != null || /_family_(second|third_plus)$/.test(p.code || ''));
+  }
+
+  /* Family rates are per program (juniors_family_second vs adults_family_second).
+   * Prefer the row matching the requested plan's program; fall back to any
+   * core-TKD row carrying that family_position. */
+  function findFamilyPlanFor(plans, pos, program) {
+    if (!plans) return null;
+    var list = Array.isArray(plans) ? plans : Object.keys(plans).map(function (k) { return plans[k]; });
+    var any = null;
+    for (var i = 0; i < list.length; i++) {
+      var p = list[i];
+      if (!p || p.category !== 'core_tkd' || p.family_position !== pos) continue;
+      if (program != null && p.program === program) return p;
+      if (!any) any = p;
+    }
+    return any;
+  }
 
   // ─── small helpers ────────────────────────────────────────────────────────
 
@@ -168,8 +188,12 @@
   }
 
   function personCoreTkdIsWeekly(person) {
+    // Program-split catalog: weekly core TKD is any core_tkd row billed weekly
+    // (juniors_weekly, adults_weekly, legacy tkd_weekly). Prefer the explicit
+    // billing_frequency when the caller supplies it; fall back to the code.
     return qualifying(person && person.activeMemberships).some(function (m) {
-      return m.category === 'core_tkd' && m.plan_code === 'tkd_weekly';
+      return m.category === 'core_tkd' &&
+        (m.billing_frequency === 'weekly' || /(^|_)weekly$/.test(m.plan_code || ''));
     });
   }
 
@@ -242,7 +266,7 @@
     // ── core TKD: apply family position ──
     if (cat === 'core_tkd') {
       // An explicitly chosen family plan is respected as-is.
-      if (FAMILY_CODES.indexOf(requested.code) !== -1) return out;
+      if (isFamilyPlan(requested)) return out;
       // Family positions are monthly-only in the catalog; weekly/PIF core plans
       // are left alone (ASSUMPTION, flagged).
       if (requested.billing_frequency !== 'monthly') return out;
@@ -250,7 +274,8 @@
       var pos = familyPosition(householdMembers);
       if (pos >= 2) {
         var key = pos >= 3 ? 3 : 2;
-        var famPlan = findPlan(plans, FAMILY_FALLBACK[key].code) || FAMILY_FALLBACK[key];
+        var famPlan = findFamilyPlanFor(plans, key, requested.program) ||
+                      findPlan(plans, FAMILY_FALLBACK[key].code) || FAMILY_FALLBACK[key];
         out.plan = famPlan;
         out.substituted = true;
         out.substitutionNote = (pos === 2 ? 'Second' : 'Third+') + ' Taekwondo member in the household.';
@@ -406,7 +431,7 @@
     familyPosition: familyPosition,
     isQualifying: isQualifying,
     centsToDollars: centsToDollars,
-    FAMILY_CODES: FAMILY_CODES,
+    isFamilyPlan: isFamilyPlan,
     ADDON_TO_STANDALONE: ADDON_TO_STANDALONE,
     TO_BUNDLE: TO_BUNDLE
   };

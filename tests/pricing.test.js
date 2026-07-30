@@ -19,13 +19,19 @@ function plan(o) { o.effective_date = o.effective_date || EFF; return o; }
 
 var PLANS = [
   // core TKD (program null — covers Juniors and Teens/Adults alike)
-  plan({ code:'tkd_pif',               name:'Taekwondo — Paid in Full',       program:null, category:'core_tkd', billing_frequency:'one_time', recurring_cents:null,  down_cents:0,     payment_count:null, pif_cents:140000, family_position:null, supports_household_discount:false }),
-  plan({ code:'tkd_option_b',          name:'Taekwondo — Option B',           program:null, category:'core_tkd', billing_frequency:'monthly',  recurring_cents:9500,  down_cents:35900, payment_count:12,   pif_cents:null,   family_position:null, supports_household_discount:false }),
-  plan({ code:'tkd_option_c',          name:'Taekwondo — Option C',           program:null, category:'core_tkd', billing_frequency:'monthly',  recurring_cents:11000, down_cents:25900, payment_count:12,   pif_cents:null,   family_position:null, supports_household_discount:false }),
-  plan({ code:'tkd_option_d',          name:'Taekwondo — Option D',           program:null, category:'core_tkd', billing_frequency:'monthly',  recurring_cents:12900, down_cents:12900, payment_count:12,   pif_cents:null,   family_position:null, supports_household_discount:false }),
-  plan({ code:'tkd_weekly',            name:'Taekwondo — Weekly',             program:null, category:'core_tkd', billing_frequency:'weekly',   recurring_cents:3395,  down_cents:0,     payment_count:null, pif_cents:null,   family_position:null, supports_household_discount:false }),
-  plan({ code:'tkd_family_second',     name:'Taekwondo — 2nd family member',  program:null, category:'core_tkd', billing_frequency:'monthly',  recurring_cents:11900, down_cents:0,     payment_count:null, pif_cents:null,   family_position:2,    supports_household_discount:false }),
-  plan({ code:'tkd_family_third_plus', name:'Taekwondo — 3rd+ family member', program:null, category:'core_tkd', billing_frequency:'monthly',  recurring_cents:7900,  down_cents:0,     payment_count:null, pif_cents:null,   family_position:3,    supports_household_discount:false }),
+  plan({ code:'juniors_pif',               name:'Taekwondo — Paid in Full',       program:'Juniors', category:'core_tkd', billing_frequency:'one_time', recurring_cents:null,  down_cents:0,     payment_count:null, pif_cents:140000, family_position:null, supports_household_discount:false }),
+  plan({ code:'juniors_option_b',          name:'Taekwondo — Option B',           program:'Juniors', category:'core_tkd', billing_frequency:'monthly',  recurring_cents:9500,  down_cents:35900, payment_count:12,   pif_cents:null,   family_position:null, supports_household_discount:false }),
+  plan({ code:'juniors_option_c',          name:'Taekwondo — Option C',           program:'Juniors', category:'core_tkd', billing_frequency:'monthly',  recurring_cents:11000, down_cents:25900, payment_count:12,   pif_cents:null,   family_position:null, supports_household_discount:false }),
+  plan({ code:'juniors_option_d',          name:'Taekwondo — Option D',           program:'Juniors', category:'core_tkd', billing_frequency:'monthly',  recurring_cents:12900, down_cents:12900, payment_count:12,   pif_cents:null,   family_position:null, supports_household_discount:false }),
+  plan({ code:'juniors_weekly',            name:'Taekwondo — Weekly',             program:'Juniors', category:'core_tkd', billing_frequency:'weekly',   recurring_cents:3395,  down_cents:0,     payment_count:null, pif_cents:null,   family_position:null, supports_household_discount:false }),
+  plan({ code:'juniors_family_second',     name:'Taekwondo — 2nd family member',  program:'Juniors', category:'core_tkd', billing_frequency:'monthly',  recurring_cents:11900, down_cents:0,     payment_count:null, pif_cents:null,   family_position:2,    supports_household_discount:false }),
+  plan({ code:'juniors_family_third_plus', name:'Taekwondo — 3rd+ family member', program:'Juniors', category:'core_tkd', billing_frequency:'monthly',  recurring_cents:7900,  down_cents:0,     payment_count:null, pif_cents:null,   family_position:3,    supports_household_discount:false }),
+
+  // Teens/Adults — separate program, same prices at seed time
+  plan({ code:'adults_option_c',          name:'Teens/Adults Taekwondo — Option C',           program:'Teens/Adults', category:'core_tkd', billing_frequency:'monthly', recurring_cents:11000, down_cents:25900, payment_count:12,   pif_cents:null, family_position:null, supports_household_discount:false }),
+  plan({ code:'adults_weekly',            name:'Teens/Adults Taekwondo — Weekly',             program:'Teens/Adults', category:'core_tkd', billing_frequency:'weekly',  recurring_cents:3395,  down_cents:0,     payment_count:null, pif_cents:null, family_position:null, supports_household_discount:false }),
+  plan({ code:'adults_family_second',     name:'Teens/Adults Taekwondo — 2nd family member',  program:'Teens/Adults', category:'core_tkd', billing_frequency:'monthly', recurring_cents:11900, down_cents:0,     payment_count:null, pif_cents:null, family_position:2,    supports_household_discount:false }),
+  plan({ code:'adults_family_third_plus', name:'Teens/Adults Taekwondo — 3rd+ family member', program:'Teens/Adults', category:'core_tkd', billing_frequency:'monthly', recurring_cents:7900,  down_cents:0,     payment_count:null, pif_cents:null, family_position:3,    supports_household_discount:false }),
 
   // Cubs
   plan({ code:'cubs_weekly',   name:'Cubs — Weekly',       program:'Cubs', category:'cubs', billing_frequency:'weekly',   recurring_cents:2795,  down_cents:0,     payment_count:null, pif_cents:null,   family_position:null, supports_household_discount:false }),
@@ -96,41 +102,41 @@ console.log('\nBaresTKD pricing engine\n');
 
 // 1 — first household member, TKD Option C
 test('1 first household member, TKD Option C: down 25900, monthly 11000', function () {
-  var r = quote('tkd_option_c', { contact_id: 'a', activeMemberships: [] }, []);
+  var r = quote('juniors_option_c', { contact_id: 'a', activeMemberships: [] }, []);
   assert.strictEqual(r.finalDownCents, 25900);
   assert.strictEqual(r.finalRecurringCents, 11000);
-  assert.strictEqual(r.planCode, 'tkd_option_c');
+  assert.strictEqual(r.planCode, 'juniors_option_c');
   assert.strictEqual(r.adjustments.length, 0);
 });
 
 // 2 — second active core TKD member
 test('2 second core TKD member: down 0, monthly 11900', function () {
-  var r = quote('tkd_option_c',
+  var r = quote('juniors_option_c',
     { contact_id: 'b', activeMemberships: [] },
-    [{ contact_id: 'a', activeMemberships: [ms('tkd_option_c', '2026-01-05')] }]);
+    [{ contact_id: 'a', activeMemberships: [ms('juniors_option_c', '2026-01-05')] }]);
   assert.strictEqual(r.finalDownCents, 0);
   assert.strictEqual(r.finalRecurringCents, 11900);
-  assert.strictEqual(r.planCode, 'tkd_family_second');
+  assert.strictEqual(r.planCode, 'juniors_family_second');
 });
 
 // 3 — third
 test('3 third core TKD member: down 0, monthly 7900', function () {
-  var r = quote('tkd_option_c',
+  var r = quote('juniors_option_c',
     { contact_id: 'c', activeMemberships: [] },
     [
-      { contact_id: 'a', activeMemberships: [ms('tkd_option_c', '2026-01-05')] },
-      { contact_id: 'b', activeMemberships: [ms('tkd_family_second', '2026-02-05')] }
+      { contact_id: 'a', activeMemberships: [ms('juniors_option_c', '2026-01-05')] },
+      { contact_id: 'b', activeMemberships: [ms('juniors_family_second', '2026-02-05')] }
     ]);
   assert.strictEqual(r.finalDownCents, 0);
   assert.strictEqual(r.finalRecurringCents, 7900);
-  assert.strictEqual(r.planCode, 'tkd_family_third_plus');
+  assert.strictEqual(r.planCode, 'juniors_family_third_plus');
 });
 
 // 4 — child holds TKD (founding), parent standalone Kickboxing
 test('4 parent standalone Kickboxing behind a TKD child: 8900 - 1000 = 7900', function () {
   var r = quote('specialty_kickboxing',
     { contact_id: 'parent', activeMemberships: [] },
-    [{ contact_id: 'kid', activeMemberships: [ms('tkd_option_c', '2026-01-05')] }]);
+    [{ contact_id: 'kid', activeMemberships: [ms('juniors_option_c', '2026-01-05')] }]);
   assert.strictEqual(r.baseCents, 8900);
   assert.strictEqual(r.finalRecurringCents, 7900);
   assert.strictEqual(r.adjustments.length, 1);
@@ -141,14 +147,14 @@ test('4 parent standalone Kickboxing behind a TKD child: 8900 - 1000 = 7900', fu
 test('5 parent standalone both specialties: 11900 - 1000 = 10900', function () {
   var r = quote('specialty_both',
     { contact_id: 'parent', activeMemberships: [] },
-    [{ contact_id: 'kid', activeMemberships: [ms('tkd_option_c', '2026-01-05')] }]);
+    [{ contact_id: 'kid', activeMemberships: [ms('juniors_option_c', '2026-01-05')] }]);
   assert.strictEqual(r.finalRecurringCents, 10900);
 });
 
 // 6 — monthly TKD holder, sole ranked member, adds one specialty
 test('6 sole monthly TKD member adds one specialty: 4000, no discount', function () {
   var r = quote('addon_kickboxing',
-    { contact_id: 'a', activeMemberships: [ms('tkd_option_c', '2026-01-05')] },
+    { contact_id: 'a', activeMemberships: [ms('juniors_option_c', '2026-01-05')] },
     []);
   assert.strictEqual(r.planCode, 'addon_kickboxing');
   assert.strictEqual(r.finalRecurringCents, 4000);
@@ -158,8 +164,8 @@ test('6 sole monthly TKD member adds one specialty: 4000, no discount', function
 // 7 — monthly TKD holder ranked 2nd, adds one specialty
 test('7 second-ranked monthly TKD member adds one specialty: 4000 - 1000 = 3000', function () {
   var r = quote('addon_kickboxing',
-    { contact_id: 'b', activeMemberships: [ms('tkd_option_c', '2026-03-01')] },
-    [{ contact_id: 'a', activeMemberships: [ms('tkd_option_c', '2026-01-05')] }]);
+    { contact_id: 'b', activeMemberships: [ms('juniors_option_c', '2026-03-01')] },
+    [{ contact_id: 'a', activeMemberships: [ms('juniors_option_c', '2026-01-05')] }]);
   assert.strictEqual(r.finalRecurringCents, 3000);
   assert.strictEqual(r.adjustments[0].amountCents, -1000);
 });
@@ -167,15 +173,15 @@ test('7 second-ranked monthly TKD member adds one specialty: 4000 - 1000 = 3000'
 // 8 — same person adds both
 test('8 second-ranked monthly TKD member adds both: 6000 - 1000 = 5000', function () {
   var r = quote('addon_both',
-    { contact_id: 'b', activeMemberships: [ms('tkd_option_c', '2026-03-01')] },
-    [{ contact_id: 'a', activeMemberships: [ms('tkd_option_c', '2026-01-05')] }]);
+    { contact_id: 'b', activeMemberships: [ms('juniors_option_c', '2026-03-01')] },
+    [{ contact_id: 'a', activeMemberships: [ms('juniors_option_c', '2026-01-05')] }]);
   assert.strictEqual(r.finalRecurringCents, 5000);
 });
 
 // 9 — weekly TKD person adds one specialty -> bundle
 test('9 weekly TKD member adds one specialty: bundle 4395', function () {
   var r = quote('addon_kickboxing',
-    { contact_id: 'a', activeMemberships: [ms('tkd_weekly', '2026-01-05')] },
+    { contact_id: 'a', activeMemberships: [ms('juniors_weekly', '2026-01-05')] },
     []);
   assert.strictEqual(r.planCode, 'bundle_tkd_one_specialty');
   assert.strictEqual(r.finalRecurringCents, 4395);
@@ -185,7 +191,7 @@ test('9 weekly TKD member adds one specialty: bundle 4395', function () {
 // 10 — weekly TKD person adds both -> bundle
 test('10 weekly TKD member adds both: bundle 4795', function () {
   var r = quote('addon_both',
-    { contact_id: 'a', activeMemberships: [ms('tkd_weekly', '2026-01-05')] },
+    { contact_id: 'a', activeMemberships: [ms('juniors_weekly', '2026-01-05')] },
     []);
   assert.strictEqual(r.planCode, 'bundle_tkd_both_specialties');
   assert.strictEqual(r.finalRecurringCents, 4795);
@@ -211,7 +217,7 @@ test('12 drop-in: 2000, zero adjustments', function () {
 
 // 13 — a canceled household membership creates no eligibility and no rank
 test('13 canceled household membership grants no rank and no eligibility', function () {
-  var household = [{ contact_id: 'a', activeMemberships: [ms('tkd_option_c', '2026-01-05', 'canceled')] }];
+  var household = [{ contact_id: 'a', activeMemberships: [ms('juniors_option_c', '2026-01-05', 'canceled')] }];
 
   // no rank -> the person is founding, so no household discount
   var r = quote('specialty_jiujitsu', { contact_id: 'b', activeMemberships: [] }, household);
@@ -220,20 +226,20 @@ test('13 canceled household membership grants no rank and no eligibility', funct
   assert.strictEqual(r.adjustments.length, 0);
 
   // no family position either -> a regular individual option stands
-  var r2 = quote('tkd_option_c', { contact_id: 'b', activeMemberships: [] }, household);
-  assert.strictEqual(r2.planCode, 'tkd_option_c');
+  var r2 = quote('juniors_option_c', { contact_id: 'b', activeMemberships: [] }, household);
+  assert.strictEqual(r2.planCode, 'juniors_option_c');
   assert.strictEqual(r2.finalRecurringCents, 11000);
 
   // the person's OWN canceled TKD does not make them add-on eligible
   var r3 = quote('addon_kickboxing',
-    { contact_id: 'b', activeMemberships: [ms('tkd_option_c', '2026-01-05', 'canceled')] }, []);
+    { contact_id: 'b', activeMemberships: [ms('juniors_option_c', '2026-01-05', 'canceled')] }, []);
   assert.strictEqual(r3.planCode, 'specialty_kickboxing'); // substituted to standalone
   assert.strictEqual(r3.finalRecurringCents, 8900);
 
   // trial / complimentary / paused / ended likewise never qualify
   ['trial', 'complimentary', 'paused', 'ended'].forEach(function (st) {
     var rx = quote('specialty_jiujitsu', { contact_id: 'b', activeMemberships: [] },
-      [{ contact_id: 'a', activeMemberships: [ms('tkd_option_c', '2026-01-05', st)] }]);
+      [{ contact_id: 'a', activeMemberships: [ms('juniors_option_c', '2026-01-05', st)] }]);
     assert.strictEqual(rx.adjustments.length, 0, st + ' must not grant a discount');
   });
 });
@@ -281,8 +287,8 @@ test('15 override snapshot stores price, reason, user, timestamp', function () {
 // 16 — Cubs never get TKD family positions or the specialty discount
 test('16 Cubs plans get no family position and no household discount', function () {
   var household = [
-    { contact_id: 'a', activeMemberships: [ms('tkd_option_c', '2026-01-05')] },
-    { contact_id: 'b', activeMemberships: [ms('tkd_option_c', '2026-02-05')] }
+    { contact_id: 'a', activeMemberships: [ms('juniors_option_c', '2026-01-05')] },
+    { contact_id: 'b', activeMemberships: [ms('juniors_option_c', '2026-02-05')] }
   ];
   var r = quote('cubs_option_a', { contact_id: 'c', activeMemberships: [] }, household);
   assert.strictEqual(r.planCode, 'cubs_option_a', 'no family substitution for Cubs');
@@ -329,8 +335,8 @@ test('17 four standalone Jiu Jitsu in sequence: 8900, 7900, 7900, 7900', functio
 // 18 — two TKD members each add one specialty: 4000 and 3000
 test('18 two TKD members each add one specialty: 4000 + 3000 = 7000', function () {
   var aStart = '2026-01-05', bStart = '2026-02-05';
-  var A = { contact_id: 'a', activeMemberships: [ms('tkd_option_c', aStart)] };
-  var B = { contact_id: 'b', activeMemberships: [ms('tkd_family_second', bStart)] };
+  var A = { contact_id: 'a', activeMemberships: [ms('juniors_option_c', aStart)] };
+  var B = { contact_id: 'b', activeMemberships: [ms('juniors_family_second', bStart)] };
 
   var rA = quote('addon_kickboxing', A, [B]);
   var rB = quote('addon_kickboxing', B, [A]);
@@ -338,6 +344,25 @@ test('18 two TKD members each add one specialty: 4000 + 3000 = 7000', function (
   assert.strictEqual(rA.finalRecurringCents, 4000, 'founding member pays full add-on');
   assert.strictEqual(rB.finalRecurringCents, 3000, 'second member gets the household discount');
   assert.strictEqual(rA.finalRecurringCents + rB.finalRecurringCents, 7000);
+});
+
+test('19 family position crosses programs but resolves the sold program\'s rate', function () {
+  // Kid holds Juniors TKD (founding). Parent buys Teens/Adults Option C:
+  // the household makes them 2nd TKD member, and the rate row picked must be
+  // the ADULTS family row, not the juniors one.
+  var r = quote('adults_option_c',
+    { contact_id: 'parent', activeMemberships: [] },
+    [{ contact_id: 'kid', activeMemberships: [ms('juniors_option_c', '2026-01-05')] }]);
+  assert.strictEqual(r.planCode, 'adults_family_second');
+  assert.strictEqual(r.finalRecurringCents, 11900);
+  assert.strictEqual(r.finalDownCents, 0);
+
+  // And a weekly Teens/Adults member adding a specialty still hits the bundle.
+  var w = quote('specialty_kickboxing',
+    { contact_id: 'w', activeMemberships: [ms('adults_weekly', '2026-01-05')] },
+    []);
+  assert.strictEqual(w.planCode, 'bundle_tkd_one_specialty');
+  assert.strictEqual(w.finalRecurringCents, 4395);
 });
 
 // ─── summary ───────────────────────────────────────────────────────────────
