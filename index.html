@@ -1117,7 +1117,7 @@ function planLine(pl){
 }
 /* Superseded by the real Memberships section (household pricing) further down.
    Kept for reference only — nothing calls it. */
-function renderMembershipsPrototype(){
+function renderMemberships(){
   let html = '<div class="bld"><div class="bld-hd"><h2>Memberships</h2><p>Your programs and their payment options. Checkout pages and member profiles read from here, so a price set once shows up everywhere it sells.</p></div>';
   html += '<button class="newbtn" onclick="openProgramEdit(null)">＋ New program</button>';
   html += PROGRAMS.map(g=>{
@@ -2354,7 +2354,7 @@ const MB_CAT_LABEL = {
 };
 const MB_CAT_ORDER = ['core_tkd','cubs','specialty','addon','weekly_bundle','other'];
 
-async function renderMemberships(){
+async function renderMembershipsPricing(){
   await Promise.all([loadCatalog(), loadHouseholds()]);
   if(MB_PRICING_VIEW){ renderPricingAdmin(); return; }
 
@@ -2494,19 +2494,19 @@ async function mbPickPerson(id){
   MB_CTX = await pricingContext(id);
   const m = MEMBERS.find(x=>x.id===id);
   MB_TKD_TRACK = (m && m.age && m.age >= 13) ? 'Teens/Adults' : 'Juniors';
-  renderMemberships();
+  renderMembershipsPricing();
 }
-function mbClearPerson(){ MB_PERSON=null; MB_CTX=null; MB_PLAN=null; MB_CALC=null; renderMemberships(); }
+function mbClearPerson(){ MB_PERSON=null; MB_CTX=null; MB_PLAN=null; MB_CALC=null; renderMembershipsPricing(); }
 function mbPickPlan(code){
   MB_PLAN = code;
   MB_CALC = BTKDPricing.calculatePrice({
     plan: planByCode(code), settings: PRICE_SETTINGS,
     person: MB_CTX.person, householdMembers: MB_CTX.householdMembers, plans: PLAN_ROWS
   });
-  renderMemberships();
+  renderMembershipsPricing();
 }
-function mbSetTrack(t){ MB_TKD_TRACK = t; renderMemberships(); }
-function mbToggleOverride(){ MB_OVERRIDE = !MB_OVERRIDE; renderMemberships(); }
+function mbSetTrack(t){ MB_TKD_TRACK = t; renderMembershipsPricing(); }
+function mbToggleOverride(){ MB_OVERRIDE = !MB_OVERRIDE; renderMembershipsPricing(); }
 /* Keeps state and the three readouts in sync WITHOUT re-rendering the section,
    so typing never loses the caret. */
 function mbOvInput(){
@@ -2590,7 +2590,7 @@ async function mbSave(){
   MB_CTX = await pricingContext(MB_PERSON);
   MB_PLAN = null; MB_CALC = null; MB_OVERRIDE = false;
   MB_OV_REC=''; MB_OV_DOWN=''; MB_OV_REASON='';
-  renderMemberships();
+  renderMembershipsPricing();
   toast('Membership saved');
 }
 
@@ -2599,11 +2599,11 @@ async function mbSave(){
  * UI-level enforcement only. The RLS policies on pricing_plans and
  * pricing_settings currently grant all staff access because the database has no
  * is_admin() function yet; tighten those policies once it exists. */
-function mbOpenPricing(){ if(currentRole!=='admin'){ toast('Admins only'); return; } MB_PRICING_VIEW = true; renderMemberships(); }
-function mbClosePricing(){ MB_PRICING_VIEW = false; renderMemberships(); }
+function mbOpenPricing(){ if(currentRole!=='admin'){ toast('Admins only'); return; } MB_PRICING_VIEW = true; renderMembershipsPricing(); }
+function mbClosePricing(){ MB_PRICING_VIEW = false; renderMembershipsPricing(); }
 
 function renderPricingAdmin(){
-  if(currentRole!=='admin'){ MB_PRICING_VIEW=false; renderMemberships(); return; }
+  if(currentRole!=='admin'){ MB_PRICING_VIEW=false; renderMembershipsPricing(); return; }
   let html = '<div class="bld"><div class="bld-hd" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">'
     + '<div><h2>Pricing</h2><p>The catalog every quote reads. Changing a price here never alters memberships already sold.</p></div>'
     + '<button class="pb-change" onclick="mbClosePricing()">Done</button></div>';
