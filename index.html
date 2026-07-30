@@ -1865,6 +1865,8 @@ async function calLoadData(force){
     const endIso=new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59).toISOString();
     const t=await sb.from('trial_bookings').select('id,contact_id,class_datetime,program,class_label')
       .gte('class_datetime', start.toISOString()).lte('class_datetime', endIso);
+    if(t.error) console.warn('trial_bookings read failed (RLS?):', t.error.message);
+    else if(!(t.data||[]).length) console.info('trial_bookings: 0 rows in window — if trials exist, staff may lack a SELECT policy');
     CAL_TRIALS=(t.error?[]:(t.data||[])).map(b=>{
       const d=new Date(b.class_datetime);
       const m=MEMBERS.find(x=>x.id===b.contact_id);
