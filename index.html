@@ -552,6 +552,7 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://portal.barestkd.fit/shared/auth.js?v=2"></script>
+<script src="pricing.js"></script>
 </head>
 <body>
 
@@ -932,6 +933,8 @@ let currentMember = null;
 const $ = s => document.querySelector(s);
 const money = n => "$" + Number(n).toFixed(2);
 const initials = m => (m.first[0]||"") + (m.last[0]||"");
+const escHtml = s => String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const escAttr = s => String(s==null?"":s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
 
 /* ========== FILTERS ========== */
 const RISK_DAYS = 14;
@@ -1112,7 +1115,9 @@ function planLine(pl){
   if(pl.monthly===0 && pl.down>0) return money(pl.down)+" · paid in full";
   return "—";
 }
-function renderMemberships(){
+/* Superseded by the real Memberships section (household pricing) further down.
+   Kept for reference only — nothing calls it. */
+function renderMembershipsPrototype(){
   let html = '<div class="bld"><div class="bld-hd"><h2>Memberships</h2><p>Your programs and their payment options. Checkout pages and member profiles read from here, so a price set once shows up everywhere it sells.</p></div>';
   html += '<button class="newbtn" onclick="openProgramEdit(null)">＋ New program</button>';
   html += PROGRAMS.map(g=>{
@@ -1976,6 +1981,9 @@ function renderProfile(){
   const _role = m.role || "Student";
   html += '<div class="sec"><div class="sec-h">Access &amp; role</div><div class="card pad role-row"><div><span class="role-badge '+_role.toLowerCase()+'">'+_role+'</span><div class="role-desc">'+roleDesc(_role)+'</div></div><button class="pb-change" onclick="openRole()">Set access</button></div></div>';
 
+  // household (billing family — filled async by loadProfileHousehold)
+  html += '<div class="sec"><div class="sec-h">Household</div><div class="card pad" id="prof-hh">Loading…</div></div>';
+
   // memberships (near the bottom now, still a child-table block)
   html += '<div class="sec"><div class="sec-h">Memberships</div>';
   if(m.memberships.length){
@@ -2012,6 +2020,7 @@ function renderProfile(){
 
   $("#view-profile").innerHTML = html;
   loadProfileAttendance(m.id);
+  loadProfileHousehold(m.id);
 }
 function kv(k,v){ return '<div class="kv"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>'; }
 function acc(title, body){ return '<details class="acc"><summary>'+title+'<span class="chev">⌄</span></summary><div class="ab">'+body+'</div></details>'; }
@@ -2121,6 +2130,550 @@ function toast(msg){
   clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove("on"),1800);
 }
 document.addEventListener("keydown",e=>{ if(e.key==="Escape"){ closeSheet(); closeNav(); } });
+
+/* ============================================================================
+ * HOUSEHOLD MEMBERSHIP PRICING
+ * ----------------------------------------------------------------------------
+ * Billing/pricing only. Reads and writes households, household_members,
+ * pricing_plans, pricing_settings, memberships. Requires
+ * sql/membership-schema.sql to have been run once in the Supabase SQL editor.
+ *
+ * The attendance roster (`enrollments`) is a SEPARATE concept and is not
+ * modified here — the only touch is an optional, additive "also add to class
+ * rosters" step after a membership is saved.
+ * ========================================================================== */
+let HH_ROWS = [], HH_LINKS = [], HH_LOADED = false;
+let PLAN_ROWS = [], PRICE_SETTINGS = {}, CATALOG_LOADED = false;
+
+const centsFromInput = v => { const n = parseFloat(String(v).replace(/[^0-9.\-]/g,'')); return isNaN(n) ? 0 : Math.round(n*100); };
+const dollarsFromCents = c => (c==null ? '' : (Number(c)/100).toFixed(2));
+
+async function loadHouseholds(force){
+  if(HH_LOADED && !force) return;
+  const [h, l] = await Promise.all([
+    sb.from('households').select('*').order('name'),
+    sb.from('household_members').select('*')
+  ]);
+  if(h.error || l.error){ console.error('household load', h.error||l.error); return; }
+  HH_ROWS = h.data||[]; HH_LINKS = l.data||[]; HH_LOADED = true;
+}
+async function loadCatalog(force){
+  if(CATALOG_LOADED && !force) return;
+  const [p, s] = await Promise.all([
+    sb.from('pricing_plans').select('*').order('display_order'),
+    sb.from('pricing_settings').select('*')
+  ]);
+  if(p.error || s.error){ console.error('catalog load', p.error||s.error); return; }
+  PLAN_ROWS = p.data||[];
+  PRICE_SETTINGS = {};
+  (s.data||[]).forEach(r=>{ PRICE_SETTINGS[r.key] = r.value_cents; });
+  CATALOG_LOADED = true;
+}
+function planByCode(code){ return PLAN_ROWS.find(p=>p.code===code) || null; }
+function householdOf(contactId){
+  const link = HH_LINKS.find(l=>l.contact_id===contactId);
+  if(!link) return null;
+  const hh = HH_ROWS.find(h=>h.id===link.household_id);
+  if(!hh) return null;
+  return { household: hh, contactIds: HH_LINKS.filter(l=>l.household_id===hh.id).map(l=>l.contact_id) };
+}
+
+/* Builds the engine's { person, householdMembers } from live membership rows.
+   `category` is not stored on memberships, so it is resolved via plan_code. */
+async function pricingContext(contactId){
+  await Promise.all([loadHouseholds(), loadCatalog()]);
+  const hh = householdOf(contactId);
+  const ids = hh ? hh.contactIds : [contactId];
+  const { data, error } = await sb.from('memberships')
+    .select('contact_id,plan_code,status,started_on,billing_frequency')
+    .in('contact_id', ids);
+  if(error) console.error('memberships load', error);
+  const byContact = {};
+  ids.forEach(id=>{ byContact[id] = []; });
+  (data||[]).forEach(r=>{
+    const pl = planByCode(r.plan_code);
+    (byContact[r.contact_id] = byContact[r.contact_id]||[]).push({
+      plan_code: r.plan_code,
+      category: pl ? pl.category : null,
+      status: r.status,
+      started_on: r.started_on,
+      billing_frequency: r.billing_frequency || (pl ? pl.billing_frequency : null)
+    });
+  });
+  return {
+    household: hh ? hh.household : null,
+    person: { contact_id: contactId, activeMemberships: byContact[contactId]||[] },
+    householdMembers: ids.filter(id=>id!==contactId)
+      .map(id=>({ contact_id: id, activeMemberships: byContact[id]||[] }))
+  };
+}
+
+/* ─── Household section on the member profile ─────────────────────────────── */
+async function loadProfileHousehold(contactId){
+  const box = document.getElementById('prof-hh');
+  if(!box) return;
+  await loadHouseholds(true);
+  const hh = householdOf(contactId);
+  if(!hh){
+    box.innerHTML = '<div style="color:var(--muted);font-size:14px;margin-bottom:11px;">Not in a household yet. Households group family members so pricing can see them.</div>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+      + '<button class="pb-change" onclick="hhCreateSheet(\''+contactId+'\')">Create household</button>'
+      + '<button class="pb-change" onclick="hhJoinSheet(\''+contactId+'\')">Add to household</button></div>';
+    return;
+  }
+  const others = hh.contactIds.filter(id=>id!==contactId);
+  let html = '<div class="kv"><span class="k">Household</span><span class="v">'+escHtml(hh.household.name)+'</span></div>';
+  if(others.length){
+    html += '<div style="margin-top:8px">';
+    others.forEach(id=>{
+      const m = MEMBERS.find(x=>x.id===id);
+      const label = m ? (m.first+' '+m.last) : '(not on this roster)';
+      const sub = m ? (m.rank||m.segment||'') : id;
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">'
+        + (m ? '<button class="mrow" style="margin:0;flex:1" onclick="openProfile(\''+id+'\')"><div class="c-name"><div class="av" style="background:'+(BELT[m.belt]||'#C7CCD2')+'"><span style="color:'+((m.belt==='White'||m.belt==='Yellow')?'#15171C':'#fff')+'">'+initials(m)+'</span></div><div class="minfo"><div class="mname">'+escHtml(label)+'</div><div class="msub">'+escHtml(sub)+'</div></div></div></button>'
+             : '<div class="mrow" style="margin:0;flex:1;color:var(--muted)">'+escHtml(label)+'</div>')
+        + '<button class="pb-change" onclick="hhRemove(\''+id+'\',\''+contactId+'\')">Remove</button></div>';
+    });
+    html += '</div>';
+  } else {
+    html += '<div style="color:var(--muted);font-size:14px;margin:8px 0;">No other members yet.</div>';
+  }
+  html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">'
+    + '<button class="pb-change" onclick="hhAddSheet(\''+hh.household.id+'\',\''+contactId+'\')">Add member</button>'
+    + '<button class="pb-change" onclick="hhRemove(\''+contactId+'\',\''+contactId+'\')">Leave household</button></div>';
+  box.innerHTML = html;
+}
+
+function hhCreateSheet(contactId){
+  const m = MEMBERS.find(x=>x.id===contactId);
+  const dflt = ((m && m.last) ? m.last+' ' : '') + 'Family';
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head"><div><h3>Create household</h3><div class="sub">Groups family members for pricing</div></div>'
+    + '<button class="close" onclick="closeSheet()">×</button></div>'
+    + '<div class="sheet-body"><div class="fld"><label>Household name</label>'
+    + '<input id="hh-name" value="'+escAttr(dflt)+'"></div>'
+    + '<button class="savebtn" onclick="hhCreate(\''+contactId+'\')">Create household</button></div>';
+  openSheet();
+}
+async function hhCreate(contactId){
+  const name = ($("#hh-name").value||'').trim();
+  if(!name){ toast('Name the household'); return; }
+  const { data, error } = await sb.from('households').insert({ name }).select().single();
+  if(error){ toast('Could not create: '+(error.message||error)); return; }
+  const who = await currentStaffEmail();
+  const link = await sb.from('household_members').insert({ household_id: data.id, contact_id: contactId, added_by: who });
+  if(link.error){ toast('Household made, but link failed: '+link.error.message); }
+  closeSheet(); HH_LOADED = false;
+  await loadProfileHousehold(contactId);
+  toast(name+' created');
+}
+
+/* Join an existing household by picking someone already in one. */
+function hhJoinSheet(contactId){
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head"><div><h3>Add to household</h3><div class="sub">Pick a family member who already has one</div></div>'
+    + '<button class="close" onclick="closeSheet()">×</button></div>'
+    + '<div class="sheet-body"><div class="search-wrap" style="padding:0 0 10px"><span class="search-ico" style="left:14px">⌕</span>'
+    + '<input id="hh-search" class="search" oninput="hhSearch(\'join\',\''+contactId+'\')" placeholder="Search members"></div>'
+    + '<div id="hh-results"></div></div>';
+  openSheet();
+}
+function hhAddSheet(householdId, backTo){
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head"><div><h3>Add member</h3><div class="sub">Search the roster, tap to add</div></div>'
+    + '<button class="close" onclick="closeSheet()">×</button></div>'
+    + '<div class="sheet-body"><div class="search-wrap" style="padding:0 0 10px"><span class="search-ico" style="left:14px">⌕</span>'
+    + '<input id="hh-search" class="search" oninput="hhSearch(\'add\',\''+householdId+'\',\''+backTo+'\')" placeholder="Search members"></div>'
+    + '<div id="hh-results"></div></div>';
+  openSheet();
+}
+function hhSearch(mode, a, b){
+  const q = ($("#hh-search").value||'').trim().toLowerCase();
+  const box = document.getElementById('hh-results');
+  if(q.length < 2){ box.innerHTML=''; return; }
+  const hits = MEMBERS.filter(m=>((m.first+' '+m.last).toLowerCase().includes(q))).slice(0,8);
+  box.innerHTML = hits.map(m=>{
+    const inHh = HH_LINKS.some(l=>l.contact_id===m.id);
+    const act = mode==='join'
+      ? 'hhJoin(\''+a+'\',\''+m.id+'\')'
+      : 'hhAdd(\''+a+'\',\''+m.id+'\',\''+b+'\')';
+    const note = mode==='join' ? (inHh ? 'Join this household' : 'No household yet')
+                               : (inHh ? 'Already in a household' : 'Add to this household');
+    const dim = mode==='join' ? !inHh : inHh;
+    return '<button class="mrow"'+(dim?' disabled style="opacity:.45"':'')+' onclick="'+act+'">'
+      + '<div class="c-name"><div class="av" style="background:'+(BELT[m.belt]||'#C7CCD2')+'"><span style="color:'+((m.belt==='White'||m.belt==='Yellow')?'#15171C':'#fff')+'">'+initials(m)+'</span></div>'
+      + '<div class="minfo"><div class="mname">'+escHtml(m.first+' '+m.last)+'</div><div class="msub">'+note+'</div></div></div></button>';
+  }).join('') || '<div class="ag-empty">No matches.</div>';
+}
+async function hhJoin(contactId, pickedId){
+  const target = householdOf(pickedId);
+  if(!target){ toast('That member has no household yet'); return; }
+  if(!confirm('Add this member to '+target.household.name+'?')) return;
+  const who = await currentStaffEmail();
+  const { error } = await sb.from('household_members').insert({ household_id: target.household.id, contact_id: contactId, added_by: who });
+  if(error){ toast('Could not add: '+(error.message||error)); return; }
+  closeSheet(); HH_LOADED = false;
+  await loadProfileHousehold(contactId);
+  toast('Added to '+target.household.name);
+}
+async function hhAdd(householdId, pickedId, backTo){
+  if(HH_LINKS.some(l=>l.contact_id===pickedId)){ toast('Already in a household'); return; }
+  const hh = HH_ROWS.find(h=>h.id===householdId);
+  const m = MEMBERS.find(x=>x.id===pickedId);
+  if(!confirm('Add '+(m?m.first+' '+m.last:'this member')+' to '+(hh?hh.name:'this household')+'?')) return;
+  const who = await currentStaffEmail();
+  const { error } = await sb.from('household_members').insert({ household_id: householdId, contact_id: pickedId, added_by: who });
+  if(error){ toast('Could not add: '+(error.message||error)); return; }
+  closeSheet(); HH_LOADED = false;
+  await loadProfileHousehold(backTo);
+  toast('Added to household');
+}
+async function hhRemove(contactId, backTo){
+  const m = MEMBERS.find(x=>x.id===contactId);
+  if(!confirm('Remove '+(m?m.first+' '+m.last:'this member')+' from the household? Pricing will stop counting them.')) return;
+  const { error } = await sb.from('household_members').delete().eq('contact_id', contactId);
+  if(error){ toast('Could not remove: '+(error.message||error)); return; }
+  HH_LOADED = false;
+  await loadProfileHousehold(backTo);
+  toast('Removed from household');
+}
+
+async function currentStaffEmail(){
+  try{ const s = await BTKD.getSession(); return (s && s.user && s.user.email) || 'staff'; }
+  catch(e){ return 'staff'; }
+}
+
+/* ─── Memberships section ─────────────────────────────────────────────────── */
+let MB_PERSON = null, MB_CTX = null, MB_PLAN = null, MB_CALC = null;
+let MB_OVERRIDE = false, MB_OV_REC = '', MB_OV_DOWN = '', MB_OV_REASON = '';
+let MB_TKD_TRACK = 'Juniors', MB_ROSTER = true, MB_PRICING_VIEW = false;
+
+const MB_CAT_LABEL = {
+  core_tkd:'Taekwondo', cubs:'Cubs', specialty:'Specialty (standalone)',
+  addon:'Taekwondo member add-ons', weekly_bundle:'Weekly bundles', other:'Other'
+};
+const MB_CAT_ORDER = ['core_tkd','cubs','specialty','addon','weekly_bundle','other'];
+
+async function renderMemberships(){
+  await Promise.all([loadCatalog(), loadHouseholds()]);
+  if(MB_PRICING_VIEW){ renderPricingAdmin(); return; }
+
+  const admin = currentRole === 'admin';
+  let html = '<div class="bld"><div class="bld-hd" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">'
+    + '<div><h2>Memberships</h2><p>Household-aware pricing. Pick a member, pick a program, and the recommended price accounts for their household.</p></div>'
+    + (admin ? '<button class="pb-change" onclick="mbOpenPricing()">Pricing</button>' : '')
+    + '</div>';
+
+  if(!PLAN_ROWS.length){
+    html += '<div class="ag-empty">No pricing plans found. Run <strong>sql/membership-schema.sql</strong> once in the Supabase SQL editor, then reload.</div></div>';
+    $("#view-memberships").innerHTML = html; return;
+  }
+
+  // 1 — member picker
+  html += '<div class="sec" style="padding:0 0 4px"><div class="sec-h">Member</div>';
+  if(MB_PERSON){
+    const m = MEMBERS.find(x=>x.id===MB_PERSON);
+    html += '<div style="display:flex;gap:8px;align-items:center;">'
+      + '<div class="mrow" style="margin:0;flex:1"><div class="c-name"><div class="av" style="background:'+(BELT[m.belt]||'#C7CCD2')+'"><span style="color:'+((m.belt==='White'||m.belt==='Yellow')?'#15171C':'#fff')+'">'+initials(m)+'</span></div>'
+      + '<div class="minfo"><div class="mname">'+escHtml(m.first+' '+m.last)+'</div><div class="msub">'+escHtml(m.rank||m.segment||'')+'</div></div></div></div>'
+      + '<button class="pb-change" onclick="mbClearPerson()">Change</button></div>';
+  } else {
+    html += '<div class="search-wrap" style="padding:0"><span class="search-ico" style="left:14px">⌕</span>'
+      + '<input id="mb-search" class="search" oninput="mbSearch()" placeholder="Search members"></div>'
+      + '<div id="mb-results" style="margin-top:8px"></div>';
+  }
+  html += '</div>';
+
+  if(MB_PERSON && MB_CTX){
+    // 2 — household summary
+    const ctx = MB_CTX;
+    const activeOf = list => (list||[]).filter(x=>x.status==='active');
+    const tkdCount = [ctx.person].concat(ctx.householdMembers)
+      .filter(p=>activeOf(p.activeMemberships).some(x=>x.category==='core_tkd')).length;
+    const specCount = [ctx.person].concat(ctx.householdMembers)
+      .filter(p=>activeOf(p.activeMemberships).some(x=>x.category==='specialty'||x.category==='addon')).length;
+    const own = activeOf(ctx.person.activeMemberships);
+
+    html += '<div class="sec"><div class="sec-h">Household</div><div class="card pad">'
+      + '<div class="kv"><span class="k">Household</span><span class="v">'+(ctx.household?escHtml(ctx.household.name):'None (priced as a single member)')+'</span></div>'
+      + '<div class="kv"><span class="k">Members in household</span><span class="v">'+(ctx.householdMembers.length+1)+'</span></div>'
+      + '<div class="kv"><span class="k">Active Taekwondo</span><span class="v">'+tkdCount+'</span></div>'
+      + '<div class="kv"><span class="k">Active specialty participants</span><span class="v">'+specCount+'</span></div>'
+      + '<div class="kv" style="border-bottom:none"><span class="k">Their memberships</span><span class="v">'
+      + (own.length ? own.map(x=>{ const pl=planByCode(x.plan_code); return escHtml(pl?pl.name:x.plan_code); }).join(', ') : 'None yet') + '</span></div>'
+      + '</div></div>';
+
+    // 3 — program picker
+    html += '<div class="sec"><div class="sec-h">Program</div>';
+    MB_CAT_ORDER.forEach(cat=>{
+      const rows = PLAN_ROWS.filter(p=>p.active && p.category===cat);
+      if(!rows.length) return;
+      html += '<div class="opt-h">'+MB_CAT_LABEL[cat]+'</div>';
+      rows.forEach(p=>{
+        const on = MB_PLAN === p.code;
+        const amt = p.billing_frequency==='one_time' ? money((p.pif_cents||0)/100)+' one time'
+                  : money((p.recurring_cents||0)/100) + (p.billing_frequency==='weekly'?'/wk':'/mo');
+        const down = p.down_cents ? ' · '+money(p.down_cents/100)+' down' : '';
+        html += '<button class="mrow" onclick="mbPickPlan(\''+p.code+'\')" style="'+(on?'background:#E4F5EE;border-color:var(--go);':'')+'">'
+          + '<div class="minfo" style="flex:1"><div class="mname">'+escHtml(p.name)+(p.promo_label?' <span class="seg trial">'+escHtml(p.promo_label)+'</span>':'')+'</div>'
+          + '<div class="msub">'+amt+down+'</div></div>'
+          + (on?'<span class="seg active">Selected</span>':'')+'</button>';
+      });
+    });
+    html += '</div>';
+
+    // 4 — recommendation
+    if(MB_CALC){
+      const c = MB_CALC;
+      const freq = c.billingFrequency==='monthly'?'/month':c.billingFrequency==='weekly'?'/week':' one time';
+      html += '<div class="sec"><div class="sec-h">Recommended price</div><div class="card pad">'
+        + '<div class="kv"><span class="k">Plan</span><span class="v">'+escHtml(c.planName||c.planCode)+'</span></div>'
+        + '<div class="kv"><span class="k">Base</span><span class="v">'+money(c.baseCents/100)+freq+'</span></div>'
+        + '<div class="kv"><span class="k">Down payment</span><span class="v">'+money(c.finalDownCents/100)+'</span></div>';
+      c.adjustments.forEach(a=>{
+        html += '<div class="kv"><span class="k">'+escHtml(a.label)+'</span><span class="v" style="color:var(--go)">-'+money(Math.abs(a.amountCents)/100)+'</span></div>';
+      });
+      html += '<div class="kv"><span class="k" style="font-weight:700">Final</span><span class="v" style="font-weight:800">'+money(c.finalRecurringCents/100)+freq+'</span></div>'
+        + (c.paymentCount?'<div class="kv"><span class="k">Payments</span><span class="v">'+c.paymentCount+'</span></div>':'')
+        + '<div class="kv" style="border-bottom:none"><span class="k">Household rank</span><span class="v">'+c.householdRank+(c.householdRank===1?' (founding)':'')+'</span></div>'
+        + '<div class="rec-note" style="margin-top:8px;color:var(--muted);font-size:13.5px">'+escHtml(c.explanation)+'</div>'
+        + (c.substituted?'<div class="ck-hint" style="margin-top:6px">Plan adjusted: '+escHtml(c.substitutionNote)+'</div>':'')
+        + (!c.eligible?'<div class="ck-hint" style="margin-top:6px;color:var(--warn)">'+escHtml(c.eligibilityReason)+'</div>':'')
+        + '</div></div>';
+
+      // 5 — override
+      html += '<div class="sec"><div class="sec-h">Override price</div><div class="card pad">'
+        + '<button class="pb-change" onclick="mbToggleOverride()">'+(MB_OVERRIDE?'Cancel override':'Override this price')+'</button>';
+      if(MB_OVERRIDE){
+        const manual = centsFromInput(MB_OV_REC);
+        const diff = manual - c.finalRecurringCents;
+        html += '<div style="margin-top:11px">'
+          + '<div class="fld"><label>Manual price ('+(c.billingFrequency==='weekly'?'per week':c.billingFrequency==='monthly'?'per month':'one time')+')</label>'
+          + '<input id="mb-ov-rec" inputmode="decimal" value="'+escAttr(MB_OV_REC)+'" oninput="mbOvInput()" placeholder="'+dollarsFromCents(c.finalRecurringCents)+'"></div>'
+          + '<div class="fld"><label>Manual down payment</label>'
+          + '<input id="mb-ov-down" inputmode="decimal" value="'+escAttr(MB_OV_DOWN)+'" oninput="mbOvInput()" placeholder="'+dollarsFromCents(c.finalDownCents)+'"></div>'
+          + '<div class="fld"><label>Reason (required)</label>'
+          + '<input id="mb-ov-reason" value="'+escAttr(MB_OV_REASON)+'" oninput="mbOvInput()" placeholder="Why this price differs"></div>'
+          + '<div class="kv"><span class="k">Recommended</span><span class="v">'+money(c.finalRecurringCents/100)+'</span></div>'
+          + '<div class="kv"><span class="k">Manual</span><span class="v" id="mb-ov-manual">'+money(manual/100)+'</span></div>'
+          + '<div class="kv" style="border-bottom:none"><span class="k">Difference</span><span class="v" id="mb-ov-diff" style="color:'+(diff<0?'var(--go)':diff>0?'var(--warn)':'var(--muted)')+'">'+(diff>0?'+':'')+money(diff/100)+'</span></div>'
+          + '</div>';
+      }
+      html += '</div></div>';
+
+      // 6 — save
+      html += '<div class="sec"><div class="sec-h">Save</div><div class="card pad">';
+      if(c.category==='core_tkd' || c.category==='weekly_bundle'){
+        html += '<div class="fld"><label>Class roster track</label><div class="seg-pick">'
+          + '<button class="'+(MB_TKD_TRACK==='Juniors'?'on':'')+'" onclick="mbSetTrack(\'Juniors\')">Juniors</button>'
+          + '<button class="'+(MB_TKD_TRACK==='Teens/Adults'?'on':'')+'" onclick="mbSetTrack(\'Teens/Adults\')">Teens/Adults</button>'
+          + '</div></div>';
+      }
+      html += '<label style="display:flex;align-items:center;gap:9px;font-size:14.5px;margin:4px 0 12px;">'
+        + '<input type="checkbox" id="mb-roster" '+(MB_ROSTER?'checked':'')+' onchange="MB_ROSTER=this.checked"> Also add to class rosters</label>'
+        + '<button class="savebtn" onclick="mbSave()">Save membership</button></div></div>';
+    }
+  }
+
+  html += '<div class="proto-note">Memberships are the billing record. Class rosters (attendance) stay separate — the checkbox above only seeds them.</div></div>';
+  $("#view-memberships").innerHTML = html;
+}
+
+function mbSearch(){
+  const q = ($("#mb-search").value||'').trim().toLowerCase();
+  const box = document.getElementById('mb-results');
+  if(q.length < 2){ box.innerHTML=''; return; }
+  box.innerHTML = MEMBERS.filter(m=>((m.first+' '+m.last).toLowerCase().includes(q))).slice(0,8).map(m=>
+    '<button class="mrow" onclick="mbPickPerson(\''+m.id+'\')"><div class="c-name"><div class="av" style="background:'+(BELT[m.belt]||'#C7CCD2')+'"><span style="color:'+((m.belt==='White'||m.belt==='Yellow')?'#15171C':'#fff')+'">'+initials(m)+'</span></div>'
+    + '<div class="minfo"><div class="mname">'+escHtml(m.first+' '+m.last)+'</div><div class="msub">'+escHtml(m.rank||m.segment||'')+'</div></div></div></button>'
+  ).join('') || '<div class="ag-empty">No matches.</div>';
+}
+async function mbPickPerson(id){
+  MB_PERSON = id; MB_PLAN = null; MB_CALC = null; MB_OVERRIDE = false;
+  MB_OV_REC = ''; MB_OV_DOWN = ''; MB_OV_REASON = '';
+  MB_CTX = await pricingContext(id);
+  const m = MEMBERS.find(x=>x.id===id);
+  MB_TKD_TRACK = (m && m.age && m.age >= 13) ? 'Teens/Adults' : 'Juniors';
+  renderMemberships();
+}
+function mbClearPerson(){ MB_PERSON=null; MB_CTX=null; MB_PLAN=null; MB_CALC=null; renderMemberships(); }
+function mbPickPlan(code){
+  MB_PLAN = code;
+  MB_CALC = BTKDPricing.calculatePrice({
+    plan: planByCode(code), settings: PRICE_SETTINGS,
+    person: MB_CTX.person, householdMembers: MB_CTX.householdMembers, plans: PLAN_ROWS
+  });
+  renderMemberships();
+}
+function mbSetTrack(t){ MB_TKD_TRACK = t; renderMemberships(); }
+function mbToggleOverride(){ MB_OVERRIDE = !MB_OVERRIDE; renderMemberships(); }
+/* Keeps state and the three readouts in sync WITHOUT re-rendering the section,
+   so typing never loses the caret. */
+function mbOvInput(){
+  MB_OV_REC = ($("#mb-ov-rec")||{}).value || '';
+  MB_OV_DOWN = ($("#mb-ov-down")||{}).value || '';
+  MB_OV_REASON = ($("#mb-ov-reason")||{}).value || '';
+  const c = MB_CALC; if(!c) return;
+  const manual = centsFromInput(MB_OV_REC);
+  const diff = manual - c.finalRecurringCents;
+  const mEl = $("#mb-ov-manual"), dEl = $("#mb-ov-diff");
+  if(mEl) mEl.textContent = money(manual/100);
+  if(dEl){
+    dEl.textContent = (diff>0?'+':'')+money(diff/100);
+    dEl.style.color = diff<0?'var(--go)':diff>0?'var(--warn)':'var(--muted)';
+  }
+}
+
+/* core TKD -> the chosen track; Cubs -> Cubs; specialties by program name.
+   A one-specialty weekly bundle cannot tell which specialty was chosen, so it
+   seeds the Taekwondo track only (noted for the owner). */
+function mbRosterPrograms(c){
+  if(c.category==='core_tkd') return [MB_TKD_TRACK];
+  if(c.category==='cubs') return ['Cubs'];
+  if(c.category==='weekly_bundle'){
+    return c.planCode==='bundle_tkd_both_specialties'
+      ? [MB_TKD_TRACK,'Kickboxing','Jiu Jitsu'] : [MB_TKD_TRACK];
+  }
+  const p = c.program||'';
+  if(p==='Kickboxing + Jiu Jitsu') return ['Kickboxing','Jiu Jitsu'];
+  if(p==='Kickboxing') return ['Kickboxing'];
+  if(p==='Jiu Jitsu') return ['Jiu Jitsu'];
+  if(p==="AMP'D") return ["AMP'D"];
+  return [];
+}
+
+async function mbSave(){
+  const c = MB_CALC; if(!c || !MB_PERSON){ toast('Pick a member and a program'); return; }
+  if(!c.eligible){ toast(c.eligibilityReason || 'That plan is not valid for this member'); return; }
+
+  let override = null;
+  if(MB_OVERRIDE){
+    const rec = centsFromInput(MB_OV_REC);
+    if(!MB_OV_REASON.trim()){ toast('An override needs a reason'); return; }
+    if(rec <= 0){ toast('Enter the manual price'); return; }
+    override = {
+      active: true, recurringCents: rec,
+      downCents: MB_OV_DOWN.trim() ? centsFromInput(MB_OV_DOWN) : null,
+      reason: MB_OV_REASON.trim(),
+      by: await currentStaffEmail(),
+      at: new Date().toISOString()
+    };
+  }
+
+  const row = BTKDPricing.buildMembershipSnapshot({
+    calc: c, contactId: MB_PERSON,
+    startedOn: new Date().toISOString().slice(0,10),
+    createdBy: await currentStaffEmail(),
+    override: override
+  });
+
+  const { error } = await sb.from('memberships').insert(row);
+  if(error){ toast('Save failed: '+(error.message||error)); return; }
+
+  if(MB_ROSTER){
+    const programs = mbRosterPrograms(c);
+    if(programs.length){
+      // "on conflict do nothing" without assuming a unique constraint exists:
+      // read what is already there, insert only what is missing.
+      const { data: have } = await sb.from('enrollments')
+        .select('program').eq('student_id', MB_PERSON);
+      const existing = (have||[]).map(r=>r.program);
+      const add = programs.filter(p=>existing.indexOf(p)===-1)
+        .map(p=>({ student_id: MB_PERSON, program: p, status: 'active' }));
+      if(add.length){
+        const er = await sb.from('enrollments').insert(add);
+        if(er.error) console.error('roster seed', er.error);
+      }
+    }
+  }
+
+  MB_CTX = await pricingContext(MB_PERSON);
+  MB_PLAN = null; MB_CALC = null; MB_OVERRIDE = false;
+  MB_OV_REC=''; MB_OV_DOWN=''; MB_OV_REASON='';
+  renderMemberships();
+  toast('Membership saved');
+}
+
+/* ─── Pricing settings (ADMIN ONLY) ───────────────────────────────────────────
+ * The entry point is hidden unless BTKD.getMyRole() === 'admin'. NOTE: this is
+ * UI-level enforcement only. The RLS policies on pricing_plans and
+ * pricing_settings currently grant all staff access because the database has no
+ * is_admin() function yet; tighten those policies once it exists. */
+function mbOpenPricing(){ if(currentRole!=='admin'){ toast('Admins only'); return; } MB_PRICING_VIEW = true; renderMemberships(); }
+function mbClosePricing(){ MB_PRICING_VIEW = false; renderMemberships(); }
+
+function renderPricingAdmin(){
+  if(currentRole!=='admin'){ MB_PRICING_VIEW=false; renderMemberships(); return; }
+  let html = '<div class="bld"><div class="bld-hd" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">'
+    + '<div><h2>Pricing</h2><p>The catalog every quote reads. Changing a price here never alters memberships already sold.</p></div>'
+    + '<button class="pb-change" onclick="mbClosePricing()">Done</button></div>';
+
+  html += '<div class="sec" style="padding:0"><div class="sec-h">Household discounts</div><div class="card pad">'
+    + '<div class="fld"><label>Specialty / add-on discount per later household member ($)</label>'
+    + '<input id="ps-spec" inputmode="decimal" value="'+dollarsFromCents(PRICE_SETTINGS.household_specialty_discount_cents||0)+'"></div>'
+    + '<div class="fld"><label>Weekly bundle household discount ($)</label>'
+    + '<input id="ps-week" inputmode="decimal" value="'+dollarsFromCents(PRICE_SETTINGS.weekly_household_discount_cents||0)+'"></div>'
+    + '<button class="savebtn" onclick="psSaveSettings()">Save discounts</button></div></div>';
+
+  MB_CAT_ORDER.forEach(cat=>{
+    const rows = PLAN_ROWS.filter(p=>p.category===cat);
+    if(!rows.length) return;
+    html += '<div class="sec"><div class="sec-h">'+MB_CAT_LABEL[cat]+'</div>';
+    rows.forEach(p=>{
+      html += '<div class="card pad" style="margin-bottom:9px">'
+        + '<div class="fld"><label>Name · <code>'+escHtml(p.code)+'</code></label><input id="pp-name-'+p.id+'" value="'+escAttr(p.name)+'"></div>'
+        + '<div class="frow2">'
+        + '<div class="fld"><label>Recurring ($)</label><input id="pp-rec-'+p.id+'" inputmode="decimal" value="'+dollarsFromCents(p.recurring_cents)+'"></div>'
+        + '<div class="fld"><label>Down ($)</label><input id="pp-down-'+p.id+'" inputmode="decimal" value="'+dollarsFromCents(p.down_cents)+'"></div>'
+        + '</div><div class="frow2">'
+        + '<div class="fld"><label>Payments</label><input id="pp-cnt-'+p.id+'" inputmode="numeric" value="'+(p.payment_count==null?'':p.payment_count)+'"></div>'
+        + '<div class="fld"><label>Paid in full ($)</label><input id="pp-pif-'+p.id+'" inputmode="decimal" value="'+dollarsFromCents(p.pif_cents)+'"></div>'
+        + '</div>'
+        + '<div class="fld"><label>Promo label (display text only)</label><input id="pp-promo-'+p.id+'" value="'+escAttr(p.promo_label||'')+'"></div>'
+        + '<div class="fld"><label>Description</label><input id="pp-desc-'+p.id+'" value="'+escAttr(p.description||'')+'"></div>'
+        + '<div class="frow2">'
+        + '<div class="fld"><label>Display order</label><input id="pp-ord-'+p.id+'" inputmode="numeric" value="'+(p.display_order==null?'':p.display_order)+'"></div>'
+        + '<div class="fld"><label>Active</label><div class="seg-pick">'
+        + '<button class="'+(p.active?'on':'')+'" onclick="ppSetActive(\''+p.id+'\',true)">Active</button>'
+        + '<button class="'+(!p.active?'on':'')+'" onclick="ppSetActive(\''+p.id+'\',false)">Off</button></div></div>'
+        + '</div>'
+        + '<button class="savebtn" onclick="ppSave(\''+p.id+'\')">Save plan</button></div>';
+    });
+    html += '</div>';
+  });
+
+  html += '<div class="proto-note">Admin-only by role. Database-level admin enforcement awaits an is_admin() function; RLS currently allows all staff.</div></div>';
+  $("#view-memberships").innerHTML = html;
+}
+async function psSaveSettings(){
+  const a = centsFromInput($("#ps-spec").value), b = centsFromInput($("#ps-week").value);
+  const r1 = await sb.from('pricing_settings').update({ value_cents: a }).eq('key','household_specialty_discount_cents');
+  const r2 = await sb.from('pricing_settings').update({ value_cents: b }).eq('key','weekly_household_discount_cents');
+  if(r1.error||r2.error){ toast('Save failed: '+((r1.error||r2.error).message)); return; }
+  await loadCatalog(true); renderPricingAdmin(); toast('Discounts saved');
+}
+async function ppSetActive(id, val){
+  const { error } = await sb.from('pricing_plans').update({ active: val }).eq('id', id);
+  if(error){ toast('Save failed: '+error.message); return; }
+  await loadCatalog(true); renderPricingAdmin(); toast(val?'Plan active':'Plan off');
+}
+async function ppSave(id){
+  const numOrNull = v => { const s=String(v||'').trim(); return s===''?null:(parseInt(s,10)||0); };
+  const centsOrNull = v => { const s=String(v||'').trim(); return s===''?null:centsFromInput(s); };
+  const row = {
+    name: $("#pp-name-"+id).value.trim(),
+    recurring_cents: centsOrNull($("#pp-rec-"+id).value),
+    down_cents: centsOrNull($("#pp-down-"+id).value) || 0,
+    payment_count: numOrNull($("#pp-cnt-"+id).value),
+    pif_cents: centsOrNull($("#pp-pif-"+id).value),
+    promo_label: $("#pp-promo-"+id).value.trim() || null,
+    description: $("#pp-desc-"+id).value.trim() || null,
+    display_order: numOrNull($("#pp-ord-"+id).value)
+  };
+  const { error } = await sb.from('pricing_plans').update(row).eq('id', id);
+  if(error){ toast('Save failed: '+error.message); return; }
+  await loadCatalog(true); renderPricingAdmin(); toast('Plan saved');
+}
 
 /* ========== staff-only auth door (shared BTKD module) ========== */
 const sb = BTKD.sb;
