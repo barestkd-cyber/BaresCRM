@@ -1131,11 +1131,10 @@ const MB_PROGRAM_CARDS = [
 ];
 async function renderMemberships(){
   await loadCatalog();
-  if(MB_PRICING_VIEW){ renderPricingAdmin(); return; }
   const admin = currentRole === 'admin';
   let html = '<div class="bld"><div class="bld-hd" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">'
     + '<div><h2>Memberships</h2><p>The programs you sell. Family, member, and bundle rates are picked automatically by the pricing engine at the point of sale.</p></div>'
-    + (admin ? '<button class="pb-change" onclick="mbOpenPricing()">Edit prices</button>' : '')
+    + (admin ? '<button class="pb-change" onclick="mbEditDiscounts()">Discounts</button>' : '')
     + '</div>';
   if(!PLAN_ROWS.length){
     html += '<div class="ag-empty">No pricing plans found. Run <strong>sql/membership-schema.sql</strong> once in the Supabase SQL editor, then reload.</div></div>';
@@ -1152,23 +1151,25 @@ async function renderMemberships(){
     + ' <span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700">rate</span>'
     + '</span><span class="pl-terms">'+mbPlanTerms(p)+'</span></div>';
   const used = new Set();
-  const card = (title, ages, rows) => {
+  const card = (key, title, ages, rows) => {
     const sell = rows.filter(p=>p.sellable!==false), rates = rows.filter(p=>p.sellable===false);
     return '<div class="prog-card"><div class="prog-top"><div>'
       + '<div class="prog-name">'+escHtml(title)+'</div><div class="prog-ages">'+escHtml(ages)+'</div></div>'
       + '<span class="prog-count">'+sell.length+' option'+(sell.length!==1?'s':'')+'</span></div>'
       + '<div class="prog-plans">'+sell.map(planLineHtml).join("")
       + (rates.length ? '<div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-top:8px;">Engine rates</div>'+rates.map(rateLineHtml).join("") : '')
-      + '</div></div>';
+      + '</div>'
+      + (admin && key ? '<button class="prog-edit" onclick="mbEditProgram(\''+escAttr(key)+'\')">Edit prices</button>' : '')
+      + '</div>';
   };
   MB_PROGRAM_CARDS.forEach(pc=>{
     const rows = PLAN_ROWS.filter(p=>p.program===pc.key);
     if(!rows.length) return;
     rows.forEach(p=>used.add(p.code));
-    html += card(pc.title, pc.ages, rows);
+    html += card(pc.key, pc.title, pc.ages, rows);
   });
   const leftovers = PLAN_ROWS.filter(p=>!used.has(p.code));
-  if(leftovers.length) html += card('Other', 'Not yet assigned to a program', leftovers);
+  if(leftovers.length) html += card(null, 'Other', 'Not yet assigned to a program', leftovers);
   html += '<div class="proto-note">Live catalog · pricing_plans. Price changes never alter memberships already sold.</div></div>';
   $("#view-memberships").innerHTML = html;
 }
@@ -2395,7 +2396,7 @@ async function currentStaffEmail(){
 /* ─── Memberships section ─────────────────────────────────────────────────── */
 let MB_PERSON = null, MB_CTX = null, MB_PLAN = null, MB_CALC = null;
 let MB_OVERRIDE = false, MB_OV_REC = '', MB_OV_DOWN = '', MB_OV_REASON = '';
-let MB_TKD_TRACK = 'Juniors', MB_ROSTER = true, MB_PRICING_VIEW = false;
+let MB_TKD_TRACK = 'Juniors', MB_ROSTER = true;
 
 const MB_CAT_LABEL = {
   core_tkd:'Taekwondo', cubs:'Cubs', specialty:'Specialty (standalone)',
@@ -2405,12 +2406,9 @@ const MB_CAT_ORDER = ['core_tkd','cubs','specialty','addon','weekly_bundle','oth
 
 async function renderMembershipsPricing(){
   await Promise.all([loadCatalog(), loadHouseholds()]);
-  if(MB_PRICING_VIEW){ renderPricingAdmin(); return; }
 
-  const admin = currentRole === 'admin';
   let html = '<div class="bld"><div class="bld-hd" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">'
     + '<div><h2>Memberships</h2><p>Household-aware pricing. Pick a member, pick a program, and the recommended price accounts for their household.</p></div>'
-    + (admin ? '<button class="pb-change" onclick="mbOpenPricing()">Pricing</button>' : '')
     + '</div>';
 
   if(!PLAN_ROWS.length){
@@ -2643,85 +2641,149 @@ async function mbSave(){
   toast('Membership saved');
 }
 
-/* ─── Pricing settings (ADMIN ONLY) ───────────────────────────────────────────
- * The entry point is hidden unless BTKD.getMyRole() === 'admin'. NOTE: this is
- * UI-level enforcement only. The RLS policies on pricing_plans and
+/* ─── Price editing (ADMIN ONLY) ──────────────────────────────────────────────
+ * Per-program bottom sheet with a LIVE ENGINE PREVIEW: as prices are typed,
+ * BTKDPricing requotes the program's real scenarios (family positions, member
+ * rate, household discount, weekly bundle) so you see what the numbers sell
+ * for before saving. Entry points are hidden unless BTKD.getMyRole()==='admin'.
+ * NOTE: UI-level enforcement only. The RLS policies on pricing_plans and
  * pricing_settings currently grant all staff access because the database has no
  * is_admin() function yet; tighten those policies once it exists. */
-function mbOpenPricing(){ if(currentRole!=='admin'){ toast('Admins only'); return; } MB_PRICING_VIEW = true; renderMemberships(); }
-function mbClosePricing(){ MB_PRICING_VIEW = false; renderMemberships(); }
+let MB_EDIT_PROG = null;
 
-function renderPricingAdmin(){
-  if(currentRole!=='admin'){ MB_PRICING_VIEW=false; renderMemberships(); return; }
-  let html = '<div class="bld"><div class="bld-hd" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">'
-    + '<div><h2>Pricing</h2><p>The catalog every quote reads. Changing a price here never alters memberships already sold.</p></div>'
-    + '<button class="pb-change" onclick="mbClosePricing()">Done</button></div>';
-
-  html += '<div class="sec" style="padding:0"><div class="sec-h">Household discounts</div><div class="card pad">'
-    + '<div class="fld"><label>Specialty / add-on discount per later household member ($)</label>'
-    + '<input id="ps-spec" inputmode="decimal" value="'+dollarsFromCents(PRICE_SETTINGS.household_specialty_discount_cents||0)+'"></div>'
-    + '<div class="fld"><label>Weekly bundle household discount ($)</label>'
-    + '<input id="ps-week" inputmode="decimal" value="'+dollarsFromCents(PRICE_SETTINGS.weekly_household_discount_cents||0)+'"></div>'
-    + '<button class="savebtn" onclick="psSaveSettings()">Save discounts</button></div></div>';
-
-  MB_CAT_ORDER.forEach(cat=>{
-    const rows = PLAN_ROWS.filter(p=>p.category===cat);
-    if(!rows.length) return;
-    html += '<div class="sec"><div class="sec-h">'+MB_CAT_LABEL[cat]+'</div>';
-    rows.forEach(p=>{
-      html += '<div class="card pad" style="margin-bottom:9px">'
-        + '<div class="fld"><label>Name · <code>'+escHtml(p.code)+'</code></label><input id="pp-name-'+p.id+'" value="'+escAttr(p.name)+'"></div>'
-        + '<div class="frow2">'
-        + '<div class="fld"><label>Recurring ($)</label><input id="pp-rec-'+p.id+'" inputmode="decimal" value="'+dollarsFromCents(p.recurring_cents)+'"></div>'
-        + '<div class="fld"><label>Down ($)</label><input id="pp-down-'+p.id+'" inputmode="decimal" value="'+dollarsFromCents(p.down_cents)+'"></div>'
-        + '</div><div class="frow2">'
-        + '<div class="fld"><label>Payments</label><input id="pp-cnt-'+p.id+'" inputmode="numeric" value="'+(p.payment_count==null?'':p.payment_count)+'"></div>'
-        + '<div class="fld"><label>Paid in full ($)</label><input id="pp-pif-'+p.id+'" inputmode="decimal" value="'+dollarsFromCents(p.pif_cents)+'"></div>'
-        + '</div>'
-        + '<div class="fld"><label>Promo label (display text only)</label><input id="pp-promo-'+p.id+'" value="'+escAttr(p.promo_label||'')+'"></div>'
-        + '<div class="fld"><label>Description</label><input id="pp-desc-'+p.id+'" value="'+escAttr(p.description||'')+'"></div>'
-        + '<div class="frow2">'
-        + '<div class="fld"><label>Display order</label><input id="pp-ord-'+p.id+'" inputmode="numeric" value="'+(p.display_order==null?'':p.display_order)+'"></div>'
-        + '<div class="fld"><label>Active</label><div class="seg-pick">'
-        + '<button class="'+(p.active?'on':'')+'" onclick="ppSetActive(\''+p.id+'\',true)">Active</button>'
-        + '<button class="'+(!p.active?'on':'')+'" onclick="ppSetActive(\''+p.id+'\',false)">Off</button></div></div>'
-        + '</div>'
-        + '<button class="savebtn" onclick="ppSave(\''+p.id+'\')">Save plan</button></div>';
-    });
-    html += '</div>';
-  });
-
-  html += '<div class="proto-note">Admin-only by role. Database-level admin enforcement awaits an is_admin() function; RLS currently allows all staff.</div></div>';
-  $("#view-memberships").innerHTML = html;
-}
-async function psSaveSettings(){
-  const a = centsFromInput($("#ps-spec").value), b = centsFromInput($("#ps-week").value);
-  const r1 = await sb.from('pricing_settings').update({ value_cents: a }).eq('key','household_specialty_discount_cents');
-  const r2 = await sb.from('pricing_settings').update({ value_cents: b }).eq('key','weekly_household_discount_cents');
-  if(r1.error||r2.error){ toast('Save failed: '+((r1.error||r2.error).message)); return; }
-  await loadCatalog(true); renderPricingAdmin(); toast('Discounts saved');
-}
-async function ppSetActive(id, val){
-  const { error } = await sb.from('pricing_plans').update({ active: val }).eq('id', id);
-  if(error){ toast('Save failed: '+error.message); return; }
-  await loadCatalog(true); renderPricingAdmin(); toast(val?'Plan active':'Plan off');
-}
-async function ppSave(id){
-  const numOrNull = v => { const s=String(v||'').trim(); return s===''?null:(parseInt(s,10)||0); };
-  const centsOrNull = v => { const s=String(v||'').trim(); return s===''?null:centsFromInput(s); };
-  const row = {
-    name: $("#pp-name-"+id).value.trim(),
-    recurring_cents: centsOrNull($("#pp-rec-"+id).value),
-    down_cents: centsOrNull($("#pp-down-"+id).value) || 0,
-    payment_count: numOrNull($("#pp-cnt-"+id).value),
-    pif_cents: centsOrNull($("#pp-pif-"+id).value),
-    promo_label: $("#pp-promo-"+id).value.trim() || null,
-    description: $("#pp-desc-"+id).value.trim() || null,
-    display_order: numOrNull($("#pp-ord-"+id).value)
+function mbEditProgram(key){
+  if(currentRole!=='admin'){ toast('Admins only'); return; }
+  MB_EDIT_PROG = key;
+  const rows = PLAN_ROWS.filter(p=>p.program===key);
+  const meta = MB_PROGRAM_CARDS.find(c=>c.key===key)||{title:key};
+  const fieldFor = p => {
+    if(p.billing_frequency==='one_time')
+      return '<div class="medit"><label>Paid in full ($)</label><input id="mbe-pif-'+p.id+'" inputmode="decimal" value="'+dollarsFromCents(p.pif_cents)+'" oninput="mbEditPreview()"></div>';
+    return '<div class="frow2">'
+      + '<div class="medit"><label>'+(p.billing_frequency==='weekly'?'Weekly ($)':'Monthly ($)')+'</label><input id="mbe-rec-'+p.id+'" inputmode="decimal" value="'+dollarsFromCents(p.recurring_cents)+'" oninput="mbEditPreview()"></div>'
+      + '<div class="medit"><label>Down ($)</label><input id="mbe-down-'+p.id+'" inputmode="decimal" value="'+dollarsFromCents(p.down_cents)+'" oninput="mbEditPreview()"></div>'
+      + '</div>';
   };
-  const { error } = await sb.from('pricing_plans').update(row).eq('id', id);
-  if(error){ toast('Save failed: '+error.message); return; }
-  await loadCatalog(true); renderPricingAdmin(); toast('Plan saved');
+  const rowHtml = p => '<div class="planrow">'
+    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
+    + '<div style="flex:1;font-weight:700;font-size:14px;">'+escHtml(p.name.replace(/^.*—\s*/,''))
+    + (p.sellable===false?' <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;">rate</span>':'')+'</div>'
+    + '<label style="display:flex;gap:5px;align-items:center;font-size:12px;color:var(--muted);cursor:pointer;"><input type="checkbox" id="mbe-act-'+p.id+'"'+(p.active?' checked':'')+' onchange="mbEditPreview()"> active</label></div>'
+    + fieldFor(p)
+    + (p.promo_label!=null && p.promo_label!=='' || p.category==='cubs' ? '<div class="medit"><label>Promo label (display only)</label><input id="mbe-promo-'+p.id+'" value="'+escAttr(p.promo_label||'')+'"></div>' : '')
+    + '</div>';
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head"><div><h3>'+escHtml(meta.title)+'</h3><div class="sub">Live engine preview · sold memberships never change</div></div>'
+    + '<button class="close" onclick="closeSheet()">×</button></div>'
+    + '<div class="sheet-body">'
+    + '<div id="mbe-preview" class="card pad" style="margin-bottom:12px;"></div>'
+    + rows.map(rowHtml).join("")
+    + '<button class="savebtn" onclick="mbEditSave()">Save '+escHtml(meta.title)+'</button></div>';
+  openSheet();
+  mbEditPreview();
+}
+
+function mbeVal(id){ const el=document.getElementById(id); return el?el.value:null; }
+
+// PLAN_ROWS clones with the sheet's unsaved values overlaid — what the
+// preview quotes against, and what save writes.
+function mbEditedRows(){
+  return PLAN_ROWS.map(p=>{
+    if(p.program!==MB_EDIT_PROG) return p;
+    const q=Object.assign({},p);
+    const rec=mbeVal('mbe-rec-'+p.id);   if(rec!=null)  q.recurring_cents=centsFromInput(rec);
+    const down=mbeVal('mbe-down-'+p.id); if(down!=null) q.down_cents=centsFromInput(down);
+    const pif=mbeVal('mbe-pif-'+p.id);   if(pif!=null)  q.pif_cents=centsFromInput(pif);
+    const act=document.getElementById('mbe-act-'+p.id); if(act) q.active=act.checked;
+    const promo=mbeVal('mbe-promo-'+p.id); if(promo!=null) q.promo_label=promo.trim()||null;
+    return q;
+  });
+}
+
+function mbEditPreview(){
+  const box=document.getElementById('mbe-preview'); if(!box) return;
+  const plans=mbEditedRows();
+  const quote=(code,person,hh)=>{
+    const pl=plans.find(p=>p.code===code); if(!pl) return null;
+    try{ return BTKDPricing.calculatePrice({plan:pl, settings:PRICE_SETTINGS, person:person, householdMembers:hh}); }
+    catch(e){ return null; }
+  };
+  const d=c=>'$'+((c||0)/100).toFixed(2).replace(/\.00$/,'');
+  const solo={contact_id:'x', activeMemberships:[]};
+  const amRow=(code,freq)=>({plan_code:code, category:'core_tkd', status:'active', started_on:'2026-01-01', billing_frequency:freq||'monthly'});
+  const line=(lbl,r)=>{
+    if(!r) return '';
+    const main = r.finalRecurringCents || r.finalDownCents || 0;
+    const down = r.finalRecurringCents && r.finalDownCents ? ' <span style="color:var(--muted)">(+'+d(r.finalDownCents)+' down)</span>' : '';
+    return '<div class="kv"><span class="k">'+lbl+'</span><span class="v">'+d(main)+down+'</span></div>';
+  };
+  let h='<div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:6px;">Engine preview — what these numbers quote</div>';
+  const key=MB_EDIT_PROG;
+  const otherTkdKid={contact_id:'kid', activeMemberships:[amRow('juniors_option_c')]};
+  const otherTkdKid2={contact_id:'kid2', activeMemberships:[amRow('juniors_option_c')]};
+  if(key==='Juniors'||key==='Teens/Adults'){
+    const base=(key==='Juniors'?'juniors':'adults');
+    h+=line('1st in household · Option C', quote(base+'_option_c',solo,[]));
+    h+=line('2nd family member', quote(base+'_option_c',solo,[otherTkdKid]));
+    h+=line('3rd+ family member', quote(base+'_option_c',solo,[otherTkdKid,otherTkdKid2]));
+    h+=line('Weekly', quote(base+'_weekly',solo,[]));
+  } else if(key==='Kickboxing'||key==='Jiu Jitsu'||key==='Kickboxing + Jiu Jitsu'){
+    const std=key==='Kickboxing'?'specialty_kickboxing':(key==='Jiu Jitsu'?'specialty_jiujitsu':'specialty_both');
+    const add=key==='Kickboxing'?'addon_kickboxing':(key==='Jiu Jitsu'?'addon_jiujitsu':'addon_both');
+    const tkdMonthly={contact_id:'x', activeMemberships:[amRow('adults_option_c')]};
+    const tkdWeekly={contact_id:'x', activeMemberships:[amRow('adults_weekly','weekly')]};
+    h+=line('Standalone', quote(std,solo,[]));
+    h+=line('Standalone · later household member', quote(std,solo,[otherTkdKid]));
+    h+=line('TKD member', quote(add,tkdMonthly,[]));
+    h+=line('TKD member · later household member', quote(add,tkdMonthly,[otherTkdKid]));
+    h+=line('Weekly TKD member (bundle)', quote(add,tkdWeekly,[]));
+    if(key==='Kickboxing + Jiu Jitsu') h+=line('Drop-in', quote('specialty_dropin',solo,[]));
+  } else if(key==='Cubs'){
+    h+=line('Weekly', quote('cubs_weekly',solo,[]));
+    h+=line('Option A', quote('cubs_option_a',solo,[]));
+    h+=line('Option B', quote('cubs_option_b',solo,[]));
+    h+=line('Paid in full', quote('cubs_pif',solo,[]));
+  } else {
+    h+=line("AMP'D monthly", quote('ampd_addon',solo,[]));
+  }
+  box.innerHTML=h;
+}
+
+async function mbEditSave(){
+  if(currentRole!=='admin'){ toast('Admins only'); return; }
+  const edited=mbEditedRows().filter(p=>p.program===MB_EDIT_PROG);
+  for(const q of edited){
+    const row={ recurring_cents:q.recurring_cents, down_cents:q.down_cents, pif_cents:q.pif_cents,
+                active:q.active, promo_label:q.promo_label };
+    const { error } = await sb.from('pricing_plans').update(row).eq('id', q.id);
+    if(error){ toast('Save failed: '+error.message); return; }
+  }
+  await loadCatalog(true);
+  closeSheet(); renderMemberships();
+  toast((MB_PROGRAM_CARDS.find(c=>c.key===MB_EDIT_PROG)||{title:'Program'}).title+' prices saved');
+}
+
+function mbEditDiscounts(){
+  if(currentRole!=='admin'){ toast('Admins only'); return; }
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head"><div><h3>Household discounts</h3><div class="sub">Engine settings · applied automatically at the point of sale</div></div>'
+    + '<button class="close" onclick="closeSheet()">×</button></div>'
+    + '<div class="sheet-body">'
+    + '<div class="medit"><label>Specialty / member-rate discount per later household member ($)</label>'
+    + '<input id="mbe-ps-spec" inputmode="decimal" value="'+dollarsFromCents(PRICE_SETTINGS.household_specialty_discount_cents||0)+'"></div>'
+    + '<div class="medit"><label>Weekly bundle household discount ($)</label>'
+    + '<input id="mbe-ps-week" inputmode="decimal" value="'+dollarsFromCents(PRICE_SETTINGS.weekly_household_discount_cents||0)+'"></div>'
+    + '<button class="savebtn" onclick="mbSaveDiscounts()">Save discounts</button></div>';
+  openSheet();
+}
+
+async function mbSaveDiscounts(){
+  const a=centsFromInput($("#mbe-ps-spec").value), b=centsFromInput($("#mbe-ps-week").value);
+  const r1=await sb.from('pricing_settings').update({ value_cents:a }).eq('key','household_specialty_discount_cents');
+  const r2=await sb.from('pricing_settings').update({ value_cents:b }).eq('key','weekly_household_discount_cents');
+  if(r1.error||r2.error){ toast('Save failed: '+((r1.error||r2.error).message)); return; }
+  await loadCatalog(true);
+  closeSheet(); toast('Discounts saved');
 }
 
 /* ========== staff-only auth door (shared BTKD module) ========== */
