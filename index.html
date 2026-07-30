@@ -1117,19 +1117,40 @@ function planLine(pl){
 }
 /* Superseded by the real Memberships section (household pricing) further down.
    Kept for reference only — nothing calls it. */
-function renderMemberships(){
-  let html = '<div class="bld"><div class="bld-hd"><h2>Memberships</h2><p>Your programs and their payment options. Checkout pages and member profiles read from here, so a price set once shows up everywhere it sells.</p></div>';
-  html += '<button class="newbtn" onclick="openProgramEdit(null)">＋ New program</button>';
-  html += PROGRAMS.map(g=>{
-    const plans = g.plans.map(pl=>'<div class="plan-line"><span class="pl-name">'+pl.name+'</span><span class="pl-terms">'+planLine(pl)+'</span></div>').join("");
-    return '<div class="prog-card"><div class="prog-top"><div>'
-      + '<div class="prog-name">'+g.name+'</div><div class="prog-ages">'+g.ages+'</div></div>'
-      + '<span class="prog-count">'+g.members+' active</span></div>'
-      + '<div class="prog-plans">'+plans+'</div>'
-      + '<button class="prog-edit" onclick="openProgramEdit(\''+g.id+'\')">Edit options</button></div>';
-  }).join("");
-  html += '<div class="proto-note">Prototype · mock data. Editing options here is what the per-program enrollment pages would read.</div></div>';
+async function renderMemberships(){
+  await loadCatalog();
+  if(MB_PRICING_VIEW){ renderPricingAdmin(); return; }
+  const admin = currentRole === 'admin';
+  let html = '<div class="bld"><div class="bld-hd" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">'
+    + '<div><h2>Memberships</h2><p>The program catalog. Prices set here are what quotes, checkout pages, and the POS read. Selling happens at the POS.</p></div>'
+    + (admin ? '<button class="pb-change" onclick="mbOpenPricing()">Edit prices</button>' : '')
+    + '</div>';
+  if(!PLAN_ROWS.length){
+    html += '<div class="ag-empty">No pricing plans found. Run <strong>sql/membership-schema.sql</strong> once in the Supabase SQL editor, then reload.</div></div>';
+    $("#view-memberships").innerHTML = html; return;
+  }
+  MB_CAT_ORDER.forEach(cat=>{
+    const rows = PLAN_ROWS.filter(p=>p.category===cat);
+    if(!rows.length) return;
+    const plans = rows.map(p=>'<div class="plan-line"><span class="pl-name">'+escHtml(p.name)
+      + (p.promo_label ? ' <span style="color:var(--go);font-size:12px;font-weight:700">'+escHtml(p.promo_label)+'</span>' : '')
+      + (p.active ? '' : ' <span style="color:var(--muted);font-size:11px;font-weight:700">(off)</span>')
+      + '</span><span class="pl-terms">'+mbPlanTerms(p)+'</span></div>').join("");
+    html += '<div class="prog-card"><div class="prog-top"><div>'
+      + '<div class="prog-name">'+MB_CAT_LABEL[cat]+'</div></div>'
+      + '<span class="prog-count">'+rows.length+' option'+(rows.length!==1?'s':'')+'</span></div>'
+      + '<div class="prog-plans">'+plans+'</div></div>';
+  });
+  html += '<div class="proto-note">Live catalog · pricing_plans. Price changes never alter memberships already sold.</div></div>';
   $("#view-memberships").innerHTML = html;
+}
+function mbPlanTerms(p){
+  const d = c => money((c||0)/100);
+  if(p.billing_frequency==='one_time') return p.pif_cents!=null ? d(p.pif_cents)+' · paid in full' : '—';
+  if(p.billing_frequency==='weekly')   return d(p.recurring_cents)+'/wk';
+  let t = (p.down_cents>0 ? d(p.down_cents)+' down + ' : '') + d(p.recurring_cents)+'/mo';
+  if(p.payment_count) t += ' × '+p.payment_count;
+  return t;
 }
 function openProgramEdit(id){
   editProgram = id ? PROGRAMS.find(g=>g.id===id) : {id:"g"+(PROGRAMS.length+1), name:"", ages:"", members:0, plans:[]};
@@ -2599,11 +2620,11 @@ async function mbSave(){
  * UI-level enforcement only. The RLS policies on pricing_plans and
  * pricing_settings currently grant all staff access because the database has no
  * is_admin() function yet; tighten those policies once it exists. */
-function mbOpenPricing(){ if(currentRole!=='admin'){ toast('Admins only'); return; } MB_PRICING_VIEW = true; renderMembershipsPricing(); }
-function mbClosePricing(){ MB_PRICING_VIEW = false; renderMembershipsPricing(); }
+function mbOpenPricing(){ if(currentRole!=='admin'){ toast('Admins only'); return; } MB_PRICING_VIEW = true; renderMemberships(); }
+function mbClosePricing(){ MB_PRICING_VIEW = false; renderMemberships(); }
 
 function renderPricingAdmin(){
-  if(currentRole!=='admin'){ MB_PRICING_VIEW=false; renderMembershipsPricing(); return; }
+  if(currentRole!=='admin'){ MB_PRICING_VIEW=false; renderMemberships(); return; }
   let html = '<div class="bld"><div class="bld-hd" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">'
     + '<div><h2>Pricing</h2><p>The catalog every quote reads. Changing a price here never alters memberships already sold.</p></div>'
     + '<button class="pb-change" onclick="mbClosePricing()">Done</button></div>';
