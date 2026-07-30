@@ -1825,11 +1825,8 @@ function packetUpload(id,input){
 }
 
 /* ========== calendar ========== */
-let CAL = [
-  {id:"c1", type:"trial", title:"Trial · Maya Wells", date:"Jun 17, 2026", time:"5:30 PM"},
-  {id:"c2", type:"private", title:"Private · John Cater", date:"Jun 19, 2026", time:"4:00 PM"},
-  {id:"c3", type:"blackout", title:"Closed · Staff training", date:"Jun 21, 2026", time:"All day"}
-];
+// Live data: calendar_events (Supabase) + trial bookings. CAL stays for compat.
+let CAL = [];
 const CAL_TYPES = {
   event:{label:"Events", color:"#C98A1A"},
   testing:{label:"Testing", color:"#6D4FCF"},
@@ -1838,69 +1835,177 @@ const CAL_TYPES = {
   blackout:{label:"Blackout", color:"#5A6472"}
 };
 let calMonth=new Date(); calMonth.setDate(1); calMonth.setHours(0,0,0,0);
-let calSel=null, calSchedType="trial";
+let calSel=null, calSchedType="trial", calSchedPaid=null, CAL_VIEW="grid";
 let calFilters={event:true, testing:true, trial:true, private:true, blackout:true};
+let CAL_DB=[], CAL_TRIALS=[], CAL_DB_LOADED=false, CAL_LOADED_KEY="";
+const CAL_CAN_HOVER = window.matchMedia && window.matchMedia("(hover: hover)").matches;
+
+function calYMD(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function fmtClock(d){ let h=d.getHours(), m=d.getMinutes(), ap=h>=12?"PM":"AM"; h=h%12||12; return h+":"+String(m).padStart(2,"0")+" "+ap; }
+function calTimeMins(t){
+  if(!t) return 10000;
+  if(/all day/i.test(t)) return -1;
+  const m=String(t).match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+  if(!m) return 10000;
+  let h=parseInt(m[1],10)%12; if(m[3]&&/pm/i.test(m[3])) h+=12;
+  return h*60+parseInt(m[2],10);
+}
+
+// Fetches the viewed month ±1. Cached per month; force=true after a save.
+async function calLoadData(force){
+  const key=calMonth.getFullYear()+"-"+calMonth.getMonth();
+  if(CAL_DB_LOADED && key===CAL_LOADED_KEY && !force) return;
+  const start=new Date(calMonth.getFullYear(), calMonth.getMonth()-1, 1);
+  const end=new Date(calMonth.getFullYear(), calMonth.getMonth()+2, 0);
+  const r=await sb.from('calendar_events').select('*').gte('event_date', calYMD(start)).lte('event_date', calYMD(end));
+  if(r.error){ console.error('calendar_events load', r.error); CAL_DB=[]; }
+  else CAL_DB=r.data||[];
+  // Trial bookings come from the public site's booking flow; skip quietly if unreadable.
+  try{
+    const endIso=new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59).toISOString();
+    const t=await sb.from('trial_bookings').select('id,contact_id,class_datetime,program,class_label')
+      .gte('class_datetime', start.toISOString()).lte('class_datetime', endIso);
+    CAL_TRIALS=(t.error?[]:(t.data||[])).map(b=>{
+      const d=new Date(b.class_datetime);
+      const m=MEMBERS.find(x=>x.id===b.contact_id);
+      const nm=m?((m.first+" "+m.last).trim()):"(trial)";
+      return {type:"trial", title:"Trial · "+nm, time:isNaN(d)?"":fmtClock(d), date:d, srcId:"tb-"+b.id, memberId:b.contact_id||null};
+    }).filter(i=>!isNaN(i.date));
+  }catch(e){ CAL_TRIALS=[]; }
+  CAL_DB_LOADED=true; CAL_LOADED_KEY=key;
+}
+
 function calAllItems(){
   let items=[];
-  EVENTS.forEach(e=>{ if(e.date) items.push({type:"event", title:e.title, time:"", date:new Date(e.date), srcId:e.id}); });
-  TESTING.forEach(t=>{ if(t.date) items.push({type:"testing", title:t.title, time:"", date:new Date(t.date), srcId:t.id}); });
+  CAL_DB.forEach(e=>{
+    const d=new Date(e.event_date+"T12:00:00");
+    if(isNaN(d)) return;
+    items.push({type:e.type||"event", title:e.title, time:e.event_time||"", date:d, srcId:e.id,
+      memberId:e.member_id||null, linkUrl:e.link_url||null, paid:e.paid});
+  });
+  CAL_TRIALS.forEach(t=>items.push(t));
   CAL.forEach(c=>{ items.push({type:c.type, title:c.title, time:c.time||"", date:new Date(c.date), srcId:c.id, memberId:c.memberId}); });
   return items.filter(i=>!isNaN(i.date));
 }
 function sameDay(a,b){ return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
-function calItemsOn(d){ return calAllItems().filter(i=>calFilters[i.type] && sameDay(i.date,d)).sort((a,b)=>(a.time||"").localeCompare(b.time||"")); }
-function renderCalendar(){
+function calItemsOn(d){ return calAllItems().filter(i=>calFilters[i.type] && sameDay(i.date,d)).sort((a,b)=>calTimeMins(a.time)-calTimeMins(b.time)); }
+
+// One row, shared by the agenda and the list view. link_url opens in a new
+// tab; otherwise a linked member opens their profile.
+function calRowHtml(i){
+  const c=CAL_TYPES[i.type];
+  const meta=(i.time?i.time+" · ":"")+c.label;
+  let click="";
+  if(i.linkUrl) click=' onclick="window.open(\''+escAttr(i.linkUrl)+'\',\'_blank\')"';
+  else if(i.memberId) click=' onclick="openProfile(\''+i.memberId+'\')"';
+  const paidTag=i.paid===true?'<span class="seg active" style="margin-right:6px">Paid</span>'
+              :i.paid===false?'<span class="seg" style="margin-right:6px">Unpaid</span>':"";
+  return '<button class="ag-item"'+click+'><span class="ag-bar" style="background:'+c.color+'"></span><div class="ag-info"><div class="ag-title">'+escHtml(i.title)+'</div><div class="ag-meta">'+escHtml(meta)+'</div></div>'+paidTag+'<span class="ag-type" style="background:'+c.color+'22;color:'+c.color+'">'+c.label+'</span></button>';
+}
+
+function calListHtml(){
+  const items=calAllItems()
+    .filter(i=>calFilters[i.type] && i.date.getFullYear()===calMonth.getFullYear() && i.date.getMonth()===calMonth.getMonth())
+    .sort((a,b)=> (a.date-b.date) || (calTimeMins(a.time)-calTimeMins(b.time)));
+  if(!items.length) return '<div class="ag-empty" style="margin:14px 0">Nothing this month. Tap Schedule to add an event, trial, private lesson, or blackout.</div>';
+  let h="", lastKey="";
+  items.forEach(i=>{
+    const k=calYMD(i.date);
+    if(k!==lastKey){
+      lastKey=k;
+      h+='<div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:14px 2px 6px">'+i.date.toLocaleDateString('en-US',{weekday:'short', month:'long', day:'numeric'})+'</div>';
+    }
+    h+=calRowHtml(i);
+  });
+  return h;
+}
+
+async function renderCalendar(){
+  await calLoadData();
   const monthName=calMonth.toLocaleDateString('en-US',{month:'long', year:'numeric'});
-  let html='<div class="cal-bar"><h2>'+monthName+'</h2><button class="cal-nav" onclick="calStep(-1)">‹</button><button class="cal-nav" onclick="calStep(1)">›</button></div>';
+  let html='<div id="calWrap" style="position:relative">';
+  html+='<div class="cal-bar"><h2>'+monthName+'</h2>'
+    +'<div class="seg-pick" style="margin:0 8px 0 0;gap:6px;flex:0 0 auto">'
+    +'<button style="padding:6px 10px;flex:0 0 auto" class="'+(CAL_VIEW==="grid"?"on":"")+'" onclick="calSetView(\'grid\')">Grid</button>'
+    +'<button style="padding:6px 10px;flex:0 0 auto" class="'+(CAL_VIEW==="list"?"on":"")+'" onclick="calSetView(\'list\')">List</button></div>'
+    +'<button class="cal-nav" onclick="calStep(-1)">‹</button><button class="cal-nav" onclick="calStep(1)">›</button></div>';
   html+='<div class="cal-legend">'+Object.keys(CAL_TYPES).map(k=>'<button class="cal-leg'+(calFilters[k]?'':' off')+'" onclick="calToggle(\''+k+'\')"><span class="dot" style="background:'+CAL_TYPES[k].color+'"></span>'+CAL_TYPES[k].label+'</button>').join("")+'</div>';
-  html+='<div class="cal-grid"><div class="cal-dow"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div><div class="cal-weeks">';
-  const startDow=calMonth.getDay();
-  const daysIn=new Date(calMonth.getFullYear(), calMonth.getMonth()+1, 0).getDate();
   const today=new Date(); today.setHours(0,0,0,0);
-  for(let i=0;i<startDow;i++) html+='<div class="cal-day blank"></div>';
-  for(let d=1; d<=daysIn; d++){
-    const cur=new Date(calMonth.getFullYear(), calMonth.getMonth(), d);
-    const items=calItemsOn(cur);
-    const dots=items.slice(0,4).map(i=>'<span class="dot" style="background:'+CAL_TYPES[i.type].color+'"></span>').join("");
-    const cls='cal-day'+(sameDay(cur,today)?' today':'')+(calSel&&sameDay(cur,calSel)?' sel':'');
-    html+='<div class="'+cls+'" onclick="calPick('+d+')"><span class="dnum">'+d+'</span><div class="cal-dots">'+dots+'</div></div>';
+  if(CAL_VIEW==="list"){
+    html+=calListHtml();
+  } else {
+    html+='<div class="cal-grid"><div class="cal-dow"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div><div class="cal-weeks">';
+    const startDow=calMonth.getDay();
+    const daysIn=new Date(calMonth.getFullYear(), calMonth.getMonth()+1, 0).getDate();
+    for(let i=0;i<startDow;i++) html+='<div class="cal-day blank"></div>';
+    for(let d=1; d<=daysIn; d++){
+      const cur=new Date(calMonth.getFullYear(), calMonth.getMonth(), d);
+      const items=calItemsOn(cur);
+      const dots=items.slice(0,4).map(i=>'<span class="dot" style="background:'+CAL_TYPES[i.type].color+'"></span>').join("");
+      const cls='cal-day'+(sameDay(cur,today)?' today':'')+(calSel&&sameDay(cur,calSel)?' sel':'');
+      html+='<div class="'+cls+'" onclick="calPick('+d+')" onmouseenter="calHoverDay(event,'+d+')" onmouseleave="calHoverHide()"><span class="dnum">'+d+'</span><div class="cal-dots">'+dots+'</div></div>';
+    }
+    html+='</div></div>';
   }
-  html+='</div></div>';
   html+='<div class="cal-acts"><button class="sched" onclick="calSchedule()">＋ Schedule</button><button class="gsync" onclick="calSync()">Sync Google Calendar</button></div>';
   const sel=calSel||today;
   const selItems=calItemsOn(sel);
   html+='<div class="cal-agenda"><div class="ag-day">'+sel.toLocaleDateString('en-US',{weekday:'long', month:'long', day:'numeric'})+'</div>';
-  if(selItems.length){
-    html+=selItems.map(i=>{
-      const c=CAL_TYPES[i.type];
-      const meta=(i.time?i.time+' · ':'')+c.label;
-      const click=i.memberId?(' onclick="openProfile(\''+i.memberId+'\')"'):'';
-      return '<button class="ag-item"'+click+'><span class="ag-bar" style="background:'+c.color+'"></span><div class="ag-info"><div class="ag-title">'+i.title+'</div><div class="ag-meta">'+meta+'</div></div><span class="ag-type" style="background:'+c.color+'22;color:'+c.color+'">'+c.label+'</span></button>';
-    }).join("");
-  } else { html+='<div class="ag-empty">Nothing scheduled. Tap Schedule to add a trial, private lesson, or blackout.</div>'; }
-  html+='</div><div class="proto-note">Events and testing dates populate automatically. Scheduling a trial adds the student to your roster as a trial member.</div>';
+  if(selItems.length){ html+=selItems.map(calRowHtml).join(""); }
+  else { html+='<div class="ag-empty">Nothing scheduled. Tap Schedule to add an event, trial, private lesson, or blackout.</div>'; }
+  html+='</div>';
+  html+='<div id="calTip" style="display:none;position:absolute;z-index:50;background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:var(--shadow);padding:8px 10px;max-width:240px;pointer-events:none"></div>';
+  html+='</div>';
   $("#view-calendar").innerHTML=html;
 }
+function calSetView(v){ CAL_VIEW=v; renderCalendar(); }
+
+// Desktop-only hover preview of a day's items.
+function calHoverDay(ev, d){
+  if(!CAL_CAN_HOVER) return;
+  const tip=document.getElementById('calTip'); if(!tip) return;
+  const items=calItemsOn(new Date(calMonth.getFullYear(), calMonth.getMonth(), d));
+  if(!items.length){ tip.style.display='none'; return; }
+  let h=items.slice(0,5).map(i=>'<div style="display:flex;align-items:center;gap:7px;padding:3px 0"><span style="background:'+CAL_TYPES[i.type].color+';width:8px;height:8px;border-radius:50%;flex-shrink:0"></span><span style="font-size:12.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(i.time?'<b>'+escHtml(i.time)+'</b> · ':'')+escHtml(i.title)+'</span></div>').join("");
+  if(items.length>5) h+='<div style="font-size:11.5px;color:var(--muted);padding-top:3px">+'+(items.length-5)+' more</div>';
+  tip.innerHTML=h;
+  tip.style.display='block';
+  const cell=ev.currentTarget, wrap=document.getElementById('calWrap');
+  let left=cell.offsetLeft+cell.offsetWidth/2-tip.offsetWidth/2;
+  left=Math.max(8, Math.min(left, wrap.clientWidth-tip.offsetWidth-8));
+  let top=cell.offsetTop+cell.offsetHeight+6;
+  if(top+tip.offsetHeight>wrap.scrollHeight) top=cell.offsetTop-tip.offsetHeight-6;
+  tip.style.left=left+'px'; tip.style.top=top+'px';
+}
+function calHoverHide(){ const tip=document.getElementById('calTip'); if(tip) tip.style.display='none'; }
+
 function calStep(n){ calMonth.setMonth(calMonth.getMonth()+n); calSel=null; renderCalendar(); }
 function calToggle(k){ calFilters[k]=!calFilters[k]; renderCalendar(); }
 function calPick(d){ calSel=new Date(calMonth.getFullYear(), calMonth.getMonth(), d); renderCalendar(); }
-function calSync(){ toast("Two-way Google Calendar sync · planned integration"); }
-function calSchedule(){ calSchedType="trial"; calSchedSheet(); openSheet(); }
+function calSync(){ toast('Google Calendar sync coming soon'); }
+function calSchedule(){ calSchedType="trial"; calSchedPaid=null; calSchedSheet(); openSheet(); }
 function calSchedSheet(){
   const t=calSchedType;
   const dflt=(calSel||new Date());
   const dstr=dflt.toLocaleDateString('en-US',{month:'short', day:'numeric', year:'numeric'});
   let body='<div class="seg-pick">'
     +'<button class="'+(t==="trial"?"on":"")+'" onclick="calSetType(\'trial\')">Trial</button>'
-    +'<button class="'+(t==="private"?"on":"")+'" onclick="calSetType(\'private\')">Private lesson</button>'
-    +'<button class="'+(t==="blackout"?"on":"")+'" onclick="calSetType(\'blackout\')">Blackout</button></div>';
-  const nameLabel=t==="trial"?"Student name":t==="private"?"Who (student or member)":"Reason";
-  const ph=t==="trial"?"New student":t==="private"?"e.g. John Cater":"e.g. Holiday closed";
+    +'<button class="'+(t==="private"?"on":"")+'" onclick="calSetType(\'private\')">Private</button>'
+    +'<button class="'+(t==="blackout"?"on":"")+'" onclick="calSetType(\'blackout\')">Blackout</button>'
+    +'<button class="'+(t==="event"?"on":"")+'" onclick="calSetType(\'event\')">Event</button></div>';
+  const nameLabel=t==="trial"?"Student name":t==="private"?"Who (student or member)":t==="event"?"Event name":"Reason";
+  const ph=t==="trial"?"New student":t==="private"?"e.g. John Cater":t==="event"?"e.g. Summer Camp":"e.g. Holiday closed";
   body+='<div class="medit"><label>'+nameLabel+'</label><input id="cs-name" placeholder="'+ph+'"></div>';
   body+='<div class="frow2"><div class="medit"><label>Date</label><input id="cs-date" value="'+dstr+'"></div>'
     +'<div class="medit"><label>Time</label><input id="cs-time" value="'+(t==="blackout"?"All day":"5:30 PM")+'"></div></div>';
-  if(t==="trial") body+='<div class="ck-hint">Adds the student to your roster as a trial member so they get current-member emails. Convert or remove them from their profile after the trial.</div>';
-  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Schedule</h3><div class="sub">Trial, private lesson, or blackout day</div></div><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'<button class="savebtn" onclick="calSaveSched()">Add to calendar</button></div>';
+  if(t==="event"){
+    body+='<div class="medit"><label>Link URL (optional — checkout page)</label><input id="cs-link" placeholder="https://…"></div>';
+    body+='<div class="medit"><label>Payment (optional, tap to toggle)</label><div class="seg-pick" style="margin-bottom:0">'
+      +'<button class="'+(calSchedPaid==="paid"?"on":"")+'" onclick="calSetPaid(\'paid\')">Paid</button>'
+      +'<button class="'+(calSchedPaid==="unpaid"?"on":"")+'" onclick="calSetPaid(\'unpaid\')">Unpaid</button></div></div>';
+  }
+  if(t==="trial") body+='<div class="ck-hint">Books the trial on the calendar. Convert them from their profile if they join.</div>';
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Schedule</h3><div class="sub">Event, trial, private lesson, or blackout day</div></div><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'<button class="savebtn" onclick="calSaveSched()">Add to calendar</button></div>';
 }
 function calSetType(t){
   const n=$("#cs-name")?$("#cs-name").value:"";
@@ -1911,28 +2016,44 @@ function calSetType(t){
   if(dt&&$("#cs-date"))$("#cs-date").value=dt;
   if(t!=="blackout"&&tm&&$("#cs-time"))$("#cs-time").value=tm;
 }
-function calSaveSched(){
+function calSetPaid(v){
+  const n=$("#cs-name")?$("#cs-name").value:"";
+  const dt=$("#cs-date")?$("#cs-date").value:"";
+  const tm=$("#cs-time")?$("#cs-time").value:"";
+  const lk=$("#cs-link")?$("#cs-link").value:"";
+  calSchedPaid = calSchedPaid===v ? null : v;   // tap the active one to unset
+  calSchedSheet();
+  if($("#cs-name"))$("#cs-name").value=n;
+  if(dt&&$("#cs-date"))$("#cs-date").value=dt;
+  if(tm&&$("#cs-time"))$("#cs-time").value=tm;
+  if($("#cs-link"))$("#cs-link").value=lk;
+}
+async function calSaveSched(){
   const t=calSchedType;
   const name=($("#cs-name").value||"").trim();
   const date=($("#cs-date").value||"").trim();
   const time=($("#cs-time").value||"").trim();
-  if(!name){ toast(t==="blackout"?"Add a reason":"Add a name"); return; }
+  if(!name){ toast(t==="blackout"?"Add a reason":t==="event"?"Add an event name":"Add a name"); return; }
   if(!date || isNaN(new Date(date))){ toast("Enter a valid date like Jun 28, 2026"); return; }
-  let title, memberId=null;
-  if(t==="trial"){
-    const parts=name.split(" ");
-    const nm={id:"m"+Date.now(), first:parts[0]||name, last:parts.slice(1).join(" ")||"", segment:"Trial",
-      belt:"", rank:"", rankDate:"", since:"", entered:date, age:0, gender:"", guardians:[], phones:[], emails:[], address:"",
-      app:false, phase:"Free Trial", source:"Trial booking", beltSize:"", kickSize:"", tags:["trial-booked"], attended:0, daysSince:null, testing:false, balance:0,
-      memberships:[{program:"Free Trial", plan:"1 week trial", status:"trial", nextDue:"—", overdue:0, contract:false, down:0, monthly:0, total:null, remaining:null, trial:true}],
-      invoices:[], notes:[[date,"Trial booked."]]};
-    MEMBERS.push(nm); memberId=nm.id; title="Trial · "+name;
-  } else if(t==="private"){ title="Private · "+name; }
-  else { title="Closed · "+name; }
-  CAL.push({id:"c"+Date.now(), type:t, title, date, time, memberId});
+  let title;
+  if(t==="trial") title="Trial · "+name;
+  else if(t==="private") title="Private · "+name;
+  else if(t==="blackout") title="Closed · "+name;
+  else title=name;
+  let email='staff'; try{ const s=await BTKD.getSession(); email=(s&&s.user&&s.user.email)||'staff'; }catch(e){}
+  const row={
+    type:t, title:title, event_date:calYMD(new Date(date)), event_time:time||null,
+    link_url:(t==="event" && $("#cs-link") && $("#cs-link").value.trim()) || null,
+    paid:t==="event" ? (calSchedPaid==="paid"?true:calSchedPaid==="unpaid"?false:null) : null,
+    created_by:email
+  };
+  const { error } = await sb.from('calendar_events').insert(row);
+  if(error){ toast('Save failed: '+error.message); return; }
   calSel=new Date(date); calMonth=new Date(calSel.getFullYear(), calSel.getMonth(), 1);
-  closeSheet(); renderCalendar(); renderChips();
-  toast(t==="trial"?(name+" booked and added to roster"):"Added to calendar");
+  closeSheet();
+  await calLoadData(true);
+  renderCalendar();
+  toast(t==="trial" ? (name+" booked") : "Added to calendar");
 }
 
 /* ========== RENDER: profile ========== */
