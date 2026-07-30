@@ -1117,30 +1117,58 @@ function planLine(pl){
 }
 /* Superseded by the real Memberships section (household pricing) further down.
    Kept for reference only — nothing calls it. */
+// The seven sales buckets, in pitch order. `program` on pricing_plans rows
+// decides which card a row lands on; rows with sellable=false are the
+// engine's rate table and render as muted rate lines, never as products.
+const MB_PROGRAM_CARDS = [
+  { key:'Cubs',                   title:'Cubs',                   ages:'Ages 3–4' },
+  { key:'Juniors',                title:'Juniors Taekwondo',      ages:'Ages 5–12' },
+  { key:'Teens/Adults',           title:'Teens/Adults Taekwondo', ages:'Ages 13+' },
+  { key:'Kickboxing',             title:'Kickboxing',             ages:'Ages 13+' },
+  { key:'Jiu Jitsu',              title:'Jiu Jitsu',              ages:'Ages 13+' },
+  { key:'Kickboxing + Jiu Jitsu', title:'Kickboxing + Jiu Jitsu', ages:'Ages 13+' },
+  { key:"AMP'D",                  title:"AMP'D",                  ages:'Strength & conditioning' }
+];
 async function renderMemberships(){
   await loadCatalog();
   if(MB_PRICING_VIEW){ renderPricingAdmin(); return; }
   const admin = currentRole === 'admin';
   let html = '<div class="bld"><div class="bld-hd" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">'
-    + '<div><h2>Memberships</h2><p>The program catalog. Prices set here are what quotes, checkout pages, and the POS read. Selling happens at the POS.</p></div>'
+    + '<div><h2>Memberships</h2><p>The programs you sell. Family, member, and bundle rates are picked automatically by the pricing engine at the point of sale.</p></div>'
     + (admin ? '<button class="pb-change" onclick="mbOpenPricing()">Edit prices</button>' : '')
     + '</div>';
   if(!PLAN_ROWS.length){
     html += '<div class="ag-empty">No pricing plans found. Run <strong>sql/membership-schema.sql</strong> once in the Supabase SQL editor, then reload.</div></div>';
     $("#view-memberships").innerHTML = html; return;
   }
-  MB_CAT_ORDER.forEach(cat=>{
-    const rows = PLAN_ROWS.filter(p=>p.category===cat);
+  if(PLAN_ROWS.some(p => p.category==='core_tkd' && !p.program)){
+    html += '<div class="ag-empty">Catalog not split by program yet. Run <strong>sql/membership-programs.sql</strong> once in the Supabase SQL editor, then reload.</div>';
+  }
+  const planLineHtml = p => '<div class="plan-line"><span class="pl-name">'+escHtml(p.name.replace(/^.*—\s*/,''))
+    + (p.promo_label ? ' <span style="color:var(--go);font-size:12px;font-weight:700">'+escHtml(p.promo_label)+'</span>' : '')
+    + (p.active ? '' : ' <span style="color:var(--muted);font-size:11px;font-weight:700">(off)</span>')
+    + '</span><span class="pl-terms">'+mbPlanTerms(p)+'</span></div>';
+  const rateLineHtml = p => '<div class="plan-line" style="opacity:.62"><span class="pl-name" style="font-weight:400">'+escHtml(p.name.replace(/^.*—\s*/,''))
+    + ' <span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700">rate</span>'
+    + '</span><span class="pl-terms">'+mbPlanTerms(p)+'</span></div>';
+  const used = new Set();
+  const card = (title, ages, rows) => {
+    const sell = rows.filter(p=>p.sellable!==false), rates = rows.filter(p=>p.sellable===false);
+    return '<div class="prog-card"><div class="prog-top"><div>'
+      + '<div class="prog-name">'+escHtml(title)+'</div><div class="prog-ages">'+escHtml(ages)+'</div></div>'
+      + '<span class="prog-count">'+sell.length+' option'+(sell.length!==1?'s':'')+'</span></div>'
+      + '<div class="prog-plans">'+sell.map(planLineHtml).join("")
+      + (rates.length ? '<div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-top:8px;">Engine rates</div>'+rates.map(rateLineHtml).join("") : '')
+      + '</div></div>';
+  };
+  MB_PROGRAM_CARDS.forEach(pc=>{
+    const rows = PLAN_ROWS.filter(p=>p.program===pc.key);
     if(!rows.length) return;
-    const plans = rows.map(p=>'<div class="plan-line"><span class="pl-name">'+escHtml(p.name)
-      + (p.promo_label ? ' <span style="color:var(--go);font-size:12px;font-weight:700">'+escHtml(p.promo_label)+'</span>' : '')
-      + (p.active ? '' : ' <span style="color:var(--muted);font-size:11px;font-weight:700">(off)</span>')
-      + '</span><span class="pl-terms">'+mbPlanTerms(p)+'</span></div>').join("");
-    html += '<div class="prog-card"><div class="prog-top"><div>'
-      + '<div class="prog-name">'+MB_CAT_LABEL[cat]+'</div></div>'
-      + '<span class="prog-count">'+rows.length+' option'+(rows.length!==1?'s':'')+'</span></div>'
-      + '<div class="prog-plans">'+plans+'</div></div>';
+    rows.forEach(p=>used.add(p.code));
+    html += card(pc.title, pc.ages, rows);
   });
+  const leftovers = PLAN_ROWS.filter(p=>!used.has(p.code));
+  if(leftovers.length) html += card('Other', 'Not yet assigned to a program', leftovers);
   html += '<div class="proto-note">Live catalog · pricing_plans. Price changes never alter memberships already sold.</div></div>';
   $("#view-memberships").innerHTML = html;
 }
