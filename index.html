@@ -1622,7 +1622,7 @@ let PRODUCTS = [
   {id:"pr2", label:"Testing fee", amount:60},
   {id:"pr3", label:"Sparring gear package", amount:242.50}
 ];
-function posBlank(){ return {memberId:null, lines:[], discount:0, adminFee:0, taxRate:0.0825, notes:'', date:new Date().toISOString().slice(0,10), staff:'Bares, Race'}; }
+function posBlank(){ return {memberId:null, lines:[], discount:0, adminFee:0, taxRate:0.0825, notes:'', date:attYMD(), staff:'Bares, Race'}; }
 let posSale = posBlank();
 function posStaffList(){
   const list=['Bares, Race'];
@@ -2777,7 +2777,7 @@ async function mbSave(){
 
   const row = BTKDPricing.buildMembershipSnapshot({
     calc: c, contactId: MB_PERSON,
-    startedOn: new Date().toISOString().slice(0,10),
+    startedOn: attYMD(),
     createdBy: await currentStaffEmail(),
     override: override
   });
