@@ -793,7 +793,7 @@ async function loadMembers(){
 }
 
 /* ===== Attendance roster check-in ===== */
-let ENROLLMENTS=[], ATT_CLASSES=[], ATT_PRESENT=new Set(), ATT_SAVED=new Set(), ATT_SHOWALL=false, ATT_LOADED=false, ATT_EXTRA=new Set();
+let ENROLLMENTS=[], ATT_CLASSES=[], ATT_PRESENT=new Set(), ATT_SAVED=new Set(), ATT_SHOWALL=false, ATT_LOADED=false, ATT_EXTRA=new Set(), ATT_SRC={};
 const ATT_PROG_GATE={'prog-cubs':'Cubs','prog-juniors':'Juniors','prog-teen':'Teens/Adults','prog-forms':['Juniors','Teens/Adults'],'prog-sparring':['Juniors','Teens/Adults'],'prog-kick':'Kickboxing','prog-ampd':"AMP'D",'prog-leader':'Leadership'};
 const ATT_BELT_ORDER=['white','yellow','orange','green','purple','blue','brown','red','black'];
 const ATT_RANGE={'WHI-ORG':[0,2],'WHI-BLU':[0,5],'GR-BLK':[3,8],'BR-BLK':[6,8]};
@@ -831,22 +831,54 @@ function attFillClasses(){
 }
 async function renderAttendance(){
   if(!ATT_LOADED) await attLoadData();
-  const d=document.getElementById('att-date'); if(d && !d.value) d.valueAsDate=new Date();
+  // Local date, not valueAsDate (which is UTC and rolls to tomorrow after ~7pm CT).
+  const d=document.getElementById('att-date'); if(d && !d.value) d.value=attYMD();
   attFillClasses();
   await attRefresh();
 }
+function attYMD(dt){ const d=dt||new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+// The selected class, or null when the day has none ("No classes" option = -1).
+function attSelectedClass(){
+  const sel=document.getElementById('att-class');
+  if(!sel||!ATT_CLASSES.length||+sel.value<0) return null;
+  return ATT_CLASSES[+sel.value]||null;
+}
 async function attLoadSaved(){
-  const sel=document.getElementById('att-class'); if(!sel||!ATT_CLASSES.length) return;
-  const cls=ATT_CLASSES[+sel.value]||ATT_CLASSES[0];
-  const date=document.getElementById('att-date').value||new Date().toISOString().slice(0,10);
-  const { data:ex }=await sb.from('attendance').select('student_id').eq('class_label',cls.label).eq('class_date',date);
+  ATT_SRC={};
+  const cls=attSelectedClass();
+  if(!cls){ ATT_SAVED=new Set(); ATT_PRESENT=new Set(); ATT_EXTRA=new Set(); return; }
+  const date=document.getElementById('att-date').value||attYMD();
+  const { data:ex }=await sb.from('attendance').select('id,student_id,source').eq('class_label',cls.label).eq('class_date',date);
+  (ex||[]).forEach(r=>{ ATT_SRC[r.student_id]={ id:r.id, source:r.source||'staff' }; });
   ATT_SAVED=new Set((ex||[]).map(r=>r.student_id));
   ATT_PRESENT=new Set(ATT_SAVED);
-  if(typeof ATT_EXTRA!=='undefined') ATT_EXTRA=new Set();
+  ATT_EXTRA=new Set();
+}
+function attRowHtml(m, extraStyle){
+  const on=ATT_PRESENT.has(m.id);
+  const beltC=BELT[m.belt]||'#C7CCD2';
+  const txt=(m.belt==='White'||m.belt==='Yellow')?'#15171C':'#fff';
+  const src=ATT_SRC[m.id];
+  // Non-staff check-ins get a labeled badge so staff can tell a parent/kiosk
+  // check-in from their own before unchecking it.
+  const chip = !on ? '<span style="display:inline-block;width:24px;height:24px;border-radius:50%;border:2px solid var(--line)"></span>'
+    : (src && src.source && src.source!=='staff'
+        ? '<span class="seg active" title="Checked in via '+src.source+'">'+(src.source==='kiosk'?'Kiosk':(src.source==='parent_gps'?'Parent 📍':'Parent'))+'</span>'
+        : '<span class="seg active">Here</span>');
+  return '<button class="mrow" onclick="attToggle(\''+m.id+'\')" style="'+(on?'background:#E4F5EE;border-color:var(--go);':'')+(extraStyle||'')+'">'
+    +'<div class="c-name"><div class="av" style="background:'+beltC+'"><span style="color:'+txt+'">'+initials(m)+'</span></div>'
+    +'<div class="minfo"><div class="mname">'+m.first+' '+m.last+'</div><div class="msub">'+(m.rank||'')+'</div></div></div>'
+    +'<div class="mright">'+chip+'</div>'
+    +'</button>';
 }
 function attRenderRoster(){
-  const sel=document.getElementById('att-class'); if(!sel||!ATT_CLASSES.length) return;
-  const cls=ATT_CLASSES[+sel.value]||ATT_CLASSES[0];
+  const box=document.getElementById('att-roster'); if(!box) return;
+  const cls=attSelectedClass();
+  if(!cls){
+    box.innerHTML='<div class="ag-empty">No classes scheduled this day.</div>';
+    document.getElementById('att-count').textContent='';
+    return;
+  }
   const wanted=Array.isArray(cls.program)?cls.program:[cls.program];
   const ids=[...new Set(ENROLLMENTS.filter(e=>wanted.includes(e.program)).map(e=>e.student_id))];
   let list=ids.map(attMember).filter(Boolean);
@@ -855,17 +887,16 @@ function attRenderRoster(){
   const q=(document.getElementById('att-search').value||'').trim().toLowerCase();
   if(q) list=list.filter(m=>((m.first+' '+m.last).toLowerCase().includes(q)));
   list.sort((a,b)=>{ const sa=ATT_SAVED.has(a.id), sb2=ATT_SAVED.has(b.id); if(sa!==sb2) return sa?-1:1; return (a.first+a.last).localeCompare(b.first+b.last); });
-  const box=document.getElementById('att-roster');
-  box.innerHTML=list.length?list.map(m=>{
-    const on=ATT_PRESENT.has(m.id);
-    const beltC=BELT[m.belt]||'#C7CCD2';
-    const txt=(m.belt==='White'||m.belt==='Yellow')?'#15171C':'#fff';
-    return '<button class="mrow" onclick="attToggle(\''+m.id+'\')" style="'+(on?'background:#E4F5EE;border-color:var(--go);':'')+'">'
-      +'<div class="c-name"><div class="av" style="background:'+beltC+'"><span style="color:'+txt+'">'+initials(m)+'</span></div>'
-      +'<div class="minfo"><div class="mname">'+m.first+' '+m.last+'</div><div class="msub">'+(m.rank||'')+'</div></div></div>'
-      +'<div class="mright">'+(on?'<span class="seg active">Here</span>':'<span style="display:inline-block;width:24px;height:24px;border-radius:50%;border:2px solid var(--line)"></span>')+'</div>'
-      +'</button>';
-  }).join(''):'<div class="ag-empty">No one enrolled in this class\'s program.</div>';
+  // Checked-in people the current filters would hide (drop-ins, other-belt,
+  // program mismatches) still render so staff can see and uncheck them.
+  const shown=new Set(list.map(m=>m.id));
+  const phantom=(q?[]:[...ATT_PRESENT].filter(id=>!shown.has(id)).map(attMember).filter(Boolean));
+  let h=list.length?list.map(m=>attRowHtml(m)).join(''):'<div class="ag-empty">No one enrolled in this class\'s program.</div>';
+  if(phantom.length){
+    h+='<div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:12px 2px 6px">Checked in · not on this roster</div>';
+    h+=phantom.map(m=>attRowHtml(m)).join('');
+  }
+  box.innerHTML=h;
   document.getElementById('att-count').textContent=ATT_PRESENT.size+' present · '+list.length+' on roster';
   document.getElementById('att-allbtn').textContent=ATT_SHOWALL?'Show all':'In range';
 }
@@ -886,17 +917,24 @@ function attAdd(id){
   attRenderRoster();
 }
 async function attSave(){
-  const sel=document.getElementById('att-class'); const cls=ATT_CLASSES[+sel.value]||ATT_CLASSES[0];
-  const date=document.getElementById('att-date').value||new Date().toISOString().slice(0,10);
+  const cls=attSelectedClass();
+  if(!cls){ toast('No class selected for this day'); return; }
+  const date=document.getElementById('att-date').value||attYMD();
   let me='staff'; try{ const s=await BTKD.getSession(); me=(s&&s.user&&s.user.email)||'staff'; }catch(e){}
-  const adds=[...ATT_PRESENT].filter(id=>!ATT_SAVED.has(id)).map(id=>({student_id:id,class_label:cls.label,program:cls.program,class_date:date,status:'confirmed',source:'staff',recorded_by:me}));
+  // program column is text — forms/sparring classes gate on several programs,
+  // store the first as the row's program.
+  const prog=Array.isArray(cls.program)?cls.program[0]:cls.program;
+  const adds=[...ATT_PRESENT].filter(id=>!ATT_SAVED.has(id)).map(id=>({student_id:id,class_label:cls.label,program:prog,class_date:date,status:'confirmed',source:'staff',recorded_by:me}));
   const removes=[...ATT_SAVED].filter(id=>!ATT_PRESENT.has(id));
+  const nonStaff=removes.filter(id=>ATT_SRC[id]&&ATT_SRC[id].source&&ATT_SRC[id].source!=='staff');
+  if(nonStaff.length && !confirm('This removes '+nonStaff.length+' check-in'+(nonStaff.length>1?'s':'')+' made by a parent or the kiosk. Delete anyway?')) return;
   try{
     if(adds.length){ const {error}=await sb.from('attendance').upsert(adds,{onConflict:'student_id,class_label,class_date',ignoreDuplicates:true}); if(error) throw error; }
     for(const id of removes){ await sb.from('attendance').delete().eq('student_id',id).eq('class_label',cls.label).eq('class_date',date); }
     ATT_SAVED=new Set(ATT_PRESENT);
     attRenderRoster();
     toast(ATT_PRESENT.size+' checked in');
+    attComputeLastVisits();
   }catch(e){ toast('Save failed: '+(e.message||e)); }
 }
 function attVisitLabel(dateStr){
@@ -913,18 +951,25 @@ function attVisitLabel(dateStr){
 }
 async function attComputeLastVisits(){
   try{
-    const { data }=await sb.from('attendance').select('student_id,class_date');
+    // Bounded read: last 90 days, newest first. An uncapped select hits
+    // PostgREST's row limit within weeks and silently freezes the column.
+    const since=new Date(); since.setDate(since.getDate()-90);
+    const { data }=await sb.from('attendance').select('student_id,class_date').gte('class_date',attYMD(since)).order('class_date',{ascending:false}).limit(5000);
     if(!data) return;
+    const today=new Date(); today.setHours(12,0,0,0);
     const last={};
     data.forEach(r=>{ if(!last[r.student_id] || r.class_date>last[r.student_id]) last[r.student_id]=r.class_date; });
     MEMBERS.forEach(m=>{
       const d=last[m.id];
-      if(d){ m.lastVisit=d; m.visitLabel=attVisitLabel(d); }
+      if(d){
+        m.lastVisit=d;
+        m.visitLabel=attVisitLabel(d);
+        m.daysSince=Math.max(0,Math.round((today-new Date(d+'T12:00:00'))/86400000));
+      }
     });
     if(typeof renderList==='function') renderList();
   }catch(e){}
 }
-
 /* ========== STATE ========== */
 let activeFilter = null;   // 'overdue' | 'leads' | 'risk' | 'testing'
 let selectedId = null;
