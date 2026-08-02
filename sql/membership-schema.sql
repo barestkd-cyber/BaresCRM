@@ -53,7 +53,7 @@ create table if not exists pricing_plans (
   promo_label                 text,
   description                 text,
   display_order               integer default 100,
-  effective_date              date default current_date
+  effective_date              date default (now() at time zone 'America/Chicago')::date
 );
 
 create table if not exists pricing_settings (
@@ -70,7 +70,7 @@ create table if not exists memberships (
   program                text,
   status                 text not null default 'active' check (status in ('active','paused','canceled','ended','trial','complimentary')),
   billing_frequency      text not null,
-  started_on             date not null default current_date,
+  started_on             date not null default (now() at time zone 'America/Chicago')::date,
   ended_on               date,
   base_cents             integer not null,
   down_cents             integer not null default 0,
@@ -173,6 +173,18 @@ values
   -- Other
   ('ampd_addon', 'AMP''D — Add-on', 'AMP''D', 'other', 'monthly', 5000, 0, null, null, null, false, null, 'Strength and conditioning add-on.', 60)
 on conflict (code) do nothing;
+
+-- ─── ADDENDUM (2026-08-02): local-time date defaults ────────────────────────
+-- The tables above already exist in the live database, so the corrected
+-- defaults in the create-table blocks never reach it ("if not exists" no-ops).
+-- These alters bring the live tables in line. Bare current_date is UTC and
+-- rolls to tomorrow's date around 6-7 PM Texas time.
+-- Idempotent; affects only future rows that omit the column — no stored data
+-- changes. The CRM already passes explicit local dates, so these defaults are
+-- safety nets.
+
+alter table pricing_plans alter column effective_date set default (now() at time zone 'America/Chicago')::date;
+alter table memberships   alter column started_on     set default (now() at time zone 'America/Chicago')::date;
 
 -- ============================================================================
 -- ROLLBACK (commented). Uncomment and run to remove everything this file made.

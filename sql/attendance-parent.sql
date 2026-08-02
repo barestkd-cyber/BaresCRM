@@ -20,11 +20,13 @@ create policy attendance_parent_insert on attendance for insert
   with check (student_id in (select my_student_ids())
               and source in ('parent','parent_gps'));
 
--- Parents undo a SAME-DAY check-in for their kids (any source, per Mr. Bares)
+-- Parents undo a SAME-DAY check-in for their kids (any source, per Mr. Bares).
+-- "Same day" is studio-local time: bare current_date is UTC and would close
+-- the undo window around 6-7 PM Texas time.
 drop policy if exists attendance_parent_delete on attendance;
 create policy attendance_parent_delete on attendance for delete
   using (student_id in (select my_student_ids())
-         and class_date = current_date);
+         and class_date = (now() at time zone 'America/Chicago')::date);
 
 -- Parents read their kids' class eligibility (which programs they attend)
 drop policy if exists enrollments_parent_select on enrollments;
