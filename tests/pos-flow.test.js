@@ -19,7 +19,10 @@
  *   - attaching a student re-quotes to the real household rate and clears
  *     any stale override (it was computed against the wrong base number);
  *   - profile-first quotes the real rate from the very first screen;
- *   - creating a new walk-in contact attaches + requotes correctly;
+ *   - switching "Sold to" to walk-in clears the default member for NEW
+ *     membership lines without retargeting lines already on the invoice
+ *     (regression, reported 2026-08-03);
+ *   - POS never creates a contact during membership checkout;
  *   - a completed sale writes frozen snapshots + enrollments per STUDENT,
  *     independent of the invoice's "Sold to".
  * ========================================================================== */
@@ -107,14 +110,14 @@ const FNS = [
   'posStudentContext', 'posForgetStudent', 'posStudentName',
   'posQuote', 'posMemDueCents', 'posMemLineDueCents', 'posMemRecurringNote', 'posProgramBuckets',
   'posAddMembership', 'posPickProgram', 'posAddMemLine',
-  'posAttachSheet', 'posAttachSearch', 'posPickStudentForLine', 'posNewStudentSheet', 'posNewStudentSave', 'posRequoteLine',
+  'posAttachSheet', 'posAttachSearch', 'posPickStudentForLine', 'posRequoteLine', 'posSetBuyer',
   'posTkdTrackFor', 'posMemRosterPrograms',
   'posTender',
   'posEditMemLine', 'posSaveMemLine',
   'posOpenMembershipFor',
   'openSheet', 'closeSheet', 'setNavActive', 'closeNav', 'showSection'
 ];
-const VARS = ['\\$', 'escHtml', 'escAttr', 'money', 'centsFromInput', 'dollarsFromCents', 'POS_ANON_CTX', 'POS_STUDENT_CTX', 'POS_ADD', 'POS_LAST_STUDENT'];
+const VARS = ['\\$', 'escHtml', 'escAttr', 'money', 'centsFromInput', 'dollarsFromCents', 'POS_ANON_CTX', 'POS_STUDENT_CTX', 'POS_ADD'];
 
 // ── minimal DOM ──────────────────────────────────────────────────────────────
 const registry = {};
@@ -260,7 +263,7 @@ await test('2 an unattached membership line can be added to the invoice', async 
   assert.strictEqual(line.studentId, null);
   assert.strictEqual(line.amount, 89.00);
   const invHtml = ensureEl('view-pos').innerHTML;
-  assert.ok(invHtml.includes('Attach member'), 'invoice row must flag the missing student inline');
+  assert.ok(invHtml.includes('Member not attached'), 'invoice row must flag the missing member inline');
 });
 
 await test('3 posTender BLOCKS the sale while a membership line is unattached', async () => {
@@ -313,40 +316,63 @@ await test('5 profile-first: student known from the first screen, real rate imme
   assert.ok(sheetHtml.includes('Pricing confirmed for Sam Lee'), 'no anonymous browsing needed in this entrance');
 });
 
-await test('6 creating a new walk-in contact attaches and quotes it', async () => {
+/* REGRESSION (reported 2026-08-03): "Sold to" was switched from Emerson Allen
+ * to Walk-in, a membership was added afterward, and the new line still read
+ * "For Emerson Allen". Cause was a POS_LAST_STUDENT memory of the previously
+ * attached person that survived the buyer change. The only implicit default is
+ * now the CURRENT "Sold to" contact, so walk-in yields no member at all. */
+await test('6 switching "Sold to" to walk-in clears the default for NEW membership lines', async () => {
   sandbox.posSale = sandbox.posBlank();
-  await call('posAddMembership(null)');
+  SB_SELECT['memberships'] = [];
+
+  // 1) a real contact is the buyer -> a new membership line defaults to them
+  run("posSetBuyer('kidA')");
+  await call('posAddMembership()');            // no arg = the ＋ Membership button
+  assert.strictEqual(run('POS_ADD.studentId'), 'kidA', 'a real "Sold to" legitimately seeds the member');
   run("posPickProgram('Cubs')");
   run("posAddMemLine('cubs_option_a')");
-  const i = sandbox.posSale.lines.length - 1;
-  assert.strictEqual(sandbox.posSale.lines[i].studentId, null);
+  const firstLine = sandbox.posSale.lines.length - 1;
+  assert.strictEqual(sandbox.posSale.lines[firstLine].studentId, 'kidA');
 
-  SB_INSERT_RESULT['contacts'] = { id: 'new-walkin-1' };
-  ensureEl('ns-first').value = 'Riley';
-  ensureEl('ns-last').value = 'Nguyen';
-  ensureEl('ns-dob').value = '';
-  ensureEl('ns-phone').value = '';
-  ensureEl('ns-email').value = '';
-  SB_SELECT['memberships'] = [];
-  await call('posNewStudentSave(' + i + ', true)');
+  // 2) switch the invoice to a walk-in
+  run('posSetBuyer(null)');
+  assert.strictEqual(sandbox.posSale.memberId, null);
 
-  const contactInsert = SB_CALLS.find(c => c.table === 'contacts' && c.op === 'insert');
-  assert.ok(contactInsert, 'must actually insert into contacts');
-  assert.strictEqual(contactInsert.rows.first_name, 'Riley');
-  assert.strictEqual(contactInsert.rows.last_name, 'Nguyen');
-  assert.strictEqual(contactInsert.rows.segment, 'lead');
-  assert.strictEqual(contactInsert.rows.member_role, 'student');
-  assert.strictEqual(contactInsert.rows.source, 'pos-walkin');
+  // the line already on the invoice keeps its own member — no silent retarget
+  assert.strictEqual(sandbox.posSale.lines[firstLine].studentId, 'kidA',
+    'existing lines must not retarget when the buyer changes');
 
-  assert.ok(sandbox.MEMBERS.find(m => m.id === 'new-walkin-1'), 'new contact must be usable immediately (roster, search, etc.)');
-  assert.strictEqual(sandbox.posSale.lines[i].studentId, 'new-walkin-1');
+  // 3) the NEXT membership must NOT inherit the old person
+  await call('posAddMembership()');
+  assert.strictEqual(run('POS_ADD.studentId'), null, 'THE BUG: walk-in must not inherit the previous member');
+  run("posPickProgram('Cubs')");
+  run("posAddMemLine('cubs_option_a')");
+  const secondLine = sandbox.posSale.lines.length - 1;
+  assert.strictEqual(sandbox.posSale.lines[secondLine].studentId, null,
+    'THE BUG: a membership added after switching to walk-in must be unattached');
+
+  const invHtml = ensureEl('view-pos').innerHTML;
+  assert.ok(invHtml.includes('Member not attached'), 'the unattached line must say so on the invoice');
+  assert.ok(invHtml.includes('For Jamie Lee'), 'the earlier attached line still names its own member');
+});
+
+await test('6b POS never creates contacts during membership checkout', async () => {
+  // Membership prospects already exist from the trial funnel; the attach step
+  // is search-only. A stray contacts INSERT here would be a regression.
+  assert.ok(!/posNewStudentSave|posNewStudentSheet/.test(html),
+    'the contact-creation path must be gone, not merely unreachable');
+  const attachSheet = (() => { run('posAttachSheet(0, false)'); return ensureEl('sheet').innerHTML; })();
+  assert.ok(/Search CRM contacts/.test(attachSheet), 'attach is a search over existing contacts');
+  assert.ok(!/New contact/.test(attachSheet), 'no create-contact entry point in the attach sheet');
+  assert.ok(!SB_CALLS.some(c => c.table === 'contacts' && c.op === 'insert'),
+    'no contact was inserted anywhere in this run');
 });
 
 await test('7 a completed sale writes snapshots + enrollments per STUDENT, not per invoice buyer', async () => {
   sandbox.posSale = sandbox.posBlank();
   sandbox.posSale.memberId = 'kidB'; // "Sold to" is the parent/payer proxy in this sim
   SB_SELECT['memberships'] = [];
-  await call('posAddMembership(null)'); // deliberately anonymous browse even though an invoice buyer exists... no wait
+  await call('posAddMembership(null)'); // browse anonymously even though the invoice has a buyer
   run("posPickProgram('Cubs')");
   run("posAddMemLine('cubs_option_a')");
   const i = sandbox.posSale.lines.length - 1;

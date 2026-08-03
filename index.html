@@ -1653,7 +1653,7 @@ function renderPOS(){
       const meta=[];
       if(l.kind==="mem"){
         const nm = posStudentName(l.studentId);
-        meta.push(nm ? ('For '+escHtml(nm)) : '<span style="color:var(--warn);font-weight:700">⚠ Attach member</span>');
+        meta.push(nm ? ('For '+escHtml(nm)) : '<span style="color:var(--warn);font-weight:700">⚠ Member not attached</span>');
       }
       if(l.sub) meta.push(l.sub);
       if(l.override) meta.push("Override · "+escHtml(l.override.reason));
@@ -1712,22 +1712,31 @@ function posOpenMembershipFor(id){
  * Both converge on the same posQuote / posAddMemLine / posTender machinery.
  *
  * Terminology — do not conflate these:
- *   STUDENT  = who receives the membership + enrollment (per membership line,
- *              `line.studentId`). Must be known before the sale is tendered,
- *              not before browsing/selecting.
+ *   MEMBER   = who receives the membership + enrollment (per membership line,
+ *              `line.studentId`). MUST be a real CRM contact before the sale
+ *              is tendered — a membership snapshot and enrollment have to
+ *              belong to someone — but NOT before browsing/selecting.
  *   "Sold to" (posSale.memberId) = the pre-existing, invoice-wide concept —
- *              who the invoice is for. Independent of the student; a line's
- *              student does not have to match it.
+ *              who the invoice is for. Walk-in is a legitimate end state
+ *              here: drop-ins, gear, event fees and other one-time items
+ *              sell fine without ever creating a contact.
  *   payer/guardian are not modeled as separate fields yet — out of scope
- *   for this phase (no Stripe, no guardian-linkage UI).
+ *   for this phase (no Stripe, no guardian-linkage UI). A parent paying for
+ *   a child's membership is exactly why these stay separate.
+ *
+ * STATE RULE: the ONLY implicit default for a new membership line's member is
+ * the current "Sold to" contact, read at the moment the picker opens. There is
+ * deliberately no memory of previously attached people — switching "Sold to"
+ * to walk-in therefore clears the default, and a later membership cannot
+ * silently inherit whoever was attached before. Lines already on the invoice
+ * keep their own member and never retarget.
  *
  * Money on these lines is integer cents (`calc` + `override`). The line's
  * `amount` is the dollar due-today the existing invoice math already speaks.
  * There is no mock membership price source in this path. */
 const POS_ANON_CTX = { person:{ contact_id:null, activeMemberships:[] }, householdMembers:[] };
 let POS_STUDENT_CTX = {};          // contact_id -> pricingContext() result, cached
-let POS_ADD = { studentId:null };  // student (if any) for the add-flow sheet currently open
-let POS_LAST_STUDENT = null;       // most recently attached student this sale — sane default only, never guessed further
+let POS_ADD = { studentId:null };  // member (if any) for the add-flow sheet currently open
 
 async function posStudentContext(id){
   if(!id) return POS_ANON_CTX;
@@ -1779,11 +1788,13 @@ function posProgramBuckets(){
 }
 
 /* Entrance to the membership picker. Always opens — never blocks on having a
-   student. Pass studentId explicitly (profile-first: a real id; catalog-first
-   "back" navigation: null to stay anonymous) to pin the flow's student; omit
-   it to fall back to a sane default (see POS_LAST_STUDENT above). */
+   member. Pass studentId explicitly (profile-first: a real id; catalog-first
+   "back" navigation: null to stay anonymous) to pin the flow's member; omit
+   it to fall back to the "Sold to" contact (see STATE RULE above). */
 async function posAddMembership(studentId){
-  POS_ADD = { studentId: studentId!==undefined ? studentId : (POS_LAST_STUDENT || posSale.memberId || null) };
+  // Default member = the current "Sold to" contact and nothing else. Walk-in
+  // ("Sold to" null) deliberately yields no default — see STATE RULE above.
+  POS_ADD = { studentId: studentId!==undefined ? studentId : (posSale.memberId || null) };
   $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Add membership</h3><button class="close" onclick="closeSheet()">×</button></div>'
     +'<div class="sheet-body"><div class="inv-empty" style="padding:18px">Loading catalog…</div></div>';
   openSheet();
@@ -1837,7 +1848,6 @@ function posAddMemLine(code){
   const ctx = sid ? (POS_STUDENT_CTX[sid] || POS_ANON_CTX) : POS_ANON_CTX;
   const c = posQuote(code, ctx);
   if(!c || !c.eligible) return;
-  if(sid) POS_LAST_STUDENT = sid;
   const i = posSale.lines.push({
     kind:"mem",
     label: c.planName || code,
@@ -1852,11 +1862,16 @@ function posAddMemLine(code){
   renderPOS(); posEditMemLine(i, true);
 }
 
-/* Attach step: search an existing student or create a minimal walk-in
-   contact, then re-quote against their real household. Reachable from a
-   membership line at any time; every membership line needs a student
-   attached before the sale can be tendered (see posTender). `isNew` threads
-   through so cancel/back behavior matches whatever the line editor had. */
+/* Attach step: find the existing CRM contact who receives this membership,
+   then re-quote against their real household. Reachable from a membership
+   line at any time; every membership line needs a member attached before the
+   sale can be tendered (see posTender). `isNew` threads through so cancel/back
+   behavior matches whatever the line editor had.
+
+   Search-only by design: membership prospects normally already exist in CRM
+   from the trial funnel, so POS does not create contacts as part of ordinary
+   membership checkout. A true walk-in-from-nothing intake path can be added
+   later if it turns out to be needed. */
 function posAttachSheet(i, isNew){
   const l=posSale.lines[i]; if(!l) return;
   const back = isNew?'true':'false';
@@ -1864,9 +1879,9 @@ function posAttachSheet(i, isNew){
     +'<div class="sheet-head"><div><h3>Attach a member</h3><div class="sub">Who receives this membership?</div></div><button class="close" onclick="posEditMemLine('+i+','+back+')">×</button></div>'
     +'<div class="sheet-body">'
     +'<div class="search-wrap" style="padding:0"><span class="search-ico" style="left:14px">⌕</span>'
-    +'<input id="pos-att-search" class="search" oninput="posAttachSearch('+i+','+back+')" placeholder="Search members"></div>'
+    +'<input id="pos-att-search" class="search" oninput="posAttachSearch('+i+','+back+')" placeholder="Search CRM contacts"></div>'
     +'<div id="pos-att-results" style="margin-top:8px"></div>'
-    +'<button class="addopt" style="margin-top:10px" onclick="posNewStudentSheet('+i+','+back+')">＋ New contact</button>'
+    +'<div class="ck-hint" style="margin-top:10px">Trial and lead contacts are already here. If this person truly is not in the CRM yet, add them from Members first, then attach.</div>'
     +'</div>';
   openSheet();
 }
@@ -1881,39 +1896,8 @@ function posAttachSearch(i, isNew){
 async function posPickStudentForLine(i, id, isNew){
   const l=posSale.lines[i]; if(!l) return;
   l.studentId = id;
-  POS_LAST_STUDENT = id;
   await posRequoteLine(i);
   posEditMemLine(i, isNew);
-}
-function posNewStudentSheet(i, isNew){
-  const back=isNew?'true':'false';
-  $("#sheet").innerHTML='<div class="grab"></div>'
-    +'<div class="sheet-head"><div><h3>New contact</h3><div class="sub">Minimum needed to attach and quote</div></div><button class="close" onclick="posAttachSheet('+i+','+back+')">×</button></div>'
-    +'<div class="sheet-body">'
-    +'<div class="fld"><label>First name</label><input id="ns-first" class="ed-in"></div>'
-    +'<div class="fld"><label>Last name</label><input id="ns-last" class="ed-in"></div>'
-    +'<div class="fld"><label>Date of birth (optional)</label><input id="ns-dob" type="date" class="ed-in"></div>'
-    +'<div class="fld"><label>Phone (optional)</label><input id="ns-phone" class="ed-in" type="tel"></div>'
-    +'<div class="fld"><label>Email (optional)</label><input id="ns-email" class="ed-in" type="email"></div>'
-    +'<button class="savebtn" style="margin-top:6px" onclick="posNewStudentSave('+i+','+back+')">Create &amp; attach</button>'
-    +'</div>';
-  openSheet();
-}
-async function posNewStudentSave(i, isNew){
-  const first=($("#ns-first").value||'').trim(), last=($("#ns-last").value||'').trim();
-  if(!first || !last){ toast('First and last name are required'); return; }
-  const dob=$("#ns-dob").value||null, phone=($("#ns-phone").value||'').trim()||null, email=($("#ns-email").value||'').trim()||null;
-  const row = { first_name:first, last_name:last, dob:dob, phone:phone, email:email,
-                segment:'lead', member_role:'student', source:'pos-walkin', entered_on:attYMD() };
-  const { data, error } = await sb.from('contacts').insert(row).select().single();
-  if(error){ toast('Could not create contact: '+(error.message||error)); return; }
-  MEMBERS.push({
-    id:data.id, first:first, last:last, segment:'Lead', belt:'', rank:'', rankDate:'', since:'', entered:'',
-    age: dob ? Math.floor((Date.now()-new Date(dob))/3.15576e10) : 0, gender:'', guardians:[], phones:[], emails:[],
-    address:'', app:false, phase:'', source:'pos-walkin', beltSize:'', kickSize:'', tags:[], attended:0, daysSince:null,
-    testing:false, balance:0, memberships:[], invoices:[], notes:[]
-  });
-  await posPickStudentForLine(i, data.id, isNew);
 }
 /* Re-quote a line's already-selected plan against its (possibly newly
    attached) student. Clears any override: it was set against the old base
@@ -2049,7 +2033,7 @@ async function posTender(method){
   h+='<div style="margin-top:18px"><button class="newbtn" style="margin:0" onclick="posReset()">New sale</button></div></div></div>';
   $("#view-pos").innerHTML=h;
 }
-function posReset(){ posSale=posBlank(); POS_ADD={studentId:null}; POS_LAST_STUDENT=null; POS_STUDENT_CTX={}; renderPOS(); }
+function posReset(){ posSale=posBlank(); POS_ADD={studentId:null}; POS_STUDENT_CTX={}; renderPOS(); }
 
 function posLineDisc(l){
   const qty=l.qty||1, gross=qty*l.amount;
@@ -2095,7 +2079,7 @@ function posEditMemLine(i,isNew){
   const name = posStudentName(l.studentId);
   const studentRow = name
     ? '<div class="im-row" style="margin-bottom:12px"><span>Member</span><span class="im-buyer">'+escHtml(name)+' <button class="pb-change" style="font-size:11px;padding:1px 7px" onclick="posAttachSheet('+i+','+backB+')">change</button></span></div>'
-    : '<div class="ck-hint" style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px"><span>⚠ No member attached — base rate shown</span><button class="pb-change" style="font-size:11px;padding:1px 7px;flex-shrink:0;white-space:nowrap" onclick="posAttachSheet('+i+','+backB+')">Attach member</button></div>';
+    : '<div class="ck-hint" style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px"><span>⚠ Member not attached — base rate shown</span><button class="pb-change" style="font-size:11px;padding:1px 7px;flex-shrink:0;white-space:nowrap" onclick="posAttachSheet('+i+','+backB+')">Attach member</button></div>';
   const freq = c.billingFrequency==='monthly'?'/month':c.billingFrequency==='weekly'?'/week':' one time';
   const per  = c.billingFrequency==='weekly'?'per week':c.billingFrequency==='monthly'?'per month':'one time';
   let card='<div class="spk-card"><div class="spk-card-ttl">'+escHtml(l.label)+'</div>'
