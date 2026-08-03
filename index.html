@@ -1616,7 +1616,7 @@ function cpRemoveParticipant(eid,mid){
   cpManageEvent(eid);
 }
 
-/* ========== POS (in CRM, reads shared PROGRAMS) ========== */
+/* ========== POS (memberships price from pricing_plans + BTKDPricing) ========== */
 let PRODUCTS = [
   {id:"pr1", label:"Beginner uniform", amount:82.25},
   {id:"pr2", label:"Testing fee", amount:60},
@@ -1650,7 +1650,13 @@ function renderPOS(){
   html+='<table class="inv-tbl"><thead><tr><th style="width:48px">Qty</th><th>Description</th><th class="r">Price</th></tr></thead><tbody>';
   if(s.lines.length){
     s.lines.forEach((l,i)=>{
-      const meta=[]; if(l.sub) meta.push(l.sub);
+      const meta=[];
+      if(l.kind==="mem"){
+        const nm = posStudentName(l.studentId);
+        meta.push(nm ? ('For '+escHtml(nm)) : '<span style="color:var(--warn);font-weight:700">⚠ Attach member</span>');
+      }
+      if(l.sub) meta.push(l.sub);
+      if(l.override) meta.push("Override · "+escHtml(l.override.reason));
       if(l.discVal) meta.push("Discount "+(l.discType==="amt"?money(l.discVal)+" ea":l.discVal+"% off"));
       if(l.orderIt) meta.push("Order it");
       const sub=meta.length?'<div style="font-size:12px;color:var(--muted)">'+meta.join(" · ")+'</div>':"";
@@ -1668,7 +1674,7 @@ function renderPOS(){
   html+='<textarea class="inv-notes" placeholder="Invoice notes..." oninput="posSale.notes=this.value">'+(s.notes||"")+'</textarea>';
   if(s.lines.length) html+='<div class="tenders" style="margin-top:11px"><button class="tbtn" onclick="posTender(\'Cash\')">Cash</button><button class="tbtn" onclick="posTender(\'Card\')">Card</button><button class="tbtn" onclick="posTender(\'Check\')">Check</button><button class="tbtn" onclick="posTender(\'Account\')">Charge to account</button></div>';
   html+='</div></div>';
-  html+='<div class="proto-note">Prototype · admin fee and card surcharge still pending the fee-model decision. Sales tax applies to products only. Sale resets after completion.</div></div>';
+  html+='<div class="proto-note">Memberships price live from pricing_plans through the pricing engine and save a frozen snapshot. Products and events are still a local list. Admin fee and card surcharge pending the fee-model decision; sales tax applies to products only.</div></div>';
   $("#view-pos").innerHTML=html;
 }
 function posPickBuyer(){
@@ -1678,23 +1684,250 @@ function posPickBuyer(){
   openSheet();
 }
 function posSetBuyer(id){ posSale.memberId=id; closeSheet(); renderPOS(); }
-function posAddMembership(){
-  const body=PROGRAMS.map(g=>'<button class="opt-btn" onclick="posPickPlan(\''+g.id+'\')"><span class="oi">◆</span><div style="flex:1"><div style="font-weight:700">'+g.name+'</div><div style="font-size:12.5px;color:var(--muted)">'+g.ages+'</div></div></button>').join("");
-  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Add membership</h3><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'</div>';
+/* Profile-first entrance: "+ Membership" on a member's own profile opens POS
+   with that person already the student, so the very first quote is their
+   real household rate. "Sold to" defaults to them too (only if not already
+   set) purely for invoice convenience — the two remain independent fields. */
+function posOpenMembershipFor(id){
+  if(!MEMBERS.find(x=>x.id===id)) return;
+  if(!posSale.memberId) posSale.memberId = id;
+  showSection('pos');
+  posAddMembership(id);
+}
+
+/* ─── Membership sale: live catalog + pricing engine ─────────────────────────
+ * POS sells the actual PROGRAM. Which RATE applies — add-on vs standalone,
+ * family position, weekly bundle, household discount — is decided by
+ * BTKDPricing, never by the seller. Rows with sellable=false are the engine's
+ * rate table and are never pitched as products.
+ *
+ * Two entrances into the same flow:
+ *   - Catalog-first: staff browse/select a plan before anyone is attached.
+ *     The quote shown is the BASE/PUBLIC rate — no household, no discounts,
+ *     nothing invented. The line can be added to the invoice in that state;
+ *     it just can't be sold until a member is attached (see posTender).
+ *   - Profile-first: posOpenMembershipFor(id) opens this same flow with the
+ *     student already known, so every quote is the real household rate from
+ *     the start.
+ * Both converge on the same posQuote / posAddMemLine / posTender machinery.
+ *
+ * Terminology — do not conflate these:
+ *   STUDENT  = who receives the membership + enrollment (per membership line,
+ *              `line.studentId`). Must be known before the sale is tendered,
+ *              not before browsing/selecting.
+ *   "Sold to" (posSale.memberId) = the pre-existing, invoice-wide concept —
+ *              who the invoice is for. Independent of the student; a line's
+ *              student does not have to match it.
+ *   payer/guardian are not modeled as separate fields yet — out of scope
+ *   for this phase (no Stripe, no guardian-linkage UI).
+ *
+ * Money on these lines is integer cents (`calc` + `override`). The line's
+ * `amount` is the dollar due-today the existing invoice math already speaks.
+ * There is no mock membership price source in this path. */
+const POS_ANON_CTX = { person:{ contact_id:null, activeMemberships:[] }, householdMembers:[] };
+let POS_STUDENT_CTX = {};          // contact_id -> pricingContext() result, cached
+let POS_ADD = { studentId:null };  // student (if any) for the add-flow sheet currently open
+let POS_LAST_STUDENT = null;       // most recently attached student this sale — sane default only, never guessed further
+
+async function posStudentContext(id){
+  if(!id) return POS_ANON_CTX;
+  if(POS_STUDENT_CTX[id]) return POS_STUDENT_CTX[id];
+  const ctx = await pricingContext(id);
+  POS_STUDENT_CTX[id] = ctx;
+  return ctx;
+}
+function posForgetStudent(id){ delete POS_STUDENT_CTX[id]; }
+function posStudentName(id){ const m=id&&MEMBERS.find(x=>x.id===id); return m?(m.first+' '+m.last):null; }
+
+function posQuote(code, ctx){
+  return BTKDPricing.calculatePrice({
+    plan: planByCode(code), settings: PRICE_SETTINGS,
+    person: ctx.person, householdMembers: ctx.householdMembers, plans: PLAN_ROWS
+  });
+}
+/* Due today = down payment + first payment; a paid-in-full plan is simply its
+   full amount. An override replaces the engine's numbers, not the shape. */
+function posMemDueCents(calc, override){
+  if(!calc) return 0;
+  const rec  = override ? override.recurringCents : calc.finalRecurringCents;
+  const down = (override && override.downCents != null) ? override.downCents : calc.finalDownCents;
+  return calc.billingFrequency === 'one_time' ? rec : (down + rec);
+}
+function posMemLineDueCents(l){ return posMemDueCents(l.calc, l.override); }
+function posMemRecurringNote(calc, override){
+  const rec = override ? override.recurringCents : calc.finalRecurringCents;
+  if(calc.billingFrequency === 'one_time') return 'paid in full';
+  const amt = money(rec/100) + (calc.billingFrequency === 'weekly' ? '/wk' : '/mo');
+  return calc.paymentCount ? ('then '+Math.max(0, calc.paymentCount-1)+' × '+amt) : ('then '+amt+' ongoing');
+}
+
+/* Sellable plans grouped by program, in pitch order. Plans with no program yet
+   (catalog before sql/membership-programs.sql) fall into "Other" so the POS
+   still sells them rather than hiding them. */
+function posProgramBuckets(){
+  const sellable = PLAN_ROWS.filter(p=>p.active && p.sellable!==false);
+  const buckets = [], used = new Set();
+  MB_PROGRAM_CARDS.forEach(pc=>{
+    const rows = sellable.filter(p=>p.program===pc.key);
+    if(!rows.length) return;
+    rows.forEach(p=>used.add(p.code));
+    buckets.push({key:pc.key, title:pc.title, ages:pc.ages, rows:rows});
+  });
+  const rest = sellable.filter(p=>!used.has(p.code));
+  if(rest.length) buckets.push({key:'__other', title:'Other', ages:'Not assigned to a program yet', rows:rest});
+  return buckets;
+}
+
+/* Entrance to the membership picker. Always opens — never blocks on having a
+   student. Pass studentId explicitly (profile-first: a real id; catalog-first
+   "back" navigation: null to stay anonymous) to pin the flow's student; omit
+   it to fall back to a sane default (see POS_LAST_STUDENT above). */
+async function posAddMembership(studentId){
+  POS_ADD = { studentId: studentId!==undefined ? studentId : (POS_LAST_STUDENT || posSale.memberId || null) };
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Add membership</h3><button class="close" onclick="closeSheet()">×</button></div>'
+    +'<div class="sheet-body"><div class="inv-empty" style="padding:18px">Loading catalog…</div></div>';
+  openSheet();
+  await Promise.all([loadCatalog(), loadHouseholds()]);
+  if(POS_ADD.studentId) await posStudentContext(POS_ADD.studentId);
+  if(!PLAN_ROWS.length){
+    $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Add membership</h3><button class="close" onclick="closeSheet()">×</button></div>'
+      +'<div class="sheet-body"><div class="ag-empty">No pricing plans loaded. Run <strong>sql/membership-schema.sql</strong> once in the Supabase SQL editor, then reload.</div></div>';
+    return;
+  }
+  const name = posStudentName(POS_ADD.studentId);
+  const sub = name ? ('Pricing confirmed for '+escHtml(name)) : 'Base pricing shown · attach a member to confirm';
+  const body = posProgramBuckets().map(b=>
+    '<button class="opt-btn" onclick="posPickProgram(\''+escAttr(b.key)+'\')"><span class="oi">◆</span><div style="flex:1">'
+    + '<div style="font-weight:700">'+escHtml(b.title)+'</div>'
+    + '<div style="font-size:12.5px;color:var(--muted)">'+escHtml(b.ages)+'</div></div></button>').join("");
+  $("#sheet").innerHTML='<div class="grab"></div>'
+    +'<div class="sheet-head"><div><h3>Add membership</h3><div class="sub">'+sub+'</div></div><button class="close" onclick="closeSheet()">×</button></div>'
+    +'<div class="sheet-body">'+(body||'<div class="ag-empty">No sellable plans in the catalog.</div>')+'</div>';
+}
+
+function posPickProgram(key){
+  const b = posProgramBuckets().find(x=>x.key===key);
+  if(!b) return;
+  const sid = POS_ADD.studentId;
+  const ctx = sid ? (POS_STUDENT_CTX[sid] || POS_ANON_CTX) : POS_ANON_CTX;
+  const banner = sid ? '' :
+    '<div class="ck-hint" style="margin-bottom:11px">Base rate shown — no member attached yet. Family, member and household rates apply once you attach one.</div>';
+  const body = banner + '<button class="addopt" onclick="openPacket(\'pricing\')">View pricing packet ↗</button>'
+    + b.rows.map(p=>{
+      const c = posQuote(p.code, ctx);
+      const sub = c.eligible ? posMemRecurringNote(c, null) : c.eligibilityReason;
+      const swap = (c.eligible && c.substituted)
+        ? '<div style="font-size:11.5px;color:var(--go);margin-top:2px">'+escHtml(c.substitutionNote)+'</div>' : '';
+      return '<button class="opt-btn"'
+        + (c.eligible ? ' onclick="posAddMemLine(\''+escAttr(p.code)+'\')"' : ' disabled style="opacity:.5;cursor:default"')
+        + '><div style="flex:1"><div style="font-weight:700">'+escHtml(p.name.replace(/^.*—\s*/,''))+'</div>'
+        + '<div style="font-size:12.5px;color:var(--muted)">'+escHtml(sub)+'</div>'+swap+'</div>'
+        + (c.eligible ? '<div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(posMemDueCents(c,null)/100)+'</div>' : '')
+        + '</button>';
+    }).join("");
+  const backArg = sid ? ("'"+escAttr(sid)+"'") : 'null';
+  $("#sheet").innerHTML='<div class="grab"></div>'
+    +'<div class="sheet-head"><div><h3>'+escHtml(b.title)+'</h3><div class="sub">Due today shown'+(sid?' · household-aware':' · base rate')+'</div></div>'
+    +'<button class="close" onclick="posAddMembership('+backArg+')">×</button></div><div class="sheet-body">'+body+'</div>';
   openSheet();
 }
-function posPickPlan(gid){
-  const g=PROGRAMS.find(x=>x.id===gid);
-  const body='<button class="addopt" onclick="openPacket(\'pricing\')">View pricing packet ↗</button>'+g.plans.map((pl,i)=>'<button class="opt-btn" onclick="posAddMemLine(\''+gid+'\','+i+')"><div style="flex:1"><div style="font-weight:700">'+pl.name+'</div><div style="font-size:12.5px;color:var(--muted)">'+planLine(pl)+'</div></div><div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(planToday(pl))+'</div></button>').join("");
-  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>'+g.name+'</h3><div class="sub">Due today shown · pick a plan</div></div><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'</div>';
+
+function posAddMemLine(code){
+  const sid = POS_ADD.studentId;
+  const ctx = sid ? (POS_STUDENT_CTX[sid] || POS_ANON_CTX) : POS_ANON_CTX;
+  const c = posQuote(code, ctx);
+  if(!c || !c.eligible) return;
+  if(sid) POS_LAST_STUDENT = sid;
+  const i = posSale.lines.push({
+    kind:"mem",
+    label: c.planName || code,
+    sub: posMemRecurringNote(c, null),
+    amount: posMemDueCents(c, null)/100,
+    program: c.program || null,
+    requestedCode: code,
+    studentId: sid || null,
+    calc: c,
+    override: null
+  }) - 1;
+  renderPOS(); posEditMemLine(i, true);
+}
+
+/* Attach step: search an existing student or create a minimal walk-in
+   contact, then re-quote against their real household. Reachable from a
+   membership line at any time; every membership line needs a student
+   attached before the sale can be tendered (see posTender). `isNew` threads
+   through so cancel/back behavior matches whatever the line editor had. */
+function posAttachSheet(i, isNew){
+  const l=posSale.lines[i]; if(!l) return;
+  const back = isNew?'true':'false';
+  $("#sheet").innerHTML='<div class="grab"></div>'
+    +'<div class="sheet-head"><div><h3>Attach a member</h3><div class="sub">Who receives this membership?</div></div><button class="close" onclick="posEditMemLine('+i+','+back+')">×</button></div>'
+    +'<div class="sheet-body">'
+    +'<div class="search-wrap" style="padding:0"><span class="search-ico" style="left:14px">⌕</span>'
+    +'<input id="pos-att-search" class="search" oninput="posAttachSearch('+i+','+back+')" placeholder="Search members"></div>'
+    +'<div id="pos-att-results" style="margin-top:8px"></div>'
+    +'<button class="addopt" style="margin-top:10px" onclick="posNewStudentSheet('+i+','+back+')">＋ New contact</button>'
+    +'</div>';
   openSheet();
 }
-function posAddMemLine(gid,idx){
-  const g=PROGRAMS.find(x=>x.id===gid), pl=g.plans[idx];
-  const rec = pl.monthly>0 ? (pl.months>0 ? ("then "+(pl.months-1)+" × "+money(pl.monthly)+"/mo") : ("then "+money(pl.monthly)+"/mo")) : "paid in full";
-  const planLbl = pl.name + (pl.monthly>0 ? (" · "+money(pl.monthly)+"/mo") : " · Paid in full");
-  posSale.lines.push({kind:"mem", label:g.name+" · "+pl.name, sub:rec, amount:planToday(pl), program:g.name, planLbl:planLbl, down:pl.down, monthly:pl.monthly, months:pl.months});
-  renderPOS(); posEditLine(posSale.lines.length-1, true);
+function posAttachSearch(i, isNew){
+  const q=($("#pos-att-search").value||'').trim().toLowerCase();
+  const box=document.getElementById('pos-att-results'); if(!box) return;
+  if(q.length<2){ box.innerHTML=''; return; }
+  box.innerHTML = MEMBERS.filter(m=>(m.first+' '+m.last).toLowerCase().includes(q)).slice(0,8).map(m=>
+    '<button class="opt-btn" onclick="posPickStudentForLine('+i+',\''+m.id+'\','+(isNew?"true":"false")+')"><span class="oi">'+m.first.charAt(0)+'</span><div style="flex:1">'+escHtml(m.first+' '+m.last)+'<div style="font-size:12px;color:var(--muted)">'+escHtml(m.rank||m.segment||'')+'</div></div></button>'
+  ).join('') || '<div class="ag-empty">No matches.</div>';
+}
+async function posPickStudentForLine(i, id, isNew){
+  const l=posSale.lines[i]; if(!l) return;
+  l.studentId = id;
+  POS_LAST_STUDENT = id;
+  await posRequoteLine(i);
+  posEditMemLine(i, isNew);
+}
+function posNewStudentSheet(i, isNew){
+  const back=isNew?'true':'false';
+  $("#sheet").innerHTML='<div class="grab"></div>'
+    +'<div class="sheet-head"><div><h3>New contact</h3><div class="sub">Minimum needed to attach and quote</div></div><button class="close" onclick="posAttachSheet('+i+','+back+')">×</button></div>'
+    +'<div class="sheet-body">'
+    +'<div class="fld"><label>First name</label><input id="ns-first" class="ed-in"></div>'
+    +'<div class="fld"><label>Last name</label><input id="ns-last" class="ed-in"></div>'
+    +'<div class="fld"><label>Date of birth (optional)</label><input id="ns-dob" type="date" class="ed-in"></div>'
+    +'<div class="fld"><label>Phone (optional)</label><input id="ns-phone" class="ed-in" type="tel"></div>'
+    +'<div class="fld"><label>Email (optional)</label><input id="ns-email" class="ed-in" type="email"></div>'
+    +'<button class="savebtn" style="margin-top:6px" onclick="posNewStudentSave('+i+','+back+')">Create &amp; attach</button>'
+    +'</div>';
+  openSheet();
+}
+async function posNewStudentSave(i, isNew){
+  const first=($("#ns-first").value||'').trim(), last=($("#ns-last").value||'').trim();
+  if(!first || !last){ toast('First and last name are required'); return; }
+  const dob=$("#ns-dob").value||null, phone=($("#ns-phone").value||'').trim()||null, email=($("#ns-email").value||'').trim()||null;
+  const row = { first_name:first, last_name:last, dob:dob, phone:phone, email:email,
+                segment:'lead', member_role:'student', source:'pos-walkin', entered_on:attYMD() };
+  const { data, error } = await sb.from('contacts').insert(row).select().single();
+  if(error){ toast('Could not create contact: '+(error.message||error)); return; }
+  MEMBERS.push({
+    id:data.id, first:first, last:last, segment:'Lead', belt:'', rank:'', rankDate:'', since:'', entered:'',
+    age: dob ? Math.floor((Date.now()-new Date(dob))/3.15576e10) : 0, gender:'', guardians:[], phones:[], emails:[],
+    address:'', app:false, phase:'', source:'pos-walkin', beltSize:'', kickSize:'', tags:[], attended:0, daysSince:null,
+    testing:false, balance:0, memberships:[], invoices:[], notes:[]
+  });
+  await posPickStudentForLine(i, data.id, isNew);
+}
+/* Re-quote a line's already-selected plan against its (possibly newly
+   attached) student. Clears any override: it was set against the old base
+   numbers, so it no longer means anything once the real price is known. */
+async function posRequoteLine(i){
+  const l=posSale.lines[i]; if(!l) return;
+  const ctx = l.studentId ? await posStudentContext(l.studentId) : POS_ANON_CTX;
+  const c = posQuote(l.requestedCode, ctx);
+  l.calc = c;
+  l.override = null;
+  l.program = c.program || l.program;
+  l.label = c.planName || l.label;
+  l.sub = posMemRecurringNote(c, null);
+  l.amount = posMemDueCents(c, null)/100;
 }
 function posAddProduct(){
   const body=PRODUCTS.map(p=>'<button class="opt-btn" onclick="posAddProdLine(\''+p.id+'\')"><div style="flex:1;font-weight:600">'+p.label+'</div><div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(p.amount)+'</div></button>').join("");
@@ -1709,19 +1942,95 @@ function posAddEvent(){
 }
 function posAddEventLine(eid){ const e=EVENTS.find(x=>x.id===eid); posSale.lines.push({kind:"event", eventId:eid, label:e.title, amount:e.price}); renderPOS(); posEditLine(posSale.lines.length-1, true); }
 function posRemoveLine(i){ posSale.lines.splice(i,1); closeSheet(); renderPOS(); }
-function posTender(method){
+/* Enrollment programs a sold membership implies. pricing_plans.program already
+   uses the canonical enrollment vocabulary, so it is used directly; a combined
+   specialty row covers both rosters. A one-specialty weekly bundle cannot tell
+   which specialty was chosen, so it seeds the Taekwondo track only. */
+function posTkdTrackFor(id){ const m=id&&MEMBERS.find(x=>x.id===id); return (m && m.age && m.age>=13) ? 'Teens/Adults' : 'Juniors'; }
+function posMemRosterPrograms(l){
+  const c=l.calc, p=c.program||'';
+  if(c.category==='weekly_bundle'){
+    const tkd=posTkdTrackFor(l.studentId);
+    return c.planCode==='bundle_tkd_both_specialties' ? [tkd,'Kickboxing','Jiu Jitsu'] : [tkd];
+  }
+  if(p==='Kickboxing + Jiu Jitsu') return ['Kickboxing','Jiu Jitsu'];
+  if(p) return [p];
+  if(c.category==='core_tkd') return [posTkdTrackFor(l.studentId)];
+  if(c.category==='cubs') return ['Cubs'];
+  return [];
+}
+async function posTender(method){
   const {total}=posTotals();
   const memLines=posSale.lines.filter(l=>l.kind==="mem");
   const eventLines=posSale.lines.filter(l=>l.kind==="event");
   const m = posSale.memberId ? MEMBERS.find(x=>x.id===posSale.memberId) : null;
-  let notes=[], badges=[];
+
+  // A membership can be browsed and added with no student attached, but it
+  // cannot be sold that way — jump straight back to the line that needs it.
+  const unattached = memLines.filter(l=>!l.studentId);
+  if(unattached.length){
+    toast((unattached.length>1?'Attach a member to every membership line':'Attach a member to that membership')+' before completing the sale.');
+    posEditMemLine(posSale.lines.indexOf(unattached[0]), false);
+    return;
+  }
+
+  let notes=[], badges=[], problems=[];
   if(memLines.length){
-    if(m){
-      memLines.forEach(l=>m.memberships.push({program:l.program, plan:l.planLbl, status:"active", nextDue:"next cycle", overdue:0, contract:true, down:l.down, monthly:l.monthly, total:l.months>0?l.months:null, remaining:l.months>0?(l.months-1):null}));
-      if(m.segment!=="Active") m.segment="Active";
-      notes.push(m.first+" "+m.last+" now carries "+(memLines.length>1?"these memberships":"this membership")+" on their profile.");
-      badges.push("Membership on profile");
-    } else { notes.push("New member created and added to your roster."); badges.push("Added to roster"); }
+    // Frozen pricing snapshots — the same builder the pricing engine's own
+    // save path uses. A later catalog price change never touches these rows.
+    // Grouped by student: one invoice can carry memberships for more than one
+    // family member (e.g. a parent buying for two kids).
+    const staff = await currentStaffEmail();
+    const byStudent = {};
+    memLines.forEach(l=>{ (byStudent[l.studentId]=byStudent[l.studentId]||[]).push(l); });
+
+    for(const studentId of Object.keys(byStudent)){
+      const lines = byStudent[studentId];
+      const student = MEMBERS.find(x=>x.id===studentId);
+      const who = student ? (student.first+' '+student.last) : studentId;
+      const rows = lines.map(l=>BTKDPricing.buildMembershipSnapshot({
+        calc:l.calc, contactId:studentId, program:l.program,
+        startedOn:(posSale.date||attYMD()), createdBy:staff, override:l.override
+      }));
+      const ins = await sb.from('memberships').insert(rows);
+      if(ins.error){
+        console.error('membership insert', ins.error);
+        problems.push("The membership for "+who+" did NOT save: "+(ins.error.message||ins.error)+" — record it from their profile before they leave.");
+        continue;
+      }
+      if(student){
+        lines.forEach(l=>{
+          const c=l.calc, ov=l.override;
+          const rec=(ov?ov.recurringCents:c.finalRecurringCents)/100;
+          const dn=((ov&&ov.downCents!=null)?ov.downCents:c.finalDownCents)/100;
+          student.memberships.push({program:l.program||'—', plan:c.planName||c.planCode, status:"active",
+            nextDue:"next cycle", overdue:0, contract:!!c.paymentCount, down:dn, monthly:rec,
+            total:c.paymentCount||null, remaining:c.paymentCount?(c.paymentCount-1):null});
+        });
+        if(student.segment!=="Active") student.segment="Active";
+      }
+      notes.push(who+" now carries "+(lines.length>1?"these memberships":"this membership")+".");
+      badges.push("Membership saved · "+who);
+
+      // Roster seeding: read what is already there, insert only what is missing.
+      const want=[...new Set(lines.flatMap(posMemRosterPrograms))];
+      if(want.length){
+        const { data:have, error:hErr } = await sb.from('enrollments')
+          .select('program').eq('student_id', studentId);
+        if(hErr){ console.error('roster read', hErr); problems.push('Could not check class rosters for '+who+' — add them manually.'); }
+        else {
+          const existing=(have||[]).map(r=>r.program);
+          const add=want.filter(p=>existing.indexOf(p)===-1)
+            .map(p=>({student_id:studentId, program:p, status:'active'}));
+          if(add.length){
+            const er = await sb.from('enrollments').insert(add);
+            if(er.error){ console.error('roster seed', er.error); problems.push('Membership saved, but the class roster was not updated for '+who+': '+(er.error.message||er.error)); }
+            else badges.push("Added to "+add.map(r=>r.program).join(", "));
+          }
+        }
+      }
+      posForgetStudent(studentId); // household rank changed — requote from fresh data next time
+    }
   }
   if(eventLines.length){
     if(m){
@@ -1731,13 +2040,16 @@ function posTender(method){
     } else { notes.push("Event sign-up recorded."); }
   }
   const pm = method==="Account"?"charge to account":method.toLowerCase();
-  let h='<div class="bld"><div class="success"><div class="chk">✓</div><h2>Sale complete</h2>'
+  // A write that failed must never read as a clean sale.
+  let h='<div class="bld"><div class="success"><div class="chk">'+(problems.length?'!':'✓')+'</div>'
+    +'<h2>'+(problems.length?'Sale taken — needs attention':'Sale complete')+'</h2>'
     +'<p>'+money(total)+' paid by '+pm+'.'+(notes.length?(" "+notes.join(" ")):"")+'</p>';
   badges.forEach(b=>h+='<div class="insys" style="margin:6px 4px 0">✓ '+b+'</div>');
+  problems.forEach(p=>h+='<div class="ck-hint" style="margin:9px auto 0;max-width:420px;color:var(--warn);text-align:left">'+escHtml(p)+'</div>');
   h+='<div style="margin-top:18px"><button class="newbtn" style="margin:0" onclick="posReset()">New sale</button></div></div></div>';
   $("#view-pos").innerHTML=h;
 }
-function posReset(){ posSale=posBlank(); renderPOS(); }
+function posReset(){ posSale=posBlank(); POS_ADD={studentId:null}; POS_LAST_STUDENT=null; POS_STUDENT_CTX={}; renderPOS(); }
 
 function posLineDisc(l){
   const qty=l.qty||1, gross=qty*l.amount;
@@ -1772,8 +2084,77 @@ const POS_CATEGORIES=["Equipment","Apparel","Tuition","Testing","Private Lessons
 function posDefaultCat(l){ return l.kind==="mem"?"Tuition":l.kind==="event"?"Testing":"Equipment"; }
 let posEditDiscType="pct";
 function posSwitch(id,on,label){ return '<label class="spk-tog"><span class="sw"><input type="checkbox" id="'+id+'"'+(on?" checked":"")+'><span class="track"></span><span class="knob"></span></span><span class="spk-tog-lbl">'+label+'</span></label>'; }
+/* Membership lines get their own sheet: the engine's quote plus an AUDITED
+   override. A membership price cannot be changed from the generic product
+   price box, because an override must carry a reason and audit metadata onto
+   the saved snapshot. */
+function posEditMemLine(i,isNew){
+  const l=posSale.lines[i]; if(!l) return;
+  const c=l.calc, ov=l.override;
+  const backB = isNew?'true':'false';
+  const name = posStudentName(l.studentId);
+  const studentRow = name
+    ? '<div class="im-row" style="margin-bottom:12px"><span>Member</span><span class="im-buyer">'+escHtml(name)+' <button class="pb-change" style="font-size:11px;padding:1px 7px" onclick="posAttachSheet('+i+','+backB+')">change</button></span></div>'
+    : '<div class="ck-hint" style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px"><span>⚠ No member attached — base rate shown</span><button class="pb-change" style="font-size:11px;padding:1px 7px;flex-shrink:0;white-space:nowrap" onclick="posAttachSheet('+i+','+backB+')">Attach member</button></div>';
+  const freq = c.billingFrequency==='monthly'?'/month':c.billingFrequency==='weekly'?'/week':' one time';
+  const per  = c.billingFrequency==='weekly'?'per week':c.billingFrequency==='monthly'?'per month':'one time';
+  let card='<div class="spk-card"><div class="spk-card-ttl">'+escHtml(l.label)+'</div>'
+    +'<div class="spk-card-row"><b>Base:</b> '+money(c.baseCents/100)+freq+'</div>';
+  c.adjustments.forEach(a=>{ card+='<div class="spk-card-row"><b>'+escHtml(a.label)+':</b> −'+money(Math.abs(a.amountCents)/100)+'</div>'; });
+  card+='<div class="spk-card-row"><b>Recurring:</b> '+money(c.finalRecurringCents/100)+freq+'</div>'
+    +(c.finalDownCents?'<div class="spk-card-row"><b>Down payment:</b> '+money(c.finalDownCents/100)+'</div>':'')
+    +(c.paymentCount?'<div class="spk-card-row"><b>Payments:</b> '+c.paymentCount+'</div>':'')
+    +(l.studentId?'<div class="spk-card-row"><b>Household rank:</b> '+c.householdRank+(c.householdRank===1?' (founding)':'')+'</div>':'')
+    +'<div class="spk-card-row"><b>Due today:</b> '+money(posMemLineDueCents(l)/100)+'</div>'
+    +'<div class="spk-card-desc">'+escHtml(c.explanation)+'</div>'
+    +(c.substituted?'<div class="ck-hint" style="margin-top:6px">Rate adjusted: '+escHtml(c.substitutionNote)+'</div>':'')
+    +'</div>';
+  const form='<div class="spk-form">'
+    +'<div class="spk-disc-hd"><b>Override price?</b> <span class="spk-disc-sub">leave blank to sell the recommended price.</span></div>'
+    +'<label class="spk-label">Manual price ('+per+')</label>'
+    +'<div class="spk-price"><span class="spk-dollar">$</span><input id="pmRec" class="ed-in" inputmode="decimal" value="'+escAttr(ov?dollarsFromCents(ov.recurringCents):'')+'" placeholder="'+dollarsFromCents(c.finalRecurringCents)+'"></div>'
+    +'<label class="spk-label">Manual down payment</label>'
+    +'<div class="spk-price"><span class="spk-dollar">$</span><input id="pmDown" class="ed-in" inputmode="decimal" value="'+escAttr(ov&&ov.downCents!=null?dollarsFromCents(ov.downCents):'')+'" placeholder="'+dollarsFromCents(c.finalDownCents)+'"></div>'
+    +'<label class="spk-label">Reason (required for an override)</label>'
+    +'<input id="pmReason" class="ed-in" value="'+escAttr(ov?ov.reason:'')+'" placeholder="Why this price differs">'
+    +'<label class="spk-label">Notes</label><textarea id="pmNote" class="ed-in spk-note">'+escHtml(l.note||'')+'</textarea>'
+    +'</div>';
+  const foot='<div class="spk-foot">'
+    +'<button class="spk-cancel" onclick="posEditCancel('+i+','+(isNew?"true":"false")+')">Cancel</button>'
+    +(isNew?'':'<button class="spk-rm" onclick="posRemoveLine('+i+')">Remove</button>')
+    +'<button class="spk-add" onclick="posSaveMemLine('+i+')">'+(isNew?"Add":"Save")+'</button></div>';
+  $("#sheet").classList.add("sheet-lg");
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head spk-head"><h3>'+(isNew?"Add membership":"Edit membership")+'</h3>'
+    +'<button class="close" onclick="posEditCancel('+i+','+(isNew?"true":"false")+')">×</button></div>'
+    +'<div class="sheet-body spk-body">'+studentRow+'<div class="spk-grid">'+card+form+'</div></div>'+foot;
+  openSheet();
+}
+async function posSaveMemLine(i){
+  const l=posSale.lines[i]; if(!l) return;
+  const c=l.calc;
+  const rec=(document.getElementById("pmRec").value||'').trim();
+  const down=(document.getElementById("pmDown").value||'').trim();
+  const reason=(document.getElementById("pmReason").value||'').trim();
+  if(rec || down){
+    if(!reason){ toast('An override needs a reason'); return; }
+    const recC = rec ? centsFromInput(rec) : c.finalRecurringCents;
+    if(recC <= 0){ toast('Enter the manual price'); return; }
+    l.override = {
+      active:true, recurringCents:recC,
+      downCents: down ? centsFromInput(down) : c.finalDownCents,
+      reason:reason, by: await currentStaffEmail(), at: new Date().toISOString()
+    };
+  } else {
+    l.override = null;
+  }
+  l.note=document.getElementById("pmNote").value;
+  l.amount=posMemLineDueCents(l)/100;
+  l.sub=posMemRecurringNote(c, l.override);
+  closeSheet(); renderPOS();
+}
 function posEditLine(i,isNew){
   const l=posSale.lines[i];
+  if(l && l.kind==="mem"){ posEditMemLine(i,isNew); return; }
   const taxable=posLineTaxable(l);
   const cat=l.category||posDefaultCat(l);
   posEditDiscType=l.discType||"pct";
@@ -2141,7 +2522,7 @@ function renderProfile(){
   // quick actions
   html += '<div class="qactions">'
     + '<button class="qa primary" onclick="toast(\'Opens POS with '+m.first+' attached\')">＄ Ring up</button>'
-    + '<button class="qa" onclick="toast(\'Opens enrollment for '+m.first+'\')">＋ Membership</button>'
+    + '<button class="qa" onclick="posOpenMembershipFor(\''+m.id+'\')">＋ Membership</button>'
     + '<button class="qa" onclick="toast(\'Opens message to '+m.first+'\')">✉ Message</button>'
     + '<button class="qa" onclick="toast(\'Edit details for '+m.first+'\')">✎ Edit</button>'
     + '</div>';
@@ -2227,7 +2608,7 @@ function renderProfile(){
   } else {
     html += '<div class="card pad" style="color:var(--muted);font-size:14px">No membership yet.</div>';
   }
-  html += '<button class="add-mem" onclick="toast(\'Opens enrollment for '+m.first+'\')">＋ Sell / add membership</button></div>';
+  html += '<button class="add-mem" onclick="posOpenMembershipFor(\''+m.id+'\')">＋ Sell / add membership</button></div>';
 
   // stub accordions (fed by other apps)
   html += '<div class="sec"><div class="sec-h">More</div>';

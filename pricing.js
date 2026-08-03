@@ -46,6 +46,17 @@
     addon_both:       'specialty_both'
   };
 
+  // standalone -> member add-on rate (person HOLDS their own monthly core TKD).
+  // The mirror of ADDON_TO_STANDALONE: "add-on" is a RATE, not a product, so
+  // selling the program to an existing Taekwondo member must find this rate on
+  // its own. sql/membership-programs.sql marks these rows sellable=false for
+  // exactly that reason — the UI never pitches them directly.
+  var STANDALONE_TO_ADDON = {
+    specialty_kickboxing: 'addon_kickboxing',
+    specialty_jiujitsu:   'addon_jiujitsu',
+    specialty_both:       'addon_both'
+  };
+
   // one specialty vs both -> the weekly bundle that replaces weekly TKD
   var TO_BUNDLE = {
     addon_kickboxing:     'bundle_tkd_one_specialty',
@@ -243,13 +254,24 @@
       return out; // monthly TKD member, add-on stands
     }
 
-    // ── standalone specialty for a weekly TKD member -> bundle ──
-    if (cat === 'specialty' && requested.billing_frequency === 'monthly' && holdsCore && coreIsWeekly) {
-      var b2 = findPlan(plans, TO_BUNDLE[requested.code]);
-      if (b2) {
-        out.plan = b2;
+    // ── standalone specialty sold to someone who holds their own core TKD ──
+    if (cat === 'specialty' && requested.billing_frequency === 'monthly' && holdsCore) {
+      if (coreIsWeekly) {
+        // Weekly TKD: the bundle price REPLACES the weekly TKD price.
+        var b2 = findPlan(plans, TO_BUNDLE[requested.code]);
+        if (b2) {
+          out.plan = b2;
+          out.substituted = true;
+          out.substitutionNote = 'Weekly Taekwondo member, so the weekly bundle price replaces the weekly Taekwondo price.';
+        }
+        return out;
+      }
+      // Monthly TKD: the member add-on RATE applies instead of standalone.
+      var mem = findPlan(plans, STANDALONE_TO_ADDON[requested.code]);
+      if (mem) {
+        out.plan = mem;
         out.substituted = true;
-        out.substitutionNote = 'Weekly Taekwondo member, so the weekly bundle price replaces the weekly Taekwondo price.';
+        out.substitutionNote = 'Active Taekwondo member, so the member add-on rate applies.';
       }
       return out;
     }
@@ -433,6 +455,7 @@
     centsToDollars: centsToDollars,
     isFamilyPlan: isFamilyPlan,
     ADDON_TO_STANDALONE: ADDON_TO_STANDALONE,
+    STANDALONE_TO_ADDON: STANDALONE_TO_ADDON,
     TO_BUNDLE: TO_BUNDLE
   };
 });

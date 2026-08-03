@@ -365,6 +365,63 @@ test('19 family position crosses programs but resolves the sold program\'s rate'
   assert.strictEqual(w.finalRecurringCents, 4395);
 });
 
+/* 20-22 — "sell the program, the engine picks the rate".
+ * sql/membership-programs.sql marks addon rows sellable=false, so the POS can
+ * only pitch the STANDALONE row for a specialty. Selling that one program must
+ * therefore resolve to all three rates on its own. */
+test('20 selling Kickboxing to a monthly TKD member resolves the member rate: 4000', function () {
+  var r = quote('specialty_kickboxing',
+    { contact_id: 'p', activeMemberships: [ms('juniors_option_c', '2026-01-05')] },
+    []);
+  assert.strictEqual(r.planCode, 'addon_kickboxing');
+  assert.strictEqual(r.baseCents, 4000);
+  assert.strictEqual(r.finalRecurringCents, 4000, 'sole ranked member, no household discount');
+  assert.strictEqual(r.substituted, true);
+});
+
+test('21 the same three rates all come from selling one program', function () {
+  var kid = { contact_id: 'kid', activeMemberships: [ms('juniors_option_c', '2026-01-05')] };
+  // no TKD of their own -> standalone
+  var none = quote('specialty_kickboxing', { contact_id: 'a', activeMemberships: [] }, []);
+  // monthly TKD -> member add-on rate
+  var monthly = quote('specialty_kickboxing',
+    { contact_id: 'b', activeMemberships: [ms('adults_option_c', '2026-02-01')] }, []);
+  // weekly TKD -> weekly bundle replaces the weekly TKD price
+  var weekly = quote('specialty_kickboxing',
+    { contact_id: 'c', activeMemberships: [ms('juniors_weekly', '2026-02-01')] }, []);
+
+  assert.strictEqual(none.planCode, 'specialty_kickboxing');
+  assert.strictEqual(none.finalRecurringCents, 8900);
+  assert.strictEqual(monthly.planCode, 'addon_kickboxing');
+  assert.strictEqual(monthly.finalRecurringCents, 4000);
+  assert.strictEqual(weekly.planCode, 'bundle_tkd_one_specialty');
+  assert.strictEqual(weekly.finalRecurringCents, 4395);
+
+  // a parent standing behind a TKD child still pays standalone — the rule is
+  // the person's OWN membership, not the household's.
+  var parent = quote('specialty_kickboxing', { contact_id: 'p', activeMemberships: [] }, [kid]);
+  assert.strictEqual(parent.planCode, 'specialty_kickboxing');
+  assert.strictEqual(parent.finalRecurringCents, 7900, '8900 less the household discount');
+});
+
+test('22 member rate still takes the household discount when ranked 2nd', function () {
+  var r = quote('specialty_both',
+    { contact_id: 'p', activeMemberships: [ms('juniors_option_c', '2026-06-01')] },
+    [{ contact_id: 'sib', activeMemberships: [ms('adults_option_c', '2026-01-05')] }]);
+  assert.strictEqual(r.planCode, 'addon_both');
+  assert.strictEqual(r.baseCents, 6000);
+  assert.strictEqual(r.finalRecurringCents, 5000, '6000 less the 1000 household discount');
+});
+
+test('23 a drop-in never picks up a member rate', function () {
+  var r = quote('specialty_dropin',
+    { contact_id: 'p', activeMemberships: [ms('juniors_option_c', '2026-01-05')] },
+    []);
+  assert.strictEqual(r.planCode, 'specialty_dropin');
+  assert.strictEqual(r.finalRecurringCents, 2000);
+  assert.strictEqual(r.substituted, false);
+});
+
 // ─── summary ───────────────────────────────────────────────────────────────
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
