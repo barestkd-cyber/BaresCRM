@@ -106,10 +106,10 @@ create table if not exists public.pos_sales (
   staff_email           text not null,
   brand                 text not null default 'btkd'
                           check (brand in ('btkd','gbs','gmaf')),
-  tender_method         text not null
-                          check (tender_method in ('cash','check','card','ach','account')),
+  tender_method         text
+                          check (tender_method is null or tender_method in ('cash','check','card','ach')),
   status                text not null default 'paid'
-                          check (status in ('pending_payment','processing','paid','failed','abandoned','voided')),
+                          check (status in ('unpaid','pending_payment','processing','paid','failed','abandoned','voided')),
   subtotal_cents        integer not null check (subtotal_cents >= 0),
   discount_cents        integer not null default 0 check (discount_cents >= 0),
   admin_fee_cents       integer not null default 0 check (admin_fee_cents >= 0),
@@ -210,6 +210,9 @@ create policy pos_sales_staff_select on public.pos_sales
 drop policy if exists pos_sales_staff_insert on public.pos_sales;
 create policy pos_sales_staff_insert on public.pos_sales
   for insert with check (is_staff());
+drop policy if exists pos_sales_staff_update on public.pos_sales;
+create policy pos_sales_staff_update on public.pos_sales
+  for update using (is_staff()) with check (is_staff());
 
 drop policy if exists pos_lines_staff_select on public.pos_sale_lines;
 create policy pos_lines_staff_select on public.pos_sale_lines
