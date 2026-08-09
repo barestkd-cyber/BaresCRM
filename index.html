@@ -1692,7 +1692,7 @@ function renderPOS(){
   html+='</div></div>';
   html+='<div class="inv-add"><button onclick="posAmountSheet(\'discount\')">＋ Discount</button><button onclick="posAmountSheet(\'fee\')">＋ Admin fee</button></div>';
   html+='<textarea class="inv-notes" placeholder="Invoice notes..." oninput="posSale.notes=this.value">'+(s.notes||"")+'</textarea>';
-  if(s.lines.length) html+='<div class="tenders" style="margin-top:11px"><button class="tbtn" onclick="posTender(\'Cash\')">Cash</button><button class="tbtn" onclick="posTender(\'Card\')">Card</button><button class="tbtn" onclick="posTender(\'Check\')">Check</button><button class="tbtn" onclick="posTender(\'Unpaid\')">Save unpaid</button></div>';
+  if(s.lines.length) html+='<div class="tenders" style="margin-top:11px"><button class="tbtn" onclick="posTender(\'Cash\')">Cash</button><button class="tbtn" onclick="posCardConfirm()">Card</button><button class="tbtn" onclick="posTender(\'Check\')">Check</button><button class="tbtn" onclick="posTender(\'Unpaid\')">Save unpaid</button></div>';
   html+='</div></div>';
   html+='<div class="proto-note">Every sale writes the pos_sales ledger (see Today\'s drawer). Memberships price live from pricing_plans and save frozen snapshots; products come from the products table. Invoice math is integer cents; discounts reduce the sales-tax base (accountant to confirm). Events are still a local list. Card/ACH arrive with the Stripe build — the fee model is with the attorney.</div></div>';
   $("#view-pos").innerHTML=html;
@@ -1960,6 +1960,21 @@ function posMemRosterPrograms(l){
   if(c.category==='cubs') return ['Cubs'];
   return [];
 }
+/* The POS does not process cards yet — Stripe is a later phase. This confirm
+   exists so tapping "Card" can never quietly pretend the system charged one:
+   staff must assert the terminal already ran it before it is recorded. */
+function posCardConfirm(){
+  const {total}=posTotals();
+  $("#sheet").innerHTML='<div class="grab"></div>'
+    +'<div class="sheet-head"><div><h3>Card payment</h3><div class="sub">No card is charged here (yet)</div></div><button class="close" onclick="closeSheet()">×</button></div>'
+    +'<div class="sheet-body">'
+    +'<div class="ck-hint" style="margin-bottom:11px">This records a card payment — it does not process one. Run <b>'+money(total)+'</b> on the card terminal first, then record it here.</div>'
+    +'<button class="addopt" onclick="closeSheet();posTender(\'Card\')">Card was charged on the terminal — record it</button>'
+    +'<button class="addopt" style="margin-top:8px" onclick="closeSheet()">Cancel</button>'
+    +'</div>';
+  openSheet();
+}
+
 async function posTender(method){
   const t=posTotals(), total=t.total;
   const memLines=posSale.lines.filter(l=>l.kind==="mem");
