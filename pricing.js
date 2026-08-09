@@ -445,9 +445,87 @@
     return row;
   }
 
+  /* ─── invoice math ─────────────────────────────────────────────────────────
+   * The POS invoice's money, in one tested place. Integer cents in, integer
+   * cents out; the UI formats dollars but never does arithmetic.
+   */
+
+  // Half-up rounding on a non-negative float that is conceptually cents.
+  function roundHalfUpCents(x) { return Math.floor(x + 0.5); }
+
+  /* What one membership line costs TODAY. Recurring plans owe the down payment
+   * plus the first payment; a one_time plan owes its full amount PLUS any down
+   * payment on the row. (No seeded one_time plan carries a down payment today,
+   * but the snapshot writes final_down_cents regardless — due-today must agree
+   * with the snapshot, not quietly drop the down.) An override replaces the
+   * engine's numbers, not the shape. */
+  function dueTodayCents(calc, override) {
+    if (!calc) return 0;
+    var rec  = override ? Number(override.recurringCents) : calc.finalRecurringCents;
+    var down = (override && override.downCents != null) ? Number(override.downCents) : calc.finalDownCents;
+    return (rec || 0) + (down || 0);
+  }
+
+  /* Totals for a whole invoice.
+   *
+   *   invoiceTotals({
+   *     lines:         [{ cents, taxable }],   net per-line integer cents
+   *     discountCents: invoice-level discount (integer cents, >= 0)
+   *     adminFeeCents: integer cents, >= 0 (never taxed — flagged to the
+   *                    owner's accountant; change here if that ruling changes)
+   *     taxRate:       e.g. 0.0825
+   *   })
+   *
+   * The invoice discount reduces the TAX BASE: it is allocated across all
+   * lines pro-rata by amount (largest-remainder so the allocations sum exactly),
+   * and taxable lines are taxed on what the customer actually paid after their
+   * share of the discount. Tax rounds half-up once, on the total base.
+   */
+  function invoiceTotals(opts) {
+    opts = opts || {};
+    var lines = (opts.lines || []).map(function (l) {
+      var c = Math.round(Number(l.cents) || 0);
+      return { cents: c < 0 ? 0 : c, taxable: !!l.taxable };
+    });
+    var subtotal = lines.reduce(function (a, l) { return a + l.cents; }, 0);
+    var discount = Math.min(Math.max(Math.round(Number(opts.discountCents) || 0), 0), subtotal);
+    var adminFee = Math.max(Math.round(Number(opts.adminFeeCents) || 0), 0);
+    var taxRate  = Number(opts.taxRate) || 0;
+
+    // Pro-rata discount allocation, largest remainder.
+    var allocations = lines.map(function () { return 0; });
+    if (discount > 0 && subtotal > 0) {
+      var exact = lines.map(function (l) { return discount * l.cents / subtotal; });
+      var floors = exact.map(Math.floor);
+      var used = floors.reduce(function (a, b) { return a + b; }, 0);
+      var rem = discount - used;
+      var order = exact.map(function (e, i) { return { i: i, frac: e - floors[i] }; })
+        .sort(function (a, b) { return b.frac - a.frac || a.i - b.i; });
+      allocations = floors.slice();
+      for (var k = 0; k < rem; k++) allocations[order[k % order.length].i] += 1;
+    }
+
+    var taxBase = 0;
+    lines.forEach(function (l, i) { if (l.taxable) taxBase += l.cents - allocations[i]; });
+    var tax = roundHalfUpCents(taxBase * taxRate);
+    var total = subtotal - discount + adminFee + tax;
+
+    return {
+      subtotalCents: subtotal,
+      discountCents: discount,
+      adminFeeCents: adminFee,
+      taxBaseCents: taxBase,
+      taxCents: tax,
+      totalCents: total,
+      discountAllocationCents: allocations
+    };
+  }
+
   return {
     calculatePrice: calculatePrice,
     buildMembershipSnapshot: buildMembershipSnapshot,
+    dueTodayCents: dueTodayCents,
+    invoiceTotals: invoiceTotals,
     // exposed for the UI and for tests
     householdRank: householdRank,
     familyPosition: familyPosition,

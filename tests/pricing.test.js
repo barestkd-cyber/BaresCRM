@@ -422,6 +422,99 @@ test('23 a drop-in never picks up a member rate', function () {
   assert.strictEqual(r.substituted, false);
 });
 
+// ─── invoice math: dueTodayCents ───────────────────────────────────────────
+
+test('20 due today, monthly plan: down + first month', function () {
+  var r = quote('juniors_option_c', { contact_id: 'a', activeMemberships: [] }, []);
+  assert.strictEqual(P.dueTodayCents(r, null), 25900 + 11000);
+});
+
+test('21 due today, one_time plan includes any down payment (snapshot agreement)', function () {
+  var r = quote('juniors_pif', { contact_id: 'a', activeMemberships: [] }, []);
+  // seeded PIF has down 0 — due equals the full amount…
+  assert.strictEqual(P.dueTodayCents(r, null), r.finalRecurringCents);
+  // …but a hypothetical one_time calc carrying a down must not drop it.
+  assert.strictEqual(
+    P.dueTodayCents({ billingFrequency: 'one_time', finalRecurringCents: 100000, finalDownCents: 5000 }, null),
+    105000);
+});
+
+test('22 due today respects an override, including explicit zero down', function () {
+  var r = quote('juniors_option_c', { contact_id: 'a', activeMemberships: [] }, []);
+  assert.strictEqual(P.dueTodayCents(r, { recurringCents: 9900, downCents: 0 }), 9900);
+  assert.strictEqual(P.dueTodayCents(r, { recurringCents: 9900, downCents: null }), 9900 + 25900);
+});
+
+// ─── invoice math: invoiceTotals ───────────────────────────────────────────
+
+test('23 tax applies to the DISCOUNTED base, not the sticker price', function () {
+  // $100.00 taxable gear, $20.00 invoice discount, 8.25%.
+  var t = P.invoiceTotals({ lines: [{ cents: 10000, taxable: true }], discountCents: 2000, taxRate: 0.0825 });
+  assert.strictEqual(t.taxBaseCents, 8000);
+  assert.strictEqual(t.taxCents, 660);           // 8.25% of $80.00 — not 825
+  assert.strictEqual(t.totalCents, 8660);
+});
+
+test('24 discount allocates pro-rata; only the taxable share reduces the base', function () {
+  // $100 taxable + $50 non-taxable membership money, $30 discount.
+  var t = P.invoiceTotals({
+    lines: [{ cents: 10000, taxable: true }, { cents: 5000, taxable: false }],
+    discountCents: 3000, taxRate: 0.0825
+  });
+  assert.deepStrictEqual(t.discountAllocationCents, [2000, 1000]);
+  assert.strictEqual(t.taxBaseCents, 8000);
+  assert.strictEqual(t.taxCents, 660);
+  assert.strictEqual(t.totalCents, 10000 + 5000 - 3000 + 660);
+});
+
+test('25 largest-remainder allocation sums exactly on odd splits', function () {
+  // $0.01 discount across three equal lines cannot lose or mint a cent.
+  var t = P.invoiceTotals({
+    lines: [{ cents: 333, taxable: false }, { cents: 333, taxable: false }, { cents: 334, taxable: false }],
+    discountCents: 1, taxRate: 0.0825
+  });
+  assert.strictEqual(t.discountAllocationCents.reduce(function (a, b) { return a + b; }, 0), 1);
+  assert.strictEqual(t.totalCents, 999);
+});
+
+test('26 discount clamps at subtotal; fee never taxed; empty invoice is zero', function () {
+  var t = P.invoiceTotals({ lines: [{ cents: 500, taxable: true }], discountCents: 99900, adminFeeCents: 1000, taxRate: 0.0825 });
+  assert.strictEqual(t.discountCents, 500);
+  assert.strictEqual(t.taxCents, 0);
+  assert.strictEqual(t.totalCents, 1000);        // fee survives, untaxed
+  var z = P.invoiceTotals({ lines: [], discountCents: 500, adminFeeCents: 0, taxRate: 0.0825 });
+  assert.strictEqual(z.totalCents, 0);
+});
+
+test('27 two siblings, one invoice: family pricing + gear, cents end to end', function () {
+  // Kid A first member Option C; kid B second member ($119, no down); sparring gear $242.50.
+  var a = quote('juniors_option_c', { contact_id: 'A', activeMemberships: [] }, []);
+  var b = quote('juniors_option_c',
+    { contact_id: 'B', activeMemberships: [] },
+    [{ contact_id: 'A', activeMemberships: [ms('juniors_option_c', '2026-08-01')] }]);
+  assert.strictEqual(b.finalRecurringCents, 11900);
+  assert.strictEqual(b.finalDownCents, 0);
+  var t = P.invoiceTotals({
+    lines: [
+      { cents: P.dueTodayCents(a, null), taxable: false },   // 36900
+      { cents: P.dueTodayCents(b, null), taxable: false },   // 11900
+      { cents: 24250, taxable: true }
+    ],
+    discountCents: 0, adminFeeCents: 0, taxRate: 0.0825
+  });
+  assert.strictEqual(t.subtotalCents, 36900 + 11900 + 24250);
+  assert.strictEqual(t.taxCents, 2001);          // 24250 * .0825 = 2000.625 → half-up 2001
+  assert.strictEqual(t.totalCents, 75051);
+});
+
+test('28 float dollars would have drifted; cents do not', function () {
+  // The classic: 19.99 * 3 in floats is 59.969999…; in cents it is exact.
+  var t = P.invoiceTotals({ lines: [{ cents: 1999 * 3, taxable: true }], taxRate: 0.0825 });
+  assert.strictEqual(t.subtotalCents, 5997);
+  assert.strictEqual(t.taxCents, 495);           // 5997 * .0825 = 494.7525 → 495
+  assert.strictEqual(t.totalCents, 6492);
+});
+
 // ─── summary ───────────────────────────────────────────────────────────────
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
