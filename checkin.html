@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>BaresTKD · Roster Check-In</title>
+<link rel="icon" type="image/png" sizes="96x96" href="assets/img/favicon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/img/apple-touch-icon.png">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;900&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -13,8 +15,7 @@
   body{background:var(--bg);color:var(--text);font-family:'Source Sans 3',system-ui,sans-serif;
     -webkit-font-smoothing:antialiased;padding-bottom:96px;}
   .wrap{max-width:560px;margin:0 auto;padding:16px;}
-  .logo{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:.05em;
-    text-transform:uppercase;}.logo .ac{color:var(--gold);}
+  .logo{height:34px;width:auto;display:block;}
   .sub{color:var(--muted);font-size:.82rem;margin-top:2px;}
 
   /* login */
@@ -75,7 +76,7 @@
 <div class="wrap">
   <!-- LOGIN -->
   <div id="login">
-    <div class="logo">Bares<span class="ac">TKD</span></div>
+    <img class="logo" src="assets/img/logo-reverse.png" alt="Bares Taekwondo Fitness" style="height:44px;margin-bottom:10px;">
     <div class="sub">Roster check-in. Staff sign-in. <span style="color:var(--gold)">v5</span> · <span id="jsflag" style="color:var(--red)">js OFF</span></div>
     <input id="email" type="email" placeholder="Email" autocomplete="username">
     <input id="pw" type="password" placeholder="Password" autocomplete="current-password">
@@ -86,7 +87,7 @@
   <!-- APP -->
   <div id="app" style="display:none;">
     <div class="topbar">
-      <div><div class="logo">Bares<span class="ac">TKD</span></div><div class="sub" id="today"></div></div>
+      <div><img class="logo" src="assets/img/logo-reverse.png" alt="Bares Taekwondo Fitness"><div class="sub" id="today"></div></div>
       <button class="signout" onclick="doSignOut()">Sign out</button>
     </div>
 
