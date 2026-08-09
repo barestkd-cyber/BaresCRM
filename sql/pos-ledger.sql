@@ -73,23 +73,25 @@ create policy roster_authenticated_update on public.roster
 
 
 -- §3 ─ products ──────────────────────────────────────────────────────────────
--- The POS quick-list, cents-native. Seeded from the current hardcoded list.
+-- A products table ALREADY EXISTS in the live DB (discovered 2026-08-09; it
+-- is in no repo schema file): id uuid, name text, price_cents int, sku text
+-- null, active bool. Nothing in any app reads it today. We adopt it rather
+-- than replace it: keep its column names, add what the POS needs. No drops,
+-- so whatever it contains is preserved.
 
-create table if not exists public.products (
-  id            uuid primary key default gen_random_uuid(),
-  sku           text unique,
-  label         text not null,
-  amount_cents  integer not null check (amount_cents >= 0),
-  taxable       boolean not null default true,
-  active        boolean not null default true,
-  display_order integer default 100
-);
+alter table public.products add column if not exists taxable       boolean not null default true;
+alter table public.products add column if not exists display_order integer default 100;
 
-insert into public.products (sku, label, amount_cents, taxable, display_order) values
-  ('uniform_beginner', 'Beginner uniform',      8225, true, 10),
-  ('testing_fee',      'Testing fee',           6000, true, 20),
-  ('gear_sparring',    'Sparring gear package', 24250, true, 30)
-on conflict (sku) do nothing;
+-- Seed the POS quick-list items. No unique constraint on sku is assumed
+-- (none is known to exist): plain anti-join instead of on-conflict.
+insert into public.products (name, price_cents, sku, active, taxable, display_order)
+select v.name, v.price_cents, v.sku, true, v.taxable, v.display_order
+from (values
+  ('Beginner uniform',      8225,  'uniform_beginner', true, 10),
+  ('Testing fee',           6000,  'testing_fee',      true, 20),
+  ('Sparring gear package', 24250, 'gear_sparring',    true, 30)
+) as v(name, price_cents, sku, taxable, display_order)
+where not exists (select 1 from public.products p where p.sku = v.sku);
 
 
 -- §4 ─ the ledger ────────────────────────────────────────────────────────────
@@ -242,4 +244,7 @@ create policy pos_pay_staff_insert on public.pos_payments
 -- drop table if exists public.pos_payments;
 -- drop table if exists public.pos_sale_lines;
 -- drop table if exists public.pos_sales;
--- drop table if exists public.products;
+-- products PRE-EXISTED this file — never drop it wholesale. Undo only our additions:
+-- alter table public.products drop column if exists taxable;
+-- alter table public.products drop column if exists display_order;
+-- delete from public.products where sku in ('uniform_beginner','testing_fee','gear_sparring');
