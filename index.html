@@ -1615,11 +1615,21 @@ function cpRemoveParticipant(eid,mid){
 }
 
 /* ========== POS (memberships price from pricing_plans + BTKDPricing) ========== */
+/* Hardcoded fallback only — bootCrm() swaps in live `products` rows. A read
+   failure keeps the fallback so the POS still sells, loudly in the console. */
 let PRODUCTS = [
   {id:"pr1", label:"Beginner uniform", amount:82.25},
   {id:"pr2", label:"Testing fee", amount:60},
   {id:"pr3", label:"Sparring gear package", amount:242.50}
 ];
+async function loadProducts(){
+  const { data, error } = await sb.from('products').select('*').eq('active', true).order('display_order');
+  if(error){ console.error('products load — POS is on the hardcoded fallback list', error); return; }
+  if(data && data.length){
+    PRODUCTS = data.map(p=>({ id:p.id, dbId:p.id, label:p.name, amount:p.price_cents/100, taxable:p.taxable!==false }));
+    if(document.querySelector('#view-pos .bld')) renderPOS(); // repaint if POS is on screen
+  }
+}
 /* Receipt identity. The legal entity is always safe to print; the DBAs are
  * PENDING state filings — until Race flips `effective`, receipts print the
  * LLC name instead of an unregistered assumed name. */
@@ -1641,7 +1651,7 @@ function posStaffList(){
 function posBuyerName(){ if(!posSale.memberId) return "Walk-in / new buyer"; const m=MEMBERS.find(x=>x.id===posSale.memberId); return m? (m.first+" "+m.last) : "Walk-in / new buyer"; }
 function renderPOS(){
   const s=posSale, t=posTotals();
-  let html='<div class="bld"><div class="bld-hd"><h2>Point of sale</h2><p>Search a buyer or item on the left, build the invoice on the right.</p></div>';
+  let html='<div class="bld"><div class="bld-hd" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px"><div><h2>Point of sale</h2><p>Search a buyer or item on the left, build the invoice on the right.</p></div><button class="pb-change" style="flex-shrink:0" onclick="posTodaySheet()">Today\'s drawer</button></div>';
   html+='<div class="pos-grid">';
   html+='<div>';
   html+='<div class="pos-search-wrap"><span class="search-ico">⌕</span><input class="search pos-search" placeholder="Search contacts, products or \'*\' for top 40..." oninput="posSearch(this.value)"></div>';
@@ -1684,7 +1694,7 @@ function renderPOS(){
   html+='<textarea class="inv-notes" placeholder="Invoice notes..." oninput="posSale.notes=this.value">'+(s.notes||"")+'</textarea>';
   if(s.lines.length) html+='<div class="tenders" style="margin-top:11px"><button class="tbtn" onclick="posTender(\'Cash\')">Cash</button><button class="tbtn" onclick="posTender(\'Card\')">Card</button><button class="tbtn" onclick="posTender(\'Check\')">Check</button><button class="tbtn" onclick="posTender(\'Account\')">Charge to account</button></div>';
   html+='</div></div>';
-  html+='<div class="proto-note">Memberships price live from pricing_plans through the pricing engine and save a frozen snapshot. Products and events are still a local list. Invoice math is integer cents; discounts reduce the sales-tax base (accountant to confirm). Card/ACH arrive with the Stripe build — the fee model is with the attorney.</div></div>';
+  html+='<div class="proto-note">Every sale writes the pos_sales ledger (see Today\'s drawer). Memberships price live from pricing_plans and save frozen snapshots; products come from the products table. Invoice math is integer cents; discounts reduce the sales-tax base (accountant to confirm). Events are still a local list. Card/ACH arrive with the Stripe build — the fee model is with the attorney.</div></div>';
   $("#view-pos").innerHTML=html;
 }
 function posPickBuyer(){
@@ -1925,7 +1935,7 @@ function posAddProduct(){
   $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Add product</h3><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'</div>';
   openSheet();
 }
-function posAddProdLine(prid){ const p=PRODUCTS.find(x=>x.id===prid); posSale.lines.push({kind:"prod", label:p.label, amount:p.amount, retail:p.amount}); renderPOS(); posEditLine(posSale.lines.length-1, true); }
+function posAddProdLine(prid){ const p=PRODUCTS.find(x=>x.id===prid); posSale.lines.push({kind:"prod", label:p.label, amount:p.amount, retail:p.amount, taxable:(p.taxable!==undefined?p.taxable:true), productDbId:p.dbId||null}); renderPOS(); posEditLine(posSale.lines.length-1, true); }
 function posAddEvent(){
   const body=EVENTS.map(e=>'<button class="opt-btn" onclick="posAddEventLine(\''+e.id+'\')"><div style="flex:1"><div style="font-weight:700">'+e.title+'</div><div style="font-size:12.5px;color:var(--muted)">adds buyer to the participant list</div></div><div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(e.price)+'</div></button>').join("");
   $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Add event</h3><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'</div>';
@@ -1951,7 +1961,7 @@ function posMemRosterPrograms(l){
   return [];
 }
 async function posTender(method){
-  const {total}=posTotals();
+  const t=posTotals(), total=t.total;
   const memLines=posSale.lines.filter(l=>l.kind==="mem");
   const eventLines=posSale.lines.filter(l=>l.kind==="event");
   const m = posSale.memberId ? MEMBERS.find(x=>x.id===posSale.memberId) : null;
@@ -1966,12 +1976,41 @@ async function posTender(method){
   }
 
   let notes=[], badges=[], problems=[];
+  const staff = await currentStaffEmail();
+
+  // ── LEDGER: sale header first — the parent row everything else points at.
+  // The id is minted client-side per tender attempt: a double-tapped button
+  // collides on the primary key instead of recording the sale twice, and in
+  // the Stripe phase this same id becomes the idempotency key.
+  // 'Account' = money NOT received: pending_payment with no payment row, so
+  // the drawer view can show who owes. Everything else records as paid.
+  const saleId = crypto.randomUUID();
+  const saleRecorded = await (async ()=>{
+    const r = await sb.from('pos_sales').insert({
+      id: saleId,
+      buyer_contact_id: posSale.memberId||null,
+      sale_date: posSale.date||attYMD(),
+      staff_email: staff||posSale.staff||'unknown',
+      brand: posSale.brand||'btkd',
+      tender_method: ({Cash:'cash',Card:'card',Check:'check',Account:'account'})[method]||'cash',
+      status: method==='Account' ? 'pending_payment' : 'paid',
+      subtotal_cents: t.cents.subtotalCents,
+      discount_cents: t.cents.discountCents,
+      admin_fee_cents: t.cents.adminFeeCents,
+      tax_cents: t.cents.taxCents,
+      total_cents: t.cents.totalCents,
+      notes: posSale.notes||null,
+      confirmed_at: method==='Account' ? null : new Date().toISOString()
+    });
+    if(r.error){ console.error('pos_sales insert', r.error); problems.push('This sale was NOT recorded in the sales ledger: '+(r.error.message||r.error)+' — keep a paper note for reconciliation.'); return false; }
+    return true;
+  })();
+
   if(memLines.length){
     // Frozen pricing snapshots — the same builder the pricing engine's own
     // save path uses. A later catalog price change never touches these rows.
     // Grouped by student: one invoice can carry memberships for more than one
     // family member (e.g. a parent buying for two kids).
-    const staff = await currentStaffEmail();
     const byStudent = {};
     memLines.forEach(l=>{ (byStudent[l.studentId]=byStudent[l.studentId]||[]).push(l); });
 
@@ -1979,16 +2018,20 @@ async function posTender(method){
       const lines = byStudent[studentId];
       const student = MEMBERS.find(x=>x.id===studentId);
       const who = student ? (student.first+' '+student.last) : studentId;
-      const rows = lines.map(l=>BTKDPricing.buildMembershipSnapshot({
-        calc:l.calc, contactId:studentId, program:l.program,
-        startedOn:(posSale.date||attYMD()), createdBy:staff, override:l.override
-      }));
-      const ins = await sb.from('memberships').insert(rows);
+      const rows = lines.map(l=>{
+        l.__snap = BTKDPricing.buildMembershipSnapshot({
+          calc:l.calc, contactId:studentId, program:l.program,
+          startedOn:(posSale.date||attYMD()), createdBy:staff, override:l.override
+        });
+        return Object.assign({}, l.__snap, { sale_id: saleRecorded ? saleId : null });
+      });
+      const ins = await sb.from('memberships').insert(rows).select('id');
       if(ins.error){
         console.error('membership insert', ins.error);
         problems.push("The membership for "+who+" did NOT save: "+(ins.error.message||ins.error)+" — record it from their profile before they leave.");
         continue;
       }
+      (ins.data||[]).forEach((row,i)=>{ if(lines[i]) lines[i].membershipId = row.id; });
       if(student){
         lines.forEach(l=>{
           const c=l.calc, ov=l.override;
@@ -2012,7 +2055,7 @@ async function posTender(method){
         else {
           const existing=(have||[]).map(r=>r.program);
           const add=want.filter(p=>existing.indexOf(p)===-1)
-            .map(p=>({student_id:studentId, program:p, status:'active'}));
+            .map(p=>({student_id:studentId, program:p, status:'active', sale_id: saleRecorded ? saleId : null}));
           if(add.length){
             const er = await sb.from('enrollments').insert(add);
             if(er.error){ console.error('roster seed', er.error); problems.push('Membership saved, but the class roster was not updated for '+who+': '+(er.error.message||er.error)); }
@@ -2030,9 +2073,34 @@ async function posTender(method){
       badges.push("On event list");
     } else { notes.push("Event sign-up recorded."); }
   }
+  // ── LEDGER: line detail + the money row. After memberships, so mem lines
+  // carry their membership_id and the server-shaped snapshot JSON.
+  if(saleRecorded){
+    const lineRows = posSale.lines.map(l=>({
+      sale_id: saleId, kind: l.kind, label: l.label, qty: l.qty||1,
+      unit_cents: Math.round((l.amount||0)*100),
+      discount_cents: Math.round(posLineDisc(l)*100),
+      taxable: posLineTaxable(l),
+      line_total_cents: Math.round(posLineNet(l)*100),
+      student_contact_id: l.kind==='mem' ? (l.studentId||null) : null,
+      product_id: l.productDbId||null,
+      membership_row: l.kind==='mem' ? (l.__snap||null) : null,
+      membership_id: l.membershipId||null
+    }));
+    const lr = await sb.from('pos_sale_lines').insert(lineRows);
+    if(lr.error){ console.error('pos_sale_lines insert', lr.error); problems.push('Sale recorded but its line detail did not save: '+(lr.error.message||lr.error)); }
+    if(method!=='Account'){
+      const pr = await sb.from('pos_payments').insert({ sale_id: saleId, kind:'charge', amount_cents: t.cents.totalCents, note: method });
+      if(pr.error){ console.error('pos_payments insert', pr.error); problems.push('Sale recorded but the payment row did not save: '+(pr.error.message||pr.error)); }
+    } else {
+      notes.push('Charged to account — recorded as UNPAID in the ledger.');
+    }
+  }
+
   const pm = method==="Account"?"charge to account":method.toLowerCase();
   // Receipt snapshot BEFORE the success screen replaces the invoice state.
   POS_LAST_RECEIPT = {
+    saleId: saleRecorded ? saleId : null,
     brand: posSale.brand, date: posSale.date, staff: posSale.staff, method: method,
     buyer: posBuyerName(),
     lines: posSale.lines.map(l=>({ label:l.label, sub:l.sub||'', qty:l.qty||1, net:posLineNet(l),
@@ -2050,6 +2118,46 @@ async function posTender(method){
     +'<button class="newbtn" style="margin:0" onclick="posPrintReceipt()">Print receipt</button>'
     +'<button class="newbtn" style="margin:0" onclick="posReset()">New sale</button></div></div></div>';
   $("#view-pos").innerHTML=h;
+}
+
+/* ─── today's drawer ─────────────────────────────────────────────────────────
+ * Cash-drawer reconciliation: today's ledger rows summed by tender method.
+ * Unpaid account sales listed separately — they are owed, not in the drawer. */
+async function posTodaySheet(){
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Today\'s drawer</h3><button class="close" onclick="closeSheet()">×</button></div>'
+    +'<div class="sheet-body"><div class="inv-empty" style="padding:18px">Loading…</div></div>';
+  openSheet();
+  const today = attYMD();
+  const { data, error } = await sb.from('pos_sales')
+    .select('tender_method,status,total_cents,staff_email,created_at')
+    .eq('sale_date', today).order('created_at');
+  if(error){
+    $("#sheet .sheet-body").innerHTML='<div class="ag-empty">Could not load the ledger: '+escHtml(error.message||String(error))+'</div>';
+    return;
+  }
+  const rows = data||[];
+  const paid = rows.filter(r=>r.status==='paid');
+  const owed = rows.filter(r=>r.status==='pending_payment');
+  const by = {};
+  paid.forEach(r=>{ const k=r.tender_method; by[k]=by[k]||{n:0,cents:0}; by[k].n++; by[k].cents+=r.total_cents; });
+  const order=['cash','check','card','ach','account'];
+  let h='';
+  if(!rows.length){
+    h='<div class="ag-empty">No sales in the ledger today.</div>';
+  } else {
+    h='<div class="spk-card">';
+    order.filter(k=>by[k]).forEach(k=>{
+      h+='<div class="spk-card-row" style="display:flex;justify-content:space-between"><span><b>'+k.charAt(0).toUpperCase()+k.slice(1)+'</b> · '+by[k].n+' sale'+(by[k].n>1?'s':'')+'</span><span style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(by[k].cents/100)+'</span></div>';
+    });
+    const totalPaid = paid.reduce((a,r)=>a+r.total_cents,0);
+    h+='<div class="spk-card-row" style="display:flex;justify-content:space-between;border-top:1px solid var(--line);margin-top:6px;padding-top:8px"><span><b>Collected today</b> · '+paid.length+'</span><span style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(totalPaid/100)+'</span></div>';
+    if(owed.length){
+      const totalOwed = owed.reduce((a,r)=>a+r.total_cents,0);
+      h+='<div class="spk-card-row" style="display:flex;justify-content:space-between;color:var(--warn)"><span><b>Charged to account (unpaid)</b> · '+owed.length+'</span><span style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(totalOwed/100)+'</span></div>';
+    }
+    h+='</div><div class="ck-hint" style="margin-top:10px">Ledger sales only — sales made before the ledger existed aren\'t here.</div>';
+  }
+  $("#sheet .sheet-body").innerHTML=h;
 }
 
 /* ─── printable receipt ──────────────────────────────────────────────────────
@@ -2093,7 +2201,7 @@ function posPrintReceipt(){
     +'<tr><td>Sales tax</td><td class="r">'+money(c.taxCents/100)+'</td></tr>'
     +'<tr class="g"><td>Total</td><td class="r">'+money(c.totalCents/100)+'</td></tr>'
     +'</table>'
-    +'<div class="meta">Sold to: '+escHtml(r.buyer)+'<br>Paid by: '+escHtml(r.method)+'<br>Date: '+escHtml(r.date)+' · '+escHtml(r.at)+'<br>Staff: '+escHtml(r.staff)+'</div>'
+    +'<div class="meta">Sold to: '+escHtml(r.buyer)+'<br>Paid by: '+escHtml(r.method)+'<br>Date: '+escHtml(r.date)+' · '+escHtml(r.at)+'<br>Staff: '+escHtml(r.staff)+(r.saleId?'<br>Sale: '+escHtml(r.saleId.slice(0,8).toUpperCase()):'')+'</div>'
     +'<div class="legal">'+escHtml(dbaLine)+'<br>Thank you!</div>'
     +'</body></html>');
   w.document.close(); w.focus(); w.print();
@@ -3400,6 +3508,7 @@ async function bootCrm(){
   if(_crmBooted) return;
   _crmBooted = true;
   await loadMembers();
+  loadProducts(); // async — POS quick-list swaps in live rows when it lands
   await attComputeLastVisits();
   renderChips();
   renderList();
