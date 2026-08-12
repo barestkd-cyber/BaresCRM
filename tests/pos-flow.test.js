@@ -117,7 +117,8 @@ const FNS = [
   'posOpenMembershipFor',
   'openSheet', 'closeSheet', 'setNavActive', 'closeNav', 'showSection'
 ];
-const VARS = ['\\$', 'escHtml', 'escAttr', 'money', 'centsFromInput', 'dollarsFromCents', 'POS_ANON_CTX', 'POS_STUDENT_CTX', 'POS_ADD'];
+const VARS = ['\\$', 'escHtml', 'escAttr', 'money', 'centsFromInput', 'dollarsFromCents', 'POS_ANON_CTX', 'POS_STUDENT_CTX', 'POS_ADD',
+  'LEGAL_ENTITY', 'RECEIPT_BRANDS', 'POS_LAST_RECEIPT'];
 
 // ── minimal DOM ──────────────────────────────────────────────────────────────
 const registry = {};
@@ -225,6 +226,11 @@ const sandbox = {
   toast: msg => TOASTS.push(msg),
   currentStaffEmail: async () => 'staff@test',
   setInterval: () => 0, // unused no-op safety net
+  // posTender mints one ledger id per tender attempt (double-tap guard).
+  crypto: { _n: 0, randomUUID() { return 'test-sale-' + (++this._n); } },
+  posBrand: k => ({ key: k || 'btkd', name: 'Bares Taekwondo Fitness', dba: true, effective: false }),
+  posPrintReceipt: () => {},
+  window: { open: () => null },
 };
 vm.createContext(sandbox);
 vm.runInContext(VARS.map(liftVar).join('\n') + '\n' + FNS.map(liftFn).join('\n'), sandbox);

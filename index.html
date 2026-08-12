@@ -676,6 +676,7 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 
       <!-- ===== PROFILE ===== -->
       <section class="view" id="view-profile"></section>
+      <section class="view" id="view-invoice"></section>
 
       <!-- ===== POS ===== -->
       <section class="view" id="view-pos">
@@ -2148,7 +2149,7 @@ async function posTodaySheet(){
   openSheet();
   const today = attYMD();
   const [tRes, uRes] = await Promise.all([
-    sb.from('pos_sales').select('tender_method,status,total_cents').eq('sale_date', today),
+    sb.from('pos_sales').select('id,buyer_contact_id,tender_method,status,total_cents').eq('sale_date', today).order('created_at', {ascending:false}),
     sb.from('pos_sales').select('id,buyer_contact_id,sale_date,total_cents').eq('status','unpaid').order('sale_date')
   ]);
   if(tRes.error || uRes.error){
@@ -2176,25 +2177,38 @@ async function posTodaySheet(){
     const totalOwed = unpaid.reduce((a,r)=>a+r.total_cents,0);
     h+='<div class="pos-sec-lbl" style="margin-top:14px">Unpaid invoices · '+money(totalOwed/100)+' owed</div>';
     unpaid.forEach(r=>{
-      h+='<div class="opt-btn" style="cursor:default"><div style="flex:1"><div style="font-weight:700">'+escHtml(posBuyerLabel(r.buyer_contact_id))+'</div>'
+      h+='<div class="opt-btn" onclick="showInvoice(\''+r.id+'\',\'drawer\')"><div style="flex:1"><div style="font-weight:700">'+escHtml(posBuyerLabel(r.buyer_contact_id))+'</div>'
         +'<div style="font-size:12px;color:var(--muted)">'+escHtml(r.sale_date)+' · '+escHtml(r.id.slice(0,8).toUpperCase())+'</div></div>'
         +'<div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;margin-right:8px">'+money(r.total_cents/100)+'</div>'
-        +'<button class="pb-change" style="font-size:11px;padding:2px 8px;margin-right:5px" onclick="posPrintSaleFromDb(\''+r.id+'\')">Print</button>'
-        +'<button class="pb-change" style="font-size:11px;padding:2px 8px" onclick="posMarkPaidSheet(\''+r.id+'\','+r.total_cents+',\''+escAttr(posBuyerLabel(r.buyer_contact_id))+'\')">Mark paid</button></div>';
+        +'<button class="pb-change" style="font-size:11px;padding:2px 8px;margin-right:5px" onclick="event.stopPropagation();posPrintSaleFromDb(\''+r.id+'\')">Print</button>'
+        +'<button class="pb-change" style="font-size:11px;padding:2px 8px" onclick="event.stopPropagation();posMarkPaidSheet(\''+r.id+'\','+r.total_cents+',\''+escAttr(posBuyerLabel(r.buyer_contact_id))+'\')">Mark paid</button></div>';
     });
   }
-  h+='<div class="ck-hint" style="margin-top:10px">Ledger sales only — sales made before the ledger existed aren\'t here.</div>';
+  if(paid.length){
+    h+='<div class="pos-sec-lbl" style="margin-top:14px">Today\'s sales</div>';
+    (tRes.data||[]).forEach(r=>{
+      h+='<div class="opt-btn" onclick="showInvoice(\''+r.id+'\',\'drawer\')"><div style="flex:1"><div style="font-weight:700">'+escHtml(posBuyerLabel(r.buyer_contact_id))+'</div>'
+        +'<div style="font-size:12px;color:var(--muted)">'+escHtml(r.id.slice(0,8).toUpperCase())+' · '+escHtml(r.tender_method||'unpaid')+'</div></div>'
+        +invStatusChip(r.status)
+        +'<div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;margin-left:10px">'+money(r.total_cents/100)+'</div></div>';
+    });
+  }
+  h+='<div class="ck-hint" style="margin-top:10px">Ledger sales only — sales made before the ledger existed aren\'t here. Tap any sale to open its invoice.</div>';
   $("#sheet .sheet-body").innerHTML=h;
 }
 
-/* Collect an unpaid invoice: pick the method it was actually paid with. */
-function posMarkPaidSheet(saleId, totalCents, who){
-  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Collect '+money(totalCents/100)+'</h3><div class="sub">'+escHtml(who)+'</div></div><button class="close" onclick="posTodaySheet()">×</button></div>'
+/* Collect an unpaid invoice: pick the method it was actually paid with.
+   `reopen` says where to land afterward: 'inv' = the invoice view, anything
+   else = back to the drawer. */
+function posMarkPaidSheet(saleId, totalCents, who, reopen){
+  const back = reopen==='inv' ? ('showInvoice(\''+saleId+'\')') : 'posTodaySheet()';
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Collect '+money(totalCents/100)+'</h3><div class="sub">'+escHtml(who)+'</div></div><button class="close" onclick="closeSheet();'+back+'"">×</button></div>'
     +'<div class="sheet-body"><div class="ck-hint" style="margin-bottom:11px">How was this invoice paid?</div>'
-    +['Cash','Check','Card'].map(m=>'<button class="addopt" onclick="posMarkPaid(\''+saleId+'\',\''+m+'\','+totalCents+')">'+m+'</button>').join('')
+    +['Cash','Check','Card'].map(m=>'<button class="addopt" onclick="posMarkPaid(\''+saleId+'\',\''+m+'\','+totalCents+',\''+(reopen||'')+'\')">'+m+'</button>').join('')
     +'</div>';
+  openSheet();
 }
-async function posMarkPaid(saleId, method, totalCents){
+async function posMarkPaid(saleId, method, totalCents, reopen){
   const upd = await sb.from('pos_sales')
     .update({ status:'paid', tender_method:method.toLowerCase(), confirmed_at:new Date().toISOString() })
     .eq('id', saleId).eq('status','unpaid').select('id');
@@ -2204,7 +2218,8 @@ async function posMarkPaid(saleId, method, totalCents){
   const pr = await sb.from('pos_payments').insert({ sale_id: saleId, kind:'charge', amount_cents: totalCents, note: method+' (collected later)' });
   if(pr.error){ console.error('pos_payments insert', pr.error); toast('Marked paid, but the payment row failed: '+(pr.error.message||pr.error)); }
   else toast('Collected — '+money(totalCents/100)+' by '+method.toLowerCase());
-  posTodaySheet();
+  closeSheet();
+  if(reopen==='inv') showInvoice(saleId, INV_CUR.from); else posTodaySheet();
 }
 
 /* Rebuild a printable invoice/receipt from the ledger (drawer reprints). */
@@ -2227,6 +2242,148 @@ async function posPrintSaleFromDb(saleId){
       adminFeeCents:s.admin_fee_cents, taxCents:s.tax_cents, totalCents:s.total_cents } },
     at: new Date(s.created_at).toLocaleString('en-US')
   });
+}
+
+/* ─── invoice detail view ────────────────────────────────────────────────────
+ * The in-CRM record of one sale, modeled on the Spark invoice page: header
+ * identity + sold-to + invoice number, items with per-line tax, payments
+ * ledger with refunds, PAID state, print. Two deliberate differences from
+ * Spark: no surcharge line (fee model is parked for the attorney), and no
+ * card numbers — we never store card data; method detail arrives with Stripe.
+ * Per-line tax shown here is a DISPLAY allocation of the stored invoice-level
+ * figures (BTKDPricing.allocateCents), so lines always sum to the recorded
+ * totals — the ledger row stays the single source of truth. */
+let INV_CUR = { id: null, from: null };
+
+function invStatusChip(st){
+  const c = st==='paid' ? ['#E4F5EE','#18A974'] : st==='unpaid' ? ['#FDEBEC','#c8102e'] : ['#EDEFF2','#6A727E'];
+  return '<span style="background:'+c[0]+';color:'+c[1]+';font-size:11px;font-weight:700;padding:2px 9px;border-radius:9px;text-transform:capitalize">'+escHtml(st)+'</span>';
+}
+
+async function showInvoice(saleId, from){
+  INV_CUR = { id: saleId, from: from||INV_CUR.from||'pos' };
+  closeSheet();
+  document.querySelectorAll(".view").forEach(v=>v.classList.remove("on"));
+  $("#view-invoice").classList.add("on");
+  setNavActive("pos");
+  $("#view-invoice").innerHTML = '<div class="bld"><div class="inv-empty" style="padding:40px">Loading invoice…</div></div>';
+  document.querySelector("main").scrollTop = 0;
+
+  const [sRes, lRes, pRes] = await Promise.all([
+    sb.from('pos_sales').select('*').eq('id', saleId).single(),
+    sb.from('pos_sale_lines').select('*').eq('sale_id', saleId),
+    sb.from('pos_payments').select('*').eq('sale_id', saleId).order('occurred_at')
+  ]);
+  if(sRes.error || !sRes.data){
+    $("#view-invoice").innerHTML = '<div class="bld"><div class="ag-empty">Could not load this invoice'+(sRes.error?': '+escHtml(sRes.error.message||String(sRes.error)):'')+'</div></div>';
+    return;
+  }
+  const s = sRes.data, lines = lRes.data||[], pays = pRes.data||[];
+  const b = posBrand(s.brand);
+  const buyer = s.buyer_contact_id ? MEMBERS.find(m=>m.id===s.buyer_contact_id) : null;
+  const paidNet = pays.reduce((a,p)=>a+p.amount_cents,0);
+  const refunded = -pays.filter(p=>p.amount_cents<0).reduce((a,p)=>a+p.amount_cents,0);
+
+  // Display-only allocations that reconcile exactly to the stored totals.
+  const discAlloc = BTKDPricing.allocateCents(s.discount_cents, lines.map(l=>l.line_total_cents));
+  const taxAlloc  = BTKDPricing.allocateCents(s.tax_cents, lines.map((l,i)=>l.taxable ? (l.line_total_cents - discAlloc[i]) : 0));
+
+  const backLbl = INV_CUR.from==='profile' ? '‹ Profile' : '‹ Point of sale';
+  let h = '<div class="bld">';
+  h += '<div class="pbar" style="display:flex;align-items:center;justify-content:space-between">'
+    + '<button class="back" onclick="invBack()">'+backLbl+'</button>'
+    + '<div style="display:flex;gap:8px">'
+    + '<button class="pb-change" onclick="posPrintSaleFromDb(\''+s.id+'\')">'+(s.status==='paid'?'Print receipt':'Print invoice')+'</button>'
+    + (s.status==='unpaid' ? '<button class="pb-change" onclick="posMarkPaidSheet(\''+s.id+'\','+s.total_cents+',\''+escAttr(posBuyerLabel(s.buyer_contact_id))+'\',\'inv\')">Mark paid</button>' : '')
+    + (s.status==='paid' && paidNet>0 ? '<button class="pb-change" onclick="posRefundSheet(\''+s.id+'\','+paidNet+')">Record refund</button>' : '')
+    + '</div></div>';
+
+  // header card
+  h += '<div class="card pad" style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:14px">'
+    + '<div><div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;font-size:17px">'+escHtml((b.dba && !b.effective) ? LEGAL_ENTITY : b.name)+'</div>'
+    + '<div style="font-size:12px;color:var(--muted);line-height:1.6;margin-top:3px">1901 Deerbrook Dr, Tyler, TX 75703<br>(903) 561-2966 · barestkd.fit</div></div>'
+    + '<div style="text-align:right"><div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;font-size:15px;letter-spacing:2px">INVOICE '+escHtml(s.id.slice(0,8).toUpperCase())+'</div>'
+    + '<div style="font-size:12px;color:var(--muted);margin-top:3px">'+escHtml(s.sale_date)+' · '+escHtml(new Date(s.created_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}))+'</div>'
+    + '<div style="margin-top:6px">'+invStatusChip(s.status)+(refunded?' <span style="font-size:11px;color:var(--muted)">refunded '+money(refunded/100)+'</span>':'')+'</div></div></div>'
+    + '<div style="display:flex;gap:0;border-top:1px solid var(--line);margin-top:12px;padding-top:10px;flex-wrap:wrap">'
+    + '<div style="flex:1;min-width:120px"><div class="k" style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Sold to</div><div style="font-weight:600;font-size:13.5px;margin-top:2px">'
+    + (buyer ? '<a href="javascript:void(0)" onclick="openProfile(\''+buyer.id+'\')" style="color:var(--accent);text-decoration:none">'+escHtml(buyer.first+' '+buyer.last)+'</a>' : 'Walk-in')+'</div></div>'
+    + '<div style="flex:1;min-width:120px"><div class="k" style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Created by</div><div style="font-weight:600;font-size:13.5px;margin-top:2px">'+escHtml(s.staff_email)+'</div></div>'
+    + '<div style="flex:1;min-width:120px"><div class="k" style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">'+(s.status==='paid'?'Paid by':'Payment')+'</div><div style="font-weight:600;font-size:13.5px;margin-top:2px;text-transform:capitalize">'+escHtml(s.tender_method||'not yet received')+'</div></div>'
+    + '</div></div>';
+
+  // items
+  h += '<div class="card" style="margin-bottom:14px"><table class="inv-tbl"><thead><tr><th style="width:40px">Qty</th><th>Item</th><th class="r">Price</th><th class="r">Disc</th><th class="r">Tax</th><th class="r">Total</th></tr></thead><tbody>';
+  lines.forEach((l,i)=>{
+    const st = l.student_contact_id ? posBuyerLabel(l.student_contact_id) : null;
+    h += '<tr><td class="qty">'+(l.qty||1)+'</td><td>'+escHtml(l.label)
+      + (st?'<div style="font-size:12px;color:var(--muted)">For '+escHtml(st)+'</div>':'')
+      + '</td><td class="r num">'+money(l.unit_cents/100)+'</td>'
+      + '<td class="r num">'+((l.discount_cents||discAlloc[i])?('−'+money(((l.discount_cents||0)+discAlloc[i])/100)):'—')+'</td>'
+      + '<td class="r num">'+(taxAlloc[i]?money(taxAlloc[i]/100):'—')+'</td>'
+      + '<td class="r num">'+money((l.line_total_cents - discAlloc[i] + taxAlloc[i])/100)+'</td></tr>';
+  });
+  h += '</tbody></table>'
+    + '<div style="background:var(--ink);color:#fff;display:flex;justify-content:space-between;align-items:center;padding:14px 16px">'
+    + '<span style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#9AA1AC">'+(s.status==='paid'?'Total paid':'Balance due')+'</span>'
+    + '<span class="num" style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;font-size:24px">'+money(s.total_cents/100)+'</span></div>';
+  if(s.admin_fee_cents) h += '<div style="padding:8px 16px;font-size:12px;color:var(--muted)">Includes admin fee '+money(s.admin_fee_cents/100)+' (not taxed)</div>';
+  h += '</div>';
+
+  // payments
+  h += '<div class="sec-h" style="margin:0 2px 8px">Payments</div><div class="card">';
+  if(pays.length){
+    h += '<table class="inv-tbl"><thead><tr><th>Date</th><th>Type</th><th>Note</th><th class="r">Amount</th></tr></thead><tbody>';
+    pays.forEach(p=>{
+      h += '<tr><td>'+escHtml(new Date(p.occurred_at).toLocaleDateString('en-US'))+'</td>'
+        + '<td style="text-transform:capitalize">'+escHtml(p.kind)+'</td>'
+        + '<td style="color:var(--muted);font-size:12.5px">'+escHtml(p.note||'')+'</td>'
+        + '<td class="r num"'+(p.amount_cents<0?' style="color:#c8102e"':'')+'>'+(p.amount_cents<0?'−':'')+money(Math.abs(p.amount_cents)/100)+'</td></tr>';
+    });
+    h += '</tbody></table>'
+      + '<div style="display:flex;justify-content:space-between;padding:10px 16px;border-top:1.5px solid var(--ink)"><b style="font-size:12px;letter-spacing:1px;text-transform:uppercase">Total paid</b><b class="num">'+money(paidNet/100)+'</b></div>';
+  } else {
+    h += '<div class="inv-empty" style="padding:18px">No payments recorded'+(s.status==='unpaid'?' — this invoice is unpaid.':'.')+'</div>';
+  }
+  h += '</div>';
+
+  if(s.status==='paid' && paidNet>=s.total_cents){
+    h += '<div style="margin:18px 2px"><div style="font-size:13px;font-weight:600;margin-bottom:8px">This invoice is marked paid in full.</div>'
+      + '<span style="display:inline-block;border:3px solid #18A974;color:#18A974;border-radius:6px;padding:3px 18px;font-family:\'Space Grotesk\',sans-serif;font-weight:700;font-size:22px;letter-spacing:4px;transform:rotate(-7deg)">PAID</span></div>';
+  }
+  if(s.notes) h += '<div class="ck-hint" style="margin-top:12px">'+escHtml(s.notes)+'</div>';
+  h += '</div>';
+  $("#view-invoice").innerHTML = h;
+}
+
+function invBack(){
+  if(INV_CUR.from==='profile' && currentMember){ openProfile(currentMember.id); return; }
+  showSection('pos');
+  if(INV_CUR.from==='drawer') posTodaySheet();
+}
+
+/* Record money handed back (cash refund, terminal refund). Append-only: a
+ * negative payment row, never an edit — the sale and its snapshot stay put. */
+function posRefundSheet(saleId, maxCents){
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Record refund</h3><div class="sub">Up to '+money(maxCents/100)+' · does not move money</div></div><button class="close" onclick="closeSheet()">×</button></div>'
+    +'<div class="sheet-body">'
+    +'<div class="ck-hint" style="margin-bottom:11px">This records a refund you already gave (cash back, card terminal refund). It does not process one.</div>'
+    +'<label class="ed-lbl">Refund amount ($)</label><input id="rfAmt" class="ed-in" inputmode="decimal" value="'+dollarsFromCents(maxCents)+'">'
+    +'<label class="ed-lbl" style="margin-top:8px">Reason / note</label><input id="rfNote" class="ed-in" placeholder="e.g. returned uniform — cash back">'
+    +'<button class="tbtn" style="width:100%;margin-top:14px" onclick="posRefundSave(\''+saleId+'\','+maxCents+')">Record refund</button>'
+    +'</div>';
+  openSheet();
+}
+async function posRefundSave(saleId, maxCents){
+  const cents = centsFromInput(document.getElementById('rfAmt').value||'');
+  const note = (document.getElementById('rfNote').value||'').trim();
+  if(cents<=0){ toast('Enter the refund amount'); return; }
+  if(cents>maxCents){ toast('That is more than was paid on this invoice'); return; }
+  if(!note){ toast('A refund needs a reason'); return; }
+  const r = await sb.from('pos_payments').insert({ sale_id: saleId, kind:'refund', amount_cents: -cents, note: note });
+  if(r.error){ toast('Refund did not record: '+(r.error.message||r.error)); return; }
+  closeSheet(); toast('Refund recorded — '+money(cents/100));
+  showInvoice(saleId, INV_CUR.from);
 }
 
 /* ─── printable receipt ──────────────────────────────────────────────────────
@@ -2799,20 +2956,8 @@ function renderProfile(){
   } else { html += '<div class="note-empty">No notes yet.</div>'; }
   html += '</div></div>';
 
-  // account
-  html += '<div class="sec"><div class="sec-h">Account</div><div class="card">';
-  html += '<div class="bal"><span class="bl">Balance owed</span><span class="bv num">'+money(m.balance)+'</span></div>';
-  if(m.invoices.length){
-    m.invoices.slice(0,3).forEach(iv=>{
-      const stc = iv[3]==="paid"?"paid":"over";
-      html += '<div class="inv"><div class="id">'+iv[1]+'<small>'+iv[0]+'</small></div>'
-        + '<div class="ia">'+money(iv[2])+'<div class="st '+stc+'">'+(iv[3]==="paid"?"Paid":"Overdue")+'</div></div></div>';
-    });
-    html += '<div class="linkrow" onclick="toast(\'Opens full invoice history\')">View all invoices →</div>';
-  } else {
-    html += '<div class="inv"><div class="id" style="color:var(--muted)">No invoices yet</div></div>';
-  }
-  html += '</div></div>';
+  // account — live from the sales ledger (pos_sales), filled async
+  html += '<div class="sec"><div class="sec-h">Account</div><div class="card" id="prof-ledger"><div class="inv-empty" style="padding:16px">Loading…</div></div></div>';
 
   // access & role (authorization)
   const _role = m.role || "Student";
@@ -2858,6 +3003,33 @@ function renderProfile(){
   $("#view-profile").innerHTML = html;
   loadProfileAttendance(m.id);
   loadProfileHousehold(m.id);
+  loadProfileLedger(m.id);
+}
+
+/* The profile's Account card: real invoices for sales where this contact is
+ * the buyer. Balance owed = the sum of their unpaid invoices. Ledger-era
+ * only — Spark history predates the ledger and is not represented. */
+async function loadProfileLedger(contactId){
+  const box = document.getElementById('prof-ledger'); if(!box) return;
+  const { data, error } = await sb.from('pos_sales')
+    .select('id,sale_date,status,total_cents,tender_method')
+    .eq('buyer_contact_id', contactId)
+    .order('created_at', { ascending:false })
+    .limit(25);
+  if(error){ console.error('profile ledger', error); box.innerHTML='<div class="inv-empty" style="padding:16px">Could not load invoices.</div>'; return; }
+  const rows = data||[];
+  const owed = rows.filter(r=>r.status==='unpaid').reduce((a,r)=>a+r.total_cents,0);
+  let h = '<div class="bal"><span class="bl">Balance owed</span><span class="bv num"'+(owed?' style="color:#c8102e"':'')+'>'+money(owed/100)+'</span></div>';
+  if(rows.length){
+    rows.slice(0,5).forEach(r=>{
+      h += '<div class="inv" style="cursor:pointer" onclick="showInvoice(\''+r.id+'\',\'profile\')"><div class="id">'+escHtml(r.id.slice(0,8).toUpperCase())+'<small>'+escHtml(r.sale_date)+(r.tender_method?' · '+escHtml(r.tender_method):'')+'</small></div>'
+        + '<div class="ia">'+money(r.total_cents/100)+'<div class="st '+(r.status==='paid'?'paid':'over')+'">'+(r.status==='paid'?'Paid':r.status==='unpaid'?'Unpaid':escHtml(r.status))+'</div></div></div>';
+    });
+    if(rows.length>5) h += '<div class="linkrow" onclick="toast(\'Full history view comes with the payments build\')">'+rows.length+' invoices — showing 5</div>';
+  } else {
+    h += '<div class="inv"><div class="id" style="color:var(--muted)">No invoices yet — ledger sales appear here.</div></div>';
+  }
+  box.innerHTML = h;
 }
 function kv(k,v){ return '<div class="kv"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>'; }
 function acc(title, body){ return '<details class="acc"><summary>'+title+'<span class="chev">⌄</span></summary><div class="ab">'+body+'</div></details>'; }

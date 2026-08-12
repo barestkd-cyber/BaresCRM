@@ -453,6 +453,27 @@
   // Half-up rounding on a non-negative float that is conceptually cents.
   function roundHalfUpCents(x) { return Math.floor(x + 0.5); }
 
+  /* Split `total` integer cents across `weights` pro-rata, largest-remainder,
+   * so the parts always sum to exactly `total`. Zero/empty weights → zeros.
+   * Used for the invoice discount, and by the UI to show per-line tax that
+   * reconciles to the stored invoice-level tax figure. */
+  function allocateCents(total, weights) {
+    total = Math.max(Math.round(Number(total) || 0), 0);
+    var w = (weights || []).map(function (x) { return Math.max(Math.round(Number(x) || 0), 0); });
+    var sum = w.reduce(function (a, b) { return a + b; }, 0);
+    var out = w.map(function () { return 0; });
+    if (!total || !sum) return out;
+    var exact = w.map(function (x) { return total * x / sum; });
+    var floors = exact.map(Math.floor);
+    var used = floors.reduce(function (a, b) { return a + b; }, 0);
+    var rem = total - used;
+    var order = exact.map(function (e, i) { return { i: i, frac: e - floors[i] }; })
+      .sort(function (a, b) { return b.frac - a.frac || a.i - b.i; });
+    out = floors;
+    for (var k = 0; k < rem; k++) out[order[k % order.length].i] += 1;
+    return out;
+  }
+
   /* What one membership line costs TODAY. Recurring plans owe the down payment
    * plus the first payment; a one_time plan owes its full amount PLUS any down
    * payment on the row. (No seeded one_time plan carries a down payment today,
@@ -492,18 +513,7 @@
     var adminFee = Math.max(Math.round(Number(opts.adminFeeCents) || 0), 0);
     var taxRate  = Number(opts.taxRate) || 0;
 
-    // Pro-rata discount allocation, largest remainder.
-    var allocations = lines.map(function () { return 0; });
-    if (discount > 0 && subtotal > 0) {
-      var exact = lines.map(function (l) { return discount * l.cents / subtotal; });
-      var floors = exact.map(Math.floor);
-      var used = floors.reduce(function (a, b) { return a + b; }, 0);
-      var rem = discount - used;
-      var order = exact.map(function (e, i) { return { i: i, frac: e - floors[i] }; })
-        .sort(function (a, b) { return b.frac - a.frac || a.i - b.i; });
-      allocations = floors.slice();
-      for (var k = 0; k < rem; k++) allocations[order[k % order.length].i] += 1;
-    }
+    var allocations = allocateCents(discount, lines.map(function (l) { return l.cents; }));
 
     var taxBase = 0;
     lines.forEach(function (l, i) { if (l.taxable) taxBase += l.cents - allocations[i]; });
@@ -526,6 +536,7 @@
     buildMembershipSnapshot: buildMembershipSnapshot,
     dueTodayCents: dueTodayCents,
     invoiceTotals: invoiceTotals,
+    allocateCents: allocateCents,
     // exposed for the UI and for tests
     householdRank: householdRank,
     familyPosition: familyPosition,

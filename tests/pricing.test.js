@@ -515,6 +515,21 @@ test('28 float dollars would have drifted; cents do not', function () {
   assert.strictEqual(t.totalCents, 6492);
 });
 
+test('29 allocateCents: exact sum, stable order, degenerate inputs', function () {
+  assert.deepStrictEqual(P.allocateCents(1, [333, 333, 334]), [0, 0, 1]);
+  assert.deepStrictEqual(P.allocateCents(100, [1, 1, 1]).reduce(function (a, b) { return a + b; }, 0), 100);
+  assert.deepStrictEqual(P.allocateCents(679, [8225]), [679]);            // one taxable line takes all tax
+  assert.deepStrictEqual(P.allocateCents(0, [10, 20]), [0, 0]);
+  assert.deepStrictEqual(P.allocateCents(50, []), []);
+  assert.deepStrictEqual(P.allocateCents(50, [0, 0]), [0, 0]);
+  // invoiceTotals must still allocate identically after the refactor.
+  var t = P.invoiceTotals({
+    lines: [{ cents: 10000, taxable: true }, { cents: 5000, taxable: false }],
+    discountCents: 3000, taxRate: 0.0825
+  });
+  assert.deepStrictEqual(t.discountAllocationCents, [2000, 1000]);
+});
+
 // ─── summary ───────────────────────────────────────────────────────────────
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
