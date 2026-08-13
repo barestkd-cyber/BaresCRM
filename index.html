@@ -777,6 +777,7 @@ async function loadMembers(){
     gender: c.gender || '',
     guardians: guardiansById[c.id] || [],
     phones: [],
+    email: c.email || '',   // real contact email (receipt prefill)
     emails: [],
     address: c.address || '',
     app: !!c.uses_app,
@@ -1654,9 +1655,10 @@ async function loadProducts(){
 const LEGAL_ENTITY = 'Grizzly Martial Arts and Fitness LLC';
 const RECEIPT_BRANDS = [
   // Both DBAs registered and effective per Race, 2026-08-13.
-  {key:'btkd', name:'Bares Taekwondo Fitness',           dba:true,  effective:true},
-  {key:'gbs',  name:'Grizzly Business Systems',          dba:true,  effective:true},
-  {key:'gmaf', name:'Grizzly Martial Arts and Fitness LLC', dba:false, effective:true}
+  // Logos are hosted URLs so the SAME markup works in print windows and email.
+  {key:'btkd', name:'Bares Taekwondo Fitness',           dba:true,  effective:true,  logo:'https://barestkd.fit/assets/img/logo.png'},
+  {key:'gbs',  name:'Grizzly Business Systems',          dba:true,  effective:true,  logo:'https://crm.barestkd.fit/gbs-logo.png'},
+  {key:'gmaf', name:'Grizzly Martial Arts and Fitness LLC', dba:false, effective:true, logo:null}
 ];
 function posBrand(key){ return RECEIPT_BRANDS.find(b=>b.key===key) || RECEIPT_BRANDS[0]; }
 
@@ -2359,6 +2361,7 @@ async function showInvoice(saleId, from){
     + '<button class="back" onclick="invBack()">'+backLbl+'</button>'
     + '<div style="display:flex;gap:8px">'
     + '<button class="pb-change" onclick="posPrintSaleFromDb(\''+s.id+'\')">'+(s.status==='paid'?'Print receipt':'Print invoice')+'</button>'
+    + '<button class="pb-change" onclick="posEmailReceiptSheet(\''+s.id+'\')">Email '+(s.status==='paid'?'receipt':'invoice')+'</button>'
     + (s.status==='unpaid' && balance>0 ? '<button class="pb-change" onclick="posAddPaymentSheet(\''+s.id+'\','+balance+',\''+escAttr(posBuyerLabel(s.buyer_contact_id))+'\',\'inv\')">Add payment</button>' : '')
     + (s.status==='paid' && paidNet>0 ? '<button class="pb-change" onclick="posRefundSheet(\''+s.id+'\','+paidNet+')">Record refund</button>' : '')
     + '</div></div>';
@@ -2425,9 +2428,46 @@ async function showInvoice(saleId, from){
     h += '<div style="margin:18px 2px"><div style="font-size:13px;font-weight:600;margin-bottom:8px">This invoice is marked paid in full.</div>'
       + '<span style="display:inline-block;border:3px solid #18A974;color:#18A974;border-radius:6px;padding:3px 18px;font-family:\'Space Grotesk\',sans-serif;font-weight:700;font-size:22px;letter-spacing:4px;transform:rotate(-7deg)">PAID</span></div>';
   }
+  if(s.receipt_sent_at) h += '<div class="ck-hint" style="margin-top:12px">✉ '+(s.status==='paid'?'Receipt':'Invoice')+' emailed to '+escHtml(s.receipt_email||'')+' · '+escHtml(new Date(s.receipt_sent_at).toLocaleString('en-US'))+'</div>';
   if(s.notes) h += '<div class="ck-hint" style="margin-top:12px">'+escHtml(s.notes)+'</div>';
   h += '</div>';
   $("#view-invoice").innerHTML = h;
+}
+
+/* Email the receipt/invoice. The server (send-receipt Edge Function) re-reads
+ * the ledger row and does the sending; the client supplies ONLY the sale id
+ * and the recipient. Prefills the buyer's contact email when there is one. */
+function posEmailReceiptSheet(saleId){
+  sb.from('pos_sales').select('buyer_contact_id,receipt_email,status').eq('id', saleId).single().then(function(r){
+    const s = r.data||{};
+    const m = s.buyer_contact_id ? MEMBERS.find(x=>x.id===s.buyer_contact_id) : null;
+    const prefill = s.receipt_email || (m && m.email) || '';
+    $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Email '+(s.status==='paid'?'receipt':'invoice')+'</h3><div class="sub">'+escHtml(posBuyerLabel(s.buyer_contact_id))+'</div></div><button class="close" onclick="closeSheet()">×</button></div>'
+      +'<div class="sheet-body">'
+      +'<label class="ed-lbl">Send to</label><input id="er-to" class="ed-in" type="email" value="'+escAttr(prefill)+'" placeholder="their@email.com">'
+      +(m && !m.email && !s.receipt_email ? '<div class="ck-hint" style="margin-top:8px">'+escHtml(m.first+' '+m.last)+' has no email on file — this send won\'t save it to their contact.</div>' : '')
+      +'<button class="tbtn" style="width:100%;margin-top:14px" id="er-send" onclick="posEmailReceiptSend(\''+saleId+'\')">Send</button>'
+      +'</div>';
+    openSheet();
+  });
+}
+async function posEmailReceiptSend(saleId){
+  const to = (document.getElementById('er-to').value||'').trim();
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)){ toast('Enter a valid email address'); return; }
+  const btn = document.getElementById('er-send');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try{
+    const { data, error } = await sb.functions.invoke('send-receipt', { body: { sale_id: saleId, to: to } });
+    if(error) throw new Error(error.message||String(error));
+    if(!data || !data.ok) throw new Error((data&&data.error)||'send failed');
+    toast('Sent to '+to);
+    closeSheet();
+    showInvoice(saleId, INV_CUR.from);
+  }catch(e){
+    console.error('send-receipt', e);
+    btn.disabled = false; btn.textContent = 'Send';
+    toast('Could not send: '+(e.message||e));
+  }
 }
 
 function invBack(){
@@ -2495,7 +2535,9 @@ function posPrintReceipt(rIn){
     +'.stampwrap{text-align:center;margin:12px 0 2px}'
     +'.stamp.paid{color:#1e9e54}.stamp.due{color:#c8102e}'
     +'</style></head><body>'
-    +'<h1>'+escHtml(headName)+'</h1>'
+    +(b.effective && b.logo
+       ? '<div style="text-align:center;margin-bottom:6px"><img src="'+b.logo+'" alt="'+escHtml(headName)+'" style="max-width:230px;max-height:90px" onerror="this.outerHTML=\''+escHtml(headName)+'\'"></div>'
+       : '<h1>'+escHtml(headName)+'</h1>')
     +'<div class="addr">1901 Deerbrook Dr, Tyler, TX 75703<br>903-561-2966 · barestkd.fit</div>'
     +'<div class="stampwrap"><span class="stamp '+(paid?'paid':'due')+'">'+(paid?'PAID':'BALANCE DUE')+'</span></div>'
     +'<table>'+rows+'</table>'
