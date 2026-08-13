@@ -1659,12 +1659,37 @@ const RECEIPT_BRANDS = [
 ];
 function posBrand(key){ return RECEIPT_BRANDS.find(b=>b.key===key) || RECEIPT_BRANDS[0]; }
 
-function posBlank(){ return {memberId:null, lines:[], discountCents:0, adminFeeCents:0, taxRate:0.0825, brand:'btkd', notes:'', date:attYMD(), staff:'Bares, Race'}; }
+function posBlank(){ return {memberId:null, lines:[], discountCents:0, adminFeeCents:0, taxRate:0.0825, brand:'btkd', notes:'', date:attYMD(), staff:''}; }
 let posSale = posBlank();
+
+/* ─── staff directory ────────────────────────────────────────────────────────
+ * Real names from `profiles` (email + name), POS-capable = passes is_staff()
+ * (role admin/instructor or a staff_role) — no finer POS permission exists
+ * yet. STAFF_DIR maps login email → display name so "Created by" on invoices
+ * and receipts reads "Race Bares", never a raw email; the picker lists every
+ * POS-capable profile. staff_email on the sale stays the LOGIN (audit truth);
+ * the picker is attribution only. */
+let STAFF_DIR = {};
+let STAFF_LIST = [];
+let CURRENT_STAFF_EMAIL = null;
+async function loadStaffDir(){
+  CURRENT_STAFF_EMAIL = await currentStaffEmail();
+  const { data, error } = await sb.from('profiles').select('email,name,role,staff_role');
+  if(error){ console.error('staff dir load', error); return; }
+  (data||[]).filter(p=>p.role==='admin'||p.role==='instructor'||p.staff_role!=null)
+    .forEach(p=>{
+      const nm = (p.name||'').trim() || (p.email||'').split('@')[0];
+      if(p.email) STAFF_DIR[p.email.toLowerCase()] = nm;
+      if(!STAFF_LIST.includes(nm)) STAFF_LIST.push(nm);
+    });
+  STAFF_LIST.sort();
+  if(!posSale.staff) posSale.staff = myStaffName();
+}
+function myStaffName(){ return (CURRENT_STAFF_EMAIL && STAFF_DIR[CURRENT_STAFF_EMAIL.toLowerCase()]) || CURRENT_STAFF_EMAIL || ''; }
+function staffDisplay(email){ return (email && STAFF_DIR[String(email).toLowerCase()]) || email || '—'; }
 function posStaffList(){
-  const list=['Bares, Race'];
-  MEMBERS.forEach(m=>{ if(m.role==='Instructor'||m.role==='Admin'){ const n=m.last+', '+m.first; if(!list.includes(n)) list.push(n); } });
-  return list;
+  if(STAFF_LIST.length) return STAFF_LIST;
+  return myStaffName() ? [myStaffName()] : ['Staff'];
 }
 function posBuyerName(){ if(!posSale.memberId) return "Walk-in / new buyer"; const m=MEMBERS.find(x=>x.id===posSale.memberId); return m? (m.first+" "+m.last) : "Walk-in / new buyer"; }
 function renderPOS(){
@@ -2137,7 +2162,7 @@ async function posTender(method){
   POS_LAST_RECEIPT = {
     saleId: saleRecorded ? saleId : null,
     paid: !isUnpaid,
-    brand: posSale.brand, date: posSale.date, staff: posSale.staff, method: method,
+    brand: posSale.brand, date: posSale.date, staff: posSale.staff || myStaffName(), method: method,
     buyer: posBuyerName(),
     lines: posSale.lines.map(l=>({ label:l.label, sub:l.sub||'', qty:l.qty||1, net:posLineNet(l),
       student: l.kind==='mem' ? (posStudentName(l.studentId)||null) : null })),
@@ -2257,7 +2282,7 @@ async function posPrintSaleFromDb(saleId){
   posPrintReceipt({
     saleId: s.id,
     paid: s.status==='paid',
-    brand: s.brand, date: s.sale_date, staff: s.staff_email,
+    brand: s.brand, date: s.sale_date, staff: staffDisplay(s.staff_email),
     method: s.tender_method ? (s.tender_method.charAt(0).toUpperCase()+s.tender_method.slice(1)) : '—',
     buyer: posBuyerLabel(s.buyer_contact_id),
     lines: lines.map(l=>({ label:l.label, sub:'', qty:l.qty||1, net:l.line_total_cents/100,
@@ -2342,7 +2367,7 @@ async function showInvoice(saleId, from){
     + '<div style="display:flex;gap:0;border-top:1px solid var(--line);margin-top:12px;padding-top:10px;flex-wrap:wrap">'
     + '<div style="flex:1;min-width:120px"><div class="k" style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Sold to</div><div style="font-weight:600;font-size:13.5px;margin-top:2px">'
     + (buyer ? '<a href="javascript:void(0)" onclick="openProfile(\''+buyer.id+'\')" style="color:var(--accent);text-decoration:none">'+escHtml(buyer.first+' '+buyer.last)+'</a>' : 'Walk-in')+'</div></div>'
-    + '<div style="flex:1;min-width:120px"><div class="k" style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Created by</div><div style="font-weight:600;font-size:13.5px;margin-top:2px">'+escHtml(s.staff_email)+'</div></div>'
+    + '<div style="flex:1;min-width:120px"><div class="k" style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Created by</div><div style="font-weight:600;font-size:13.5px;margin-top:2px">'+escHtml(staffDisplay(s.staff_email))+'</div></div>'
     + '<div style="flex:1;min-width:120px"><div class="k" style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">'+(s.status==='paid'?'Paid by':'Payment')+'</div><div style="font-weight:600;font-size:13.5px;margin-top:2px;text-transform:capitalize">'+escHtml(s.tender_method||'not yet received')+'</div></div>'
     + '</div></div>';
 
@@ -3789,7 +3814,8 @@ async function bootCrm(){
   if(_crmBooted) return;
   _crmBooted = true;
   await loadMembers();
-  loadProducts(); // async — POS quick-list swaps in live rows when it lands
+  loadProducts();  // async — POS quick-list swaps in live rows when it lands
+  loadStaffDir();  // async — real staff names for picker/created-by/receipts
   await attComputeLastVisits();
   renderChips();
   renderList();

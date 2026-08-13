@@ -104,7 +104,7 @@ function liftVar(name) {
 const FNS = [
   'attYMD',
   'planByCode', 'householdOf', 'pricingContext', 'loadCatalog', 'loadHouseholds',
-  'posBlank', 'posStaffList', 'posBuyerName',
+  'posBlank', 'posStaffList', 'myStaffName', 'posBuyerName',
   'posLineDisc', 'posLineNet', 'posLineTaxable', 'posTotals',
   'renderPOS',
   'posStudentContext', 'posForgetStudent', 'posStudentName',
@@ -118,7 +118,8 @@ const FNS = [
   'openSheet', 'closeSheet', 'setNavActive', 'closeNav', 'showSection'
 ];
 const VARS = ['\\$', 'escHtml', 'escAttr', 'money', 'centsFromInput', 'dollarsFromCents', 'POS_ANON_CTX', 'POS_STUDENT_CTX', 'POS_ADD',
-  'LEGAL_ENTITY', 'RECEIPT_BRANDS', 'POS_LAST_RECEIPT', 'INV_BANNER'];
+  'LEGAL_ENTITY', 'RECEIPT_BRANDS', 'POS_LAST_RECEIPT', 'INV_BANNER',
+  'STAFF_DIR', 'STAFF_LIST', 'CURRENT_STAFF_EMAIL'];
 
 // ── minimal DOM ──────────────────────────────────────────────────────────────
 const registry = {};
