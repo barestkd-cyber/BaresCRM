@@ -1107,6 +1107,7 @@ function renderDashboard(){
   // the old "Overdue" tile computed from a mock balance that was always zero.
   const cards = [
     {k:"unpaidinv", ico:"⚠", label:"Unpaid invoices", desc:"…", alert:true},
+    {k:"expiring", ico:"⧖", label:"Expiring", desc:"next 30 days"},
     {k:"leads",   ico:"★", label:"Leads",   desc:"in the pipeline"},
     {k:"risk",    ico:"◷", label:"At risk",  desc:"14+ days no visit"},
     {k:"testing", ico:"▲", label:"Testing",  desc:"eligible now"}
@@ -1116,16 +1117,70 @@ function renderDashboard(){
     + '<div id="dash-unpaid"></div>'
     + '<div class="dash-sub">Needs you today</div><div class="dcards">';
   cards.forEach(cd=>{
-    const isInv = cd.k==='unpaidinv';
-    const click = isInv ? "showSection('pos');TX_FILTER='unpaid';posTransactions()" : "goToFilter('"+cd.k+"')";
+    const isInv = cd.k==='unpaidinv', isExp = cd.k==='expiring';
+    const live = isInv || isExp; // async ledger-fed tiles, filled after render
+    const click = isInv ? "showSection('pos');TX_FILTER='unpaid';posTransactions()"
+                : isExp ? "posExpiringSheet()"
+                : "goToFilter('"+cd.k+"')";
+    const nid = isInv?'dash-unpaid-n':isExp?'dash-exp-n':'';
+    const did = isInv?'dash-unpaid-d':isExp?'dash-exp-d':'';
     html += '<button class="dcard'+(cd.alert?' alert':'')+'" onclick="'+click+'">'
-      + '<div class="dc-top"><span class="dc-count num"'+(isInv?' id="dash-unpaid-n"':'')+'>'+(isInv?'…':c[cd.k])+'</span><span class="dc-ico">'+cd.ico+'</span></div>'
-      + '<div class="dc-label">'+cd.label+'</div><div class="dc-desc"'+(isInv?' id="dash-unpaid-d"':'')+'>'+cd.desc+'</div>'
+      + '<div class="dc-top"><span class="dc-count num"'+(live?' id="'+nid+'"':'')+'>'+(live?'…':c[cd.k])+'</span><span class="dc-ico">'+cd.ico+'</span></div>'
+      + '<div class="dc-label">'+cd.label+'</div><div class="dc-desc"'+(live?' id="'+did+'"':'')+'>'+cd.desc+'</div>'
       + '<span class="dc-go">View →</span></button>';
   });
   html += '</div></div>';
   $("#view-dashboard").innerHTML = html;
   dashLoadUnpaid();
+  dashLoadExpiring();
+}
+
+/* Expiring-memberships tile: ACTIVE memberships with an end date inside the
+ * next 30 days. Expiry is a BILLING fact only — it never touches the person's
+ * standing as a contact/active member (locked principle, Race 2026-08-13). */
+async function dashLoadExpiring(){
+  const nEl = document.getElementById('dash-exp-n');
+  const dEl = document.getElementById('dash-exp-d');
+  if(!nEl) return;
+  const today = attYMD();
+  const horizon = addWeeksYMD(today, 5).slice(0,10); // ~30 days out
+  const { data, error } = await sb.from('memberships')
+    .select('id').eq('status','active').not('ended_on','is',null)
+    .gte('ended_on', today).lte('ended_on', horizon);
+  if(error){ console.error('expiring load', error); if(dEl) dEl.textContent='could not load'; return; }
+  const n = (data||[]).length;
+  nEl.textContent = n;
+  if(dEl) dEl.textContent = n ? 'next 30 days' : 'none in 30 days';
+}
+
+/* "Who expires next?" — every dated active membership, soonest first, so Race
+ * can page through upcoming renewals month by month. */
+async function posExpiringSheet(){
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Expiring memberships</h3><button class="close" onclick="closeSheet()">×</button></div>'
+    +'<div class="sheet-body"><div class="inv-empty" style="padding:18px">Loading…</div></div>';
+  openSheet();
+  const today = attYMD();
+  const { data, error } = await sb.from('memberships')
+    .select('id,contact_id,plan_code,program,ended_on,sale_id')
+    .eq('status','active').not('ended_on','is',null)
+    .gte('ended_on', today).order('ended_on', {ascending:true}).limit(60);
+  if(error){ $("#sheet .sheet-body").innerHTML='<div class="ag-empty">Could not load: '+escHtml(error.message||String(error))+'</div>'; return; }
+  const rows = data||[];
+  if(!rows.length){ $("#sheet .sheet-body").innerHTML='<div class="ag-empty">No dated memberships coming up. (Only session plans carry end dates so far.)</div>'; return; }
+  let h='', lastMonth='';
+  rows.forEach(r=>{
+    const mon = new Date(r.ended_on+'T00:00:00').toLocaleDateString('en-US',{month:'long',year:'numeric'});
+    if(mon!==lastMonth){ h+='<div class="pos-sec-lbl" style="margin-top:10px">'+escHtml(mon)+'</div>'; lastMonth=mon; }
+    const days = Math.round((new Date(r.ended_on+'T00:00:00') - new Date(today+'T00:00:00'))/86400000);
+    const pl = (typeof planByCode==='function' && planByCode(r.plan_code)) || null;
+    h+='<div class="opt-btn"'+(r.contact_id?' onclick="closeSheet();openProfile(\''+r.contact_id+'\')"':'')+'>'
+      +'<div style="flex:1"><div style="font-weight:700">'+escHtml(posBuyerLabel(r.contact_id))+'</div>'
+      +'<div style="font-size:12px;color:var(--muted)">'+escHtml(pl?pl.name:(r.plan_code||''))+(r.program?' · '+escHtml(r.program):'')+'</div></div>'
+      +'<div style="text-align:right"><div style="font-weight:700;font-size:13px">'+escHtml(r.ended_on)+'</div>'
+      +'<div style="font-size:11px;color:'+(days<=7?'#c8102e':'var(--muted)')+'">'+(days===0?'today':days+' day'+(days>1?'s':''))+'</div></div></div>';
+  });
+  h+='<div class="ck-hint" style="margin-top:10px">Expiry is billing only — it never changes someone\'s standing as a contact. Renewal notices (month-ahead) are designed and queued for the Stripe recurring phase.</div>';
+  $("#sheet .sheet-body").innerHTML=h;
 }
 
 /* Unpaid-invoice notification: shown only when money is actually owed.
@@ -1205,7 +1260,8 @@ const MB_PROGRAM_CARDS = [
   { key:'Kickboxing',             title:'Kickboxing',             ages:'Ages 13+' },
   { key:'Jiu Jitsu',              title:'Jiu Jitsu',              ages:'Ages 13+' },
   { key:'Kickboxing + Jiu Jitsu', title:'Kickboxing + Jiu Jitsu', ages:'Ages 13+' },
-  { key:"AMP'D",                  title:"AMP'D",                  ages:'Strength & conditioning' }
+  { key:"AMP'D",                  title:"AMP'D",                  ages:'Strength & conditioning' },
+  { key:'Little Kickers',         title:'Little Kickers',         ages:'6-week sessions' }
 ];
 async function renderMemberships(){
   await loadCatalog();
@@ -1658,11 +1714,15 @@ let PRODUCTS = [
  * tender can write real event_registrations. */
 let EVENTS_LIVE = false;
 async function loadEvents(){
-  const { data, error } = await sb.from('events').select('*').eq('active', true).order('display_order');
+  // Curriculum owns this table (label/date/category/note/link). An event with
+  // price_cents set is sellable in POS; null = info-only (Curriculum shows it,
+  // POS does not sell it). One table -> student events autopopulate.
+  const { data, error } = await sb.from('events').select('*').order('date', { ascending: true });
   if(error){ console.error('events load (mock list stays)', error); return; }
-  if(data && data.length){
-    EVENTS = data.map(e=>({ id: e.id, dbId: e.id, title: e.title, price: e.price_cents/100,
-      date: e.event_date||'', desc:'', qty:false, participants:[] }));
+  const sellable = (data||[]).filter(e=>e.price_cents!=null && e.active!==false);
+  if(sellable.length){
+    EVENTS = sellable.map(e=>({ id: e.id, dbId: e.id, title: e.label, price: e.price_cents/100,
+      date: e.date||'', desc: e.note||'', qty:false, participants:[] }));
     EVENTS_LIVE = true;
   }
 }
@@ -2053,6 +2113,7 @@ function posMemRosterPrograms(l){
  * stays fully functional and is removed only after A2 is verified live. */
 const POS_SERVER_SALES = false;
 
+function addWeeksYMD(ymd, weeks){ const d=new Date(ymd+'T00:00:00'); d.setDate(d.getDate()+weeks*7); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function posBuildSaleIntent(saleId, method){
   return {
     sale_id: saleId,
@@ -2181,6 +2242,10 @@ async function posTender(method){
           calc:l.calc, contactId:studentId, program:l.program,
           startedOn:(posSale.date||attYMD()), createdBy:staff, override:l.override
         });
+        // Session plans (duration_weeks) expire: bake the end date into the
+        // snapshot at sale time — the nightly sweep flips them to 'ended'.
+        const pl = planByCode(l.requestedCode);
+        if(pl && pl.duration_weeks) l.__snap.ended_on = addWeeksYMD(posSale.date||attYMD(), pl.duration_weeks);
         return Object.assign({}, l.__snap, { sale_id: saleRecorded ? saleId : null });
       });
       const ins = await sb.from('memberships').insert(rows).select('id');

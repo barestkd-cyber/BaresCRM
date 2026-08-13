@@ -209,6 +209,13 @@ Deno.serve(async (req) => {
           calc, contactId: studentId, program: calc.program,
           startedOn: saleDate, createdBy: staffEmail, override,
         });
+        // Session plans expire: end date baked in at sale time (nightly sweep
+        // flips status to ended). Mirrors the A1 client stamp exactly.
+        if (plan.duration_weeks) {
+          const dt = new Date(saleDate + "T00:00:00Z");
+          dt.setUTCDate(dt.getUTCDate() + plan.duration_weeks * 7);
+          (row as any).ended_on = dt.toISOString().slice(0, 10);
+        }
         priced.push({
           kind: "mem", label: calc.planName || planCode, qty: 1, unit_cents: due,
           discount_cents: 0, taxable: false, line_total_cents: due,
@@ -237,10 +244,10 @@ Deno.serve(async (req) => {
       } else if (kind === "event") {
         if (l.event_id && UUID_RE.test(String(l.event_id))) {
           // Real event: price from the events table, never from the client.
-          const ev = await admin.from("events").select("id,title,price_cents,active").eq("id", String(l.event_id)).single();
-          if (ev.error || !ev.data || ev.data.active === false) return json({ error: "Unknown or inactive event" }, 400, cors);
+          const ev = await admin.from("events").select("id,label,price_cents,active").eq("id", String(l.event_id)).single();
+          if (ev.error || !ev.data || ev.data.active === false || ev.data.price_cents == null) return json({ error: "Unknown or inactive event" }, 400, cors);
           priced.push({
-            kind: "event", label: ev.data.title, qty: 1,
+            kind: "event", label: ev.data.label, qty: 1,
             unit_cents: ev.data.price_cents, discount_cents: 0, taxable: false,
             line_total_cents: ev.data.price_cents,
             student_contact_id: null, product_id: null, membership_row: null,
