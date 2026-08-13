@@ -1741,10 +1741,23 @@ function renderPOS(){
   $("#view-pos").innerHTML=html;
 }
 function posPickBuyer(){
-  let body='<button class="opt-btn" onclick="posSetBuyer(null)"><span class="oi">＋</span>Walk-in / new buyer</button>';
-  body+=MEMBERS.map(m=>'<button class="opt-btn" onclick="posSetBuyer(\''+m.id+'\')"><span class="oi">'+m.first.charAt(0)+'</span>'+m.first+' '+m.last+'</button>').join("");
-  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Who is this sale for?</h3><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'</div>';
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Who is this sale for?</h3><button class="close" onclick="closeSheet()">×</button></div>'
+    +'<div class="sheet-body">'
+    +'<div class="search-wrap" style="padding:0"><span class="search-ico" style="left:14px">⌕</span>'
+    +'<input id="pb-search" class="search" oninput="posPickBuyerFilter()" placeholder="Search contacts"></div>'
+    +'<div id="pb-list" style="margin-top:8px"></div>'
+    +'</div>';
   openSheet();
+  posPickBuyerFilter();
+}
+function posPickBuyerFilter(){
+  const box=document.getElementById('pb-list'); if(!box) return;
+  const q=((document.getElementById('pb-search')||{}).value||'').trim().toLowerCase();
+  const hits=(q ? MEMBERS.filter(m=>(m.first+' '+m.last).toLowerCase().includes(q)) : MEMBERS);
+  box.innerHTML =
+    '<button class="opt-btn" onclick="posSetBuyer(null)"><span class="oi">＋</span>Walk-in / new buyer</button>'
+    + hits.map(m=>'<button class="opt-btn" onclick="posSetBuyer(\''+m.id+'\')"><span class="oi">'+escHtml(m.first.charAt(0))+'</span><div style="flex:1">'+escHtml(m.first+' '+m.last)+'<div style="font-size:12px;color:var(--muted)">'+escHtml(m.rank||m.segment||'')+'</div></div></button>').join('')
+    + (q && !hits.length ? '<div class="ag-empty">No matches.</div>' : '');
 }
 function posSetBuyer(id){ posSale.memberId=id; closeSheet(); renderPOS(); }
 /* Profile-first entrance: "+ Membership" on a member's own profile opens POS
