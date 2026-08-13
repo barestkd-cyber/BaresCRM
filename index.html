@@ -2166,19 +2166,21 @@ async function posTender(method){
 
 function posBuyerLabel(cid){ if(!cid) return 'Walk-in'; const m=MEMBERS.find(x=>x.id===cid); return m?(m.first+' '+m.last):'Unknown'; }
 /* ─── Transactions ────────────────────────────────────────────────────────────
- * Plain recent-transactions list (newest first) with Paid/Unpaid filter chips.
+ * Current-month transactions (newest first) with Paid/Unpaid filter chips.
  * Tap a row to open its invoice. Per Race 2026-08-10: no "drawer", no cash
- * sums — unpaid money surfaces on the Dashboard, not pinned here. */
+ * sums; month scope only — full history belongs to the future read-only
+ * Reports page (the DB keeps everything). EXCEPTION: the Unpaid filter is
+ * all-time, because an old unpaid invoice is still money owed and must not
+ * age out of every screen; the Dashboard banner counts the same set. */
 let TX_FILTER = 'all';
 function posTxSetFilter(f){ TX_FILTER = f; posTransactions(); }
 async function posTransactions(){
   $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Transactions</h3><button class="close" onclick="closeSheet()">×</button></div>'
     +'<div class="sheet-body"><div class="inv-empty" style="padding:18px">Loading…</div></div>';
   openSheet();
-  // Recent 40 covers All/Paid; unpaid is fetched completely so an old unpaid
-  // invoice can never scroll out of existence.
+  const monthStart = attYMD().slice(0,8)+'01'; // local Texas month
   const [rRes, uRes] = await Promise.all([
-    sb.from('pos_sales').select('id,buyer_contact_id,sale_date,tender_method,status,total_cents').order('created_at', {ascending:false}).limit(40),
+    sb.from('pos_sales').select('id,buyer_contact_id,sale_date,tender_method,status,total_cents').gte('sale_date', monthStart).order('created_at', {ascending:false}).limit(200),
     sb.from('pos_sales').select('id,buyer_contact_id,sale_date,tender_method,status,total_cents').eq('status','unpaid').order('created_at', {ascending:false})
   ]);
   if(rRes.error || uRes.error){
@@ -2202,7 +2204,7 @@ async function posTransactions(){
   } else {
     h+='<div class="ag-empty">'+(TX_FILTER==='unpaid'?'No unpaid invoices — nothing owed.':'No transactions yet.')+'</div>';
   }
-  h+='<div class="ck-hint" style="margin-top:10px">Ledger sales only — sales made before the ledger existed aren\'t here. Tap a transaction to open its invoice.</div>';
+  h+='<div class="ck-hint" style="margin-top:10px">'+(TX_FILTER==='unpaid'?'All open invoices, any month.':'This month\'s transactions — full history comes with the Reports page.')+' Tap a transaction to open its invoice.</div>';
   $("#sheet .sheet-body").innerHTML=h;
 }
 
