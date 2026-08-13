@@ -235,15 +235,28 @@ Deno.serve(async (req) => {
           student_contact_id: null, product_id: p.id, membership_row: null,
         });
       } else if (kind === "event") {
-        // DOCUMENTED EXCEPTION: events are a client-side mock until a real
-        // events table exists, so the amount is taken as sent. Bounded.
-        const amt = cents(l.cents);
-        if (amt < 0 || amt > 500000) return json({ error: "Bad event amount" }, 400, cors);
-        priced.push({
-          kind: "event", label: String(l.label ?? "Event").slice(0, 200), qty: 1,
-          unit_cents: amt, discount_cents: 0, taxable: false, line_total_cents: amt,
-          student_contact_id: null, product_id: null, membership_row: null,
-        });
+        if (l.event_id && UUID_RE.test(String(l.event_id))) {
+          // Real event: price from the events table, never from the client.
+          const ev = await admin.from("events").select("id,title,price_cents,active").eq("id", String(l.event_id)).single();
+          if (ev.error || !ev.data || ev.data.active === false) return json({ error: "Unknown or inactive event" }, 400, cors);
+          priced.push({
+            kind: "event", label: ev.data.title, qty: 1,
+            unit_cents: ev.data.price_cents, discount_cents: 0, taxable: false,
+            line_total_cents: ev.data.price_cents,
+            student_contact_id: null, product_id: null, membership_row: null,
+            eventId: ev.data.id,
+          } as Priced & { eventId: string });
+        } else {
+          // DOCUMENTED EXCEPTION: mock events (pre-table) pass the amount as
+          // sent. Bounded; dies when the events table is the only path.
+          const amt = cents(l.cents);
+          if (amt < 0 || amt > 500000) return json({ error: "Bad event amount" }, 400, cors);
+          priced.push({
+            kind: "event", label: String(l.label ?? "Event").slice(0, 200), qty: 1,
+            unit_cents: amt, discount_cents: 0, taxable: false, line_total_cents: amt,
+            student_contact_id: null, product_id: null, membership_row: null,
+          });
+        }
       } else {
         return json({ error: "Unknown line kind: " + kind }, 400, cors);
       }
@@ -321,6 +334,19 @@ Deno.serve(async (req) => {
     }));
     const li = await admin.from("pos_sale_lines").insert(lineRows);
     if (li.error) problems.push("Line detail failed: " + li.error.message);
+
+    // Real-event registrations, sale-linked; duplicate registration is a no-op.
+    const evLines = priced.filter((p: any) => p.eventId);
+    if (evLines.length) {
+      if (buyerId) {
+        const regs = evLines.map((p: any) => ({ event_id: p.eventId, contact_id: buyerId, sale_id: saleId }));
+        const er = await admin.from("event_registrations").upsert(regs, { onConflict: "event_id,contact_id", ignoreDuplicates: true });
+        if (er.error) problems.push("Event registration failed: " + er.error.message);
+        else badges.push("On event list");
+      } else {
+        problems.push("Event sold to a walk-in — no registration recorded.");
+      }
+    }
 
     if (!isUnpaid) {
       const pi = await admin.from("pos_payments").insert({

@@ -1653,6 +1653,19 @@ let PRODUCTS = [
   {id:"pr2", label:"Testing fee", amount:60},
   {id:"pr3", label:"Sparring gear package", amount:242.50}
 ];
+/* Live events for the POS. Falls back to the hardcoded EVENTS mock until the
+ * events table exists (SQL block delivered 2026-08-13); rows gain dbId so
+ * tender can write real event_registrations. */
+let EVENTS_LIVE = false;
+async function loadEvents(){
+  const { data, error } = await sb.from('events').select('*').eq('active', true).order('display_order');
+  if(error){ console.error('events load (mock list stays)', error); return; }
+  if(data && data.length){
+    EVENTS = data.map(e=>({ id: e.id, dbId: e.id, title: e.title, price: e.price_cents/100,
+      date: e.event_date||'', desc:'', qty:false, participants:[] }));
+    EVENTS_LIVE = true;
+  }
+}
 async function loadProducts(){
   const { data, error } = await sb.from('products').select('*').eq('active', true).order('display_order');
   if(error){ console.error('products load — POS is on the hardcoded fallback list', error); return; }
@@ -2012,7 +2025,7 @@ function posAddEvent(){
   $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Add event</h3><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'</div>';
   openSheet();
 }
-function posAddEventLine(eid){ const e=EVENTS.find(x=>x.id===eid); posSale.lines.push({kind:"event", eventId:eid, label:e.title, amount:e.price}); renderPOS(); posEditLine(posSale.lines.length-1, true); }
+function posAddEventLine(eid){ const e=EVENTS.find(x=>x.id===eid); posSale.lines.push({kind:"event", eventId:eid, eventDbId:e.dbId||null, label:e.title, amount:e.price}); renderPOS(); posEditLine(posSale.lines.length-1, true); }
 function posRemoveLine(i){ posSale.lines.splice(i,1); closeSheet(); renderPOS(); }
 /* Enrollment programs a sold membership implies. pricing_plans.program already
    uses the canonical enrollment vocabulary, so it is used directly; a combined
@@ -2056,9 +2069,9 @@ function posBuildSaleIntent(saleId, method){
         override: l.override ? { recurringCents:l.override.recurringCents, downCents:l.override.downCents, reason:l.override.reason } : null };
       if(l.kind==='prod') return { kind:'prod', product_id:l.productDbId||null, qty:l.qty||1,
         disc_type: l.discVal ? (l.discType==='amt'?'amt':'pct') : null, disc_val: l.discVal||0 };
-      // events: still a client-side mock — net cents pass through (documented
-      // exception in pos-sale; dies when a real events table lands).
-      return { kind:'event', label:l.label, cents: Math.round(posLineNet(l)*100) };
+      // Real events send event_id (server prices + registers); mock events
+      // still pass net cents through (documented exception in pos-sale).
+      return { kind:'event', label:l.label, event_id: l.eventDbId||null, cents: Math.round(posLineNet(l)*100) };
     })
   };
 }
@@ -2212,11 +2225,23 @@ async function posTender(method){
     }
   }
   if(eventLines.length){
-    if(m){
-      eventLines.forEach(l=>{ const ev=EVENTS.find(x=>x.id===l.eventId); if(ev && !ev.participants.some(p=>p.memberId===m.id)) ev.participants.push({memberId:m.id, paid:true}); });
-      notes.push(m.first+" "+m.last+" added to "+(eventLines.length>1?"the event participant lists":eventLines[0].label+" participants")+".");
-      badges.push("On event list");
-    } else { notes.push("Event sign-up recorded."); }
+    const realEv = eventLines.filter(l=>l.eventDbId);
+    if(realEv.length && m){
+      // Real events: durable registrations, sale-linked. The unique
+      // (event_id, contact_id) index makes re-buying the same event a no-op.
+      const regs = realEv.map(l=>({ event_id: l.eventDbId, contact_id: m.id, sale_id: saleRecorded?saleId:null }));
+      const er = await sb.from('event_registrations').insert(regs);
+      if(er.error && String(er.error.code)!=='23505'){ console.error('event regs', er.error); problems.push('Event registration did not save: '+(er.error.message||er.error)); }
+      else { notes.push(m.first+' '+m.last+' registered for '+realEv.map(l=>l.label).join(', ')+'.'); badges.push('On event list'); }
+    } else if(realEv.length && !m){
+      problems.push('Event sold to a walk-in — no registration recorded. Attach a buyer and re-ring to register them.');
+    }
+    // Mock events (pre-table) keep the old in-memory behavior.
+    const mockEv = eventLines.filter(l=>!l.eventDbId);
+    if(mockEv.length && m){
+      mockEv.forEach(l=>{ const ev=EVENTS.find(x=>x.id===l.eventId); if(ev && ev.participants && !ev.participants.some(p=>p.memberId===m.id)) ev.participants.push({memberId:m.id, paid:true}); });
+      notes.push('Event sign-up noted (mock event — not durable).');
+    }
   }
   // ── LEDGER: line detail + the money row. After memberships, so mem lines
   // carry their membership_id and the server-shaped snapshot JSON.
@@ -2595,11 +2620,32 @@ function renderReports(){
     + '<button class="pb-change" onclick="rptShift(-1)">‹</button>'
     + '<b style="min-width:120px;text-align:center">'+monthName+'</b>'
     + '<button class="pb-change" onclick="rptShift(1)"'+(isNow?' disabled style="opacity:.4"':'')+'>›</button>'
+    + '<button class="pb-change" onclick="rptExportCsv()">CSV</button>'
     + '</div></div>'
     + '<div id="rpt-body"><div class="inv-empty" style="padding:30px">Loading…</div></div></div>';
   $("#view-reports").innerHTML = html;
   loadReports();
 }
+/* Month data cached for the CSV export; refreshed by every loadReports. */
+let RPT_DATA = null;
+function rptExportCsv(){
+  if(!RPT_DATA || RPT_DATA.month !== RPT_MONTH){ toast('Let the month finish loading first'); return; }
+  const q = v => '"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const rows = [['date','invoice','buyer','status','method','subtotal','discount','admin_fee','tax','total'].join(',')];
+  RPT_DATA.sales.forEach(r=>{
+    rows.push([r.sale_date, r.id.slice(0,8).toUpperCase(), q(posBuyerLabel(r.buyer_contact_id)),
+      r.status, r.tender_method||'', (r.subtotal_cents/100).toFixed(2), (r.discount_cents/100).toFixed(2),
+      (r.admin_fee_cents/100).toFixed(2), (r.tax_cents/100).toFixed(2), (r.total_cents/100).toFixed(2)].join(','));
+  });
+  // ﻿ BOM so Excel opens it as UTF-8 without an import wizard.
+  const blob = new Blob(['﻿'+rows.join('\r\n')], { type:'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'barestkd-transactions-'+RPT_MONTH+'.csv';
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+
 async function loadReports(){
   const box = document.getElementById('rpt-body'); if(!box) return;
   const [y,m] = RPT_MONTH.split('-').map(Number);
@@ -2611,7 +2657,7 @@ async function loadReports(){
   const padStart = new Date(new Date(start+'T00:00:00').getTime() - 86400000).toISOString();
   const padEnd   = new Date(new Date(end+'T00:00:00').getTime() + 86400000).toISOString();
   const [sRes, pRes, uRes] = await Promise.all([
-    sb.from('pos_sales').select('id,buyer_contact_id,sale_date,tender_method,status,total_cents,created_at')
+    sb.from('pos_sales').select('id,buyer_contact_id,sale_date,tender_method,status,subtotal_cents,discount_cents,admin_fee_cents,tax_cents,total_cents,created_at')
       .gte('sale_date', start).lt('sale_date', end).order('created_at', {ascending:false}),
     sb.from('pos_payments').select('kind,amount_cents,occurred_at')
       .gte('occurred_at', padStart).lt('occurred_at', padEnd),
@@ -2623,6 +2669,7 @@ async function loadReports(){
     return;
   }
   const sales = sRes.data||[];
+  RPT_DATA = { month: RPT_MONTH, sales: sales };
   const pays = (pRes.data||[]).filter(p=>{ const d = rptLocalYMD(p.occurred_at); return d >= start && d < end; });
   const collected = pays.filter(p=>p.amount_cents>0).reduce((a,p)=>a+p.amount_cents,0);
   const refunded  = -pays.filter(p=>p.amount_cents<0).reduce((a,p)=>a+p.amount_cents,0);
@@ -4129,6 +4176,7 @@ async function bootCrm(){
   _crmBooted = true;
   await loadMembers();
   loadProducts();  // async — POS quick-list swaps in live rows when it lands
+  loadEvents();    // async — real events replace the mock list when the table exists
   loadStaffDir();  // async — real staff names for picker/created-by/receipts
   await attComputeLastVisits();
   renderChips();
