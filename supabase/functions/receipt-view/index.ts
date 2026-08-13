@@ -50,7 +50,7 @@ function page(title: string, body: string, status = 200) {
   .r{text-align:right;white-space:nowrap}.q{width:26px;color:#777}
   .tot td{border-bottom:none;padding:4px}
   .g td{font-weight:bold;border-top:1.5px solid #111;padding-top:8px;font-size:15px}
-  .stamp{display:inline-block;border:3px solid;border-radius:6px;padding:2px 16px;font-weight:bold;font-size:19px;letter-spacing:3px}
+  .closed{color:#6A727E}.stamp{display:inline-block;border:3px solid;border-radius:6px;padding:2px 16px;font-weight:bold;font-size:19px;letter-spacing:3px}
   .paid{color:#1e9e54}.due{color:#c8102e}
   .meta{font-size:11.5px;color:#555;margin-top:14px;line-height:1.7}
   .legal{font-size:10px;color:#888;text-align:center;margin-top:18px;line-height:1.6}
@@ -85,6 +85,7 @@ Deno.serve(async (req) => {
     const paidNet = pays.reduce((a, p) => a + p.amount_cents, 0);
     const balance = Math.max(s.total_cents - paidNet, 0);
     const paid = s.status === "paid";
+    const closed = s.status === "closed";
     const buyerName = buyerRes.data ? `${buyerRes.data.first_name ?? ""} ${buyerRes.data.last_name ?? ""}`.trim() : null;
 
     const brand = BRANDS[s.brand as string] ?? BRANDS.btkd;
@@ -109,7 +110,7 @@ Deno.serve(async (req) => {
         : `<h1 style="font-size:18px;text-align:center;margin:0 0 2px">${esc(brand.name)}</h1>`}
       <div style="font-size:11px;color:#555;text-align:center;margin-bottom:10px;line-height:1.5">
         1901 Deerbrook Dr, Tyler, TX 75703<br>903-561-2966 · barestkd.fit</div>
-      <div style="text-align:center;margin:12px 0"><span class="stamp ${paid ? "paid" : "due"}">${paid ? "PAID" : "BALANCE DUE"}</span></div>
+      <div style="text-align:center;margin:12px 0"><span class="stamp ${paid ? "paid" : closed ? "closed" : "due"}">${paid ? "PAID" : closed ? "CLOSED" : "BALANCE DUE"}</span></div>
       <table>${rows}</table>
       <table class="tot">
         <tr><td>Subtotal</td><td class="r">${money(s.subtotal_cents)}</td></tr>
@@ -117,13 +118,13 @@ Deno.serve(async (req) => {
         ${s.admin_fee_cents ? `<tr><td>Admin fee</td><td class="r">${money(s.admin_fee_cents)}</td></tr>` : ""}
         <tr><td>Sales tax</td><td class="r">${money(s.tax_cents)}</td></tr>
         <tr class="g"><td>${paid ? "Total paid" : "Total"}</td><td class="r">${money(s.total_cents)}</td></tr>
-        ${!paid && paidNet > 0 ? `<tr><td>Paid so far</td><td class="r">${money(paidNet)}</td></tr>
+        ${!paid && !closed && paidNet > 0 ? `<tr><td>Paid so far</td><td class="r">${money(paidNet)}</td></tr>
           <tr><td style="font-weight:bold;color:#c8102e">Balance due</td><td class="r" style="font-weight:bold;color:#c8102e">${money(balance)}</td></tr>` : ""}
       </table>
       ${payRows}
       <div class="meta">
         ${buyerName ? `Sold to: ${esc(buyerName)}<br>` : ""}
-        ${paid ? `Paid by: ${esc(s.tender_method ?? "—")}` : "Payment: not yet received"}<br>
+        ${paid ? `Paid by: ${esc(s.tender_method ?? "—")}` : closed ? "Closed — no balance due" : "Payment: not yet received"}<br>
         Date: ${esc(s.sale_date)}<br>
         Invoice: ${shortId}</div>
       <div class="legal">${esc(legalLine)}<br>Thank you!</div>

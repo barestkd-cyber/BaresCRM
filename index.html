@@ -1097,11 +1097,13 @@ function launchApp(key){
 /* ========== dashboard (landing) ========== */
 function renderDashboard(){
   const c = {}; Object.keys(FILTERS).forEach(k=> c[k]=MEMBERS.filter(FILTERS[k].test).length);
-  const overdueTotal = MEMBERS.filter(isOverdue).reduce((s,m)=>s+m.balance,0);
+
   const active = MEMBERS.filter(m=>m.segment==="Active").length;
   const leads = MEMBERS.filter(m=>m.segment==="Lead").length;
+  // "Unpaid invoices" reads the REAL ledger (filled async by dashLoadUnpaid);
+  // the old "Overdue" tile computed from a mock balance that was always zero.
   const cards = [
-    {k:"overdue", ico:"⚠", label:"Overdue", desc:money(overdueTotal)+" outstanding", alert:true},
+    {k:"unpaidinv", ico:"⚠", label:"Unpaid invoices", desc:"…", alert:true},
     {k:"leads",   ico:"★", label:"Leads",   desc:"in the pipeline"},
     {k:"risk",    ico:"◷", label:"At risk",  desc:"14+ days no visit"},
     {k:"testing", ico:"▲", label:"Testing",  desc:"eligible now"}
@@ -1111,9 +1113,11 @@ function renderDashboard(){
     + '<div id="dash-unpaid"></div>'
     + '<div class="dash-sub">Needs you today</div><div class="dcards">';
   cards.forEach(cd=>{
-    html += '<button class="dcard'+(cd.alert?' alert':'')+'" onclick="goToFilter(\''+cd.k+'\')">'
-      + '<div class="dc-top"><span class="dc-count num">'+c[cd.k]+'</span><span class="dc-ico">'+cd.ico+'</span></div>'
-      + '<div class="dc-label">'+cd.label+'</div><div class="dc-desc">'+cd.desc+'</div>'
+    const isInv = cd.k==='unpaidinv';
+    const click = isInv ? "showSection('pos');TX_FILTER='unpaid';posTransactions()" : "goToFilter('"+cd.k+"')";
+    html += '<button class="dcard'+(cd.alert?' alert':'')+'" onclick="'+click+'">'
+      + '<div class="dc-top"><span class="dc-count num"'+(isInv?' id="dash-unpaid-n"':'')+'>'+(isInv?'…':c[cd.k])+'</span><span class="dc-ico">'+cd.ico+'</span></div>'
+      + '<div class="dc-label">'+cd.label+'</div><div class="dc-desc"'+(isInv?' id="dash-unpaid-d"':'')+'>'+cd.desc+'</div>'
       + '<span class="dc-go">View →</span></button>';
   });
   html += '</div></div>';
@@ -1128,8 +1132,13 @@ async function dashLoadUnpaid(){
   const { data, error } = await sb.from('pos_sales').select('total_cents').eq('status','unpaid');
   if(error){ console.error('dash unpaid', error); return; }
   const rows = data||[];
+  const owedAll = rows.reduce((a,r)=>a+r.total_cents,0);
+  const nEl = document.getElementById('dash-unpaid-n');
+  const dEl = document.getElementById('dash-unpaid-d');
+  if(nEl) nEl.textContent = rows.length;
+  if(dEl) dEl.textContent = rows.length ? money(owedAll/100)+' owed' : 'nothing owed';
   if(!rows.length){ box.innerHTML=''; return; }
-  const owed = rows.reduce((a,r)=>a+r.total_cents,0);
+  const owed = owedAll;
   box.innerHTML = '<button onclick="showSection(\'pos\');TX_FILTER=\'unpaid\';posTransactions()" '
     + 'style="display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;text-align:left;background:#FDEBEC;border:1.5px solid #c8102e;border-radius:10px;padding:13px 16px;margin-bottom:16px;cursor:pointer">'
     + '<span style="font-weight:700;color:#c8102e">⚠ '+rows.length+' unpaid invoice'+(rows.length>1?'s':'')+' · '+money(owed/100)+' owed</span>'
@@ -2364,6 +2373,8 @@ async function showInvoice(saleId, from){
     + '<button class="pb-change" onclick="posEmailReceiptSheet(\''+s.id+'\')">Email '+(s.status==='paid'?'receipt':'invoice')+'</button>'
     + (s.status==='unpaid' && balance>0 ? '<button class="pb-change" onclick="posAddPaymentSheet(\''+s.id+'\','+balance+',\''+escAttr(posBuyerLabel(s.buyer_contact_id))+'\',\'inv\')">Add payment</button>' : '')
     + (s.status==='paid' && paidNet>0 ? '<button class="pb-change" onclick="posRefundSheet(\''+s.id+'\','+paidNet+')">Record refund</button>' : '')
+    + (s.status==='unpaid' ? '<button class="pb-change" onclick="posCloseInvoiceSheet(\''+s.id+'\','+balance+')">Close</button>' : '')
+    + (s.status==='unpaid' && paidNet===0 && pays.length===0 ? '<button class="pb-change" style="color:#c8102e;border-color:#c8102e" onclick="posDeleteInvoiceSheet(\''+s.id+'\')">Delete</button>' : '')
     + '</div></div>';
 
   // One-time banner: what the tender just did (memberships, rosters, problems).
@@ -2401,9 +2412,9 @@ async function showInvoice(saleId, from){
   });
   h += '</tbody></table>'
     + '<div style="background:var(--ink);color:#fff;display:flex;justify-content:space-between;align-items:center;padding:14px 16px">'
-    + '<span style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#9AA1AC">'+(s.status==='paid'?'Total paid':'Balance due')+'</span>'
+    + '<span style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#9AA1AC">'+(s.status==='paid'?'Total paid':s.status==='closed'?'Closed · balance waived':'Balance due')+'</span>'
     + '<span class="num" style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;font-size:24px">'+money((s.status==='paid'?s.total_cents:balance)/100)+'</span></div>';
-  if(s.status!=='paid' && paidNet>0) h += '<div style="padding:8px 16px;font-size:12px;color:var(--muted)">'+money(paidNet/100)+' of '+money(s.total_cents/100)+' paid so far</div>';
+  if(s.status!=='paid' && paidNet>0) h += '<div style="padding:8px 16px;font-size:12px;color:var(--muted)">'+money(paidNet/100)+' of '+money(s.total_cents/100)+' paid'+(s.status==='closed'?' before this invoice was closed':' so far')+'</div>';
   if(s.admin_fee_cents) h += '<div style="padding:8px 16px;font-size:12px;color:var(--muted)">Includes admin fee '+money(s.admin_fee_cents/100)+' (not taxed)</div>';
   h += '</div>';
 
@@ -2494,6 +2505,53 @@ function invBack(){
   if(INV_CUR.from==='profile' && currentMember){ openProfile(currentMember.id); return; }
   showSection('pos');
   if(INV_CUR.from==='tx') posTransactions();
+}
+
+/* ─── Close / Delete (owner rules 2026-08-13) ───────────────────────────────
+ * CLOSE: unpaid → balance forgiven, NOT paid. Partial payments stay.
+ * DELETE: unpaid + zero payments only — "never happened." Unwinds any
+ * membership/enrollment this sale seeded, then removes the invoice. An
+ * invoice with any payment applied is undeletable (policy + FK enforce). */
+function posCloseInvoiceSheet(saleId, balanceCents){
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Close invoice</h3><div class="sub">'+money(balanceCents/100)+' balance is waived</div></div><button class="close" onclick="closeSheet()">×</button></div>'
+    +'<div class="sheet-body"><div class="ck-hint" style="margin-bottom:11px">The remaining balance stops being owed and this invoice leaves the unpaid list. It is NOT recorded as paid, and any payments already made stay on record. This does not delete anything.</div>'
+    +'<button class="tbtn" style="width:100%" onclick="posCloseInvoice(\''+saleId+'\')">Close it — balance no longer due</button></div>';
+  openSheet();
+}
+async function posCloseInvoice(saleId){
+  const upd = await sb.from('pos_sales').update({ status:'closed' })
+    .eq('id', saleId).eq('status','unpaid').select('id');
+  if(upd.error){ toast('Could not close: '+(upd.error.message||upd.error)); return; }
+  if(!upd.data || !upd.data.length){ toast('Not closed — run sql/pos-invoice-lifecycle.sql, or the invoice is no longer unpaid.'); return; }
+  toast('Invoice closed — balance waived');
+  closeSheet(); showInvoice(saleId, INV_CUR.from);
+}
+async function posDeleteInvoiceSheet(saleId){
+  const [mRes, eRes] = await Promise.all([
+    sb.from('memberships').select('id').eq('sale_id', saleId),
+    sb.from('enrollments').select('id').eq('sale_id', saleId)
+  ]);
+  const nm=(mRes.data||[]).length, ne=(eRes.data||[]).length;
+  const unwind = (nm||ne) ? '<div class="ck-hint" style="margin-bottom:11px;color:var(--warn)">Also removes what this sale created: '+(nm?nm+' membership'+(nm>1?'s':''):'')+(nm&&ne?' and ':'')+(ne?ne+' enrollment'+(ne>1?'s':''):'')+'.</div>' : '';
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Delete invoice</h3><div class="sub">As if it never happened</div></div><button class="close" onclick="closeSheet()">×</button></div>'
+    +'<div class="sheet-body"><div class="ck-hint" style="margin-bottom:11px">Only unpaid invoices with no payments can be deleted. This cannot be undone.</div>'
+    +unwind
+    +'<button class="tbtn" style="width:100%;background:#c8102e" onclick="posDeleteInvoice(\''+saleId+'\')">Delete this invoice</button></div>';
+  openSheet();
+}
+async function posDeleteInvoice(saleId){
+  // Unwind provenance first (FKs would block the sale delete otherwise).
+  const em = await sb.from('enrollments').delete().eq('sale_id', saleId).select('id');
+  if(em.error){ toast('Could not remove enrollments: '+(em.error.message||em.error)); return; }
+  const mm = await sb.from('memberships').delete().eq('sale_id', saleId).select('id');
+  if(mm.error){ toast('Could not remove memberships: '+(mm.error.message||mm.error)); return; }
+  const ds = await sb.from('pos_sales').delete().eq('id', saleId).select('id');
+  if(ds.error){ toast('Could not delete: '+(ds.error.message||ds.error)); return; }
+  // RLS can filter a delete to zero rows silently — surface it.
+  if(!ds.data || !ds.data.length){ toast('Not deleted — run sql/pos-invoice-lifecycle.sql, or a payment exists on this invoice.'); return; }
+  toast('Invoice deleted');
+  closeSheet(); INV_CUR={id:null,from:null};
+  showSection('pos'); posTransactions();
 }
 
 /* Record money handed back (cash refund, terminal refund). Append-only: a
@@ -3102,32 +3160,10 @@ function renderProfile(){
   // household (billing family — filled async by loadProfileHousehold)
   html += '<div class="sec"><div class="sec-h">Household</div><div class="card pad" id="prof-hh">Loading…</div></div>';
 
-  // memberships (near the bottom now, still a child-table block)
-  html += '<div class="sec"><div class="sec-h">Memberships</div>';
-  if(m.memberships.length){
-    html += '<div class="card">';
-    m.memberships.forEach((ms,i)=>{
-      const st = ms.status;
-      const pay = ms.status==="cancelled" ? '<span class="due">No active billing</span>'
-        : (ms.overdue>0
-            ? '<span class="due">Next due '+ms.nextDue+'</span><span class="od">Overdue '+money(ms.overdue)+'</span>'
-            : '<span class="due">Next due '+ms.nextDue+'</span>');
-      const sched = ms.status==="cancelled" ? ''
-        : (ms.total!=null && ms.remaining!=null) ? '<span class="due">'+ms.remaining+' of '+ms.total+' payments left</span>'
-        : (ms.monthly && ms.total==null) ? '<span class="due">Ongoing · '+money(ms.monthly)+'/mo</span>' : '';
-      html += '<div class="mem"><div class="mem-top"><div>'
-        + '<div class="mem-name">'+ms.program+'</div><div class="mem-plan">'+ms.plan+'</div></div>'
-        + '<span class="mstatus '+st+'">'+st.charAt(0).toUpperCase()+st.slice(1)+'</span></div>'
-        + '<div class="mem-pay">'+pay+sched+'</div>'
-        + '<div class="mem-foot">'
-        + (ms.contract?'<button class="vc" onclick="toast(\'No signed agreement is on file — agreement capture comes with the payments build\')">Agreement: none on file</button>':'<span></span>')
-        + '<button class="act" onclick="memActions('+i+')">Actions ▾</button></div></div>';
-    });
-    html += '</div>';
-  } else {
-    html += '<div class="card pad" style="color:var(--muted);font-size:14px">No membership yet.</div>';
-  }
-  html += '<button class="add-mem" onclick="posOpenMembershipFor(\''+m.id+'\')">＋ Sell / add membership</button></div>';
+  // memberships — live from the memberships table (frozen snapshots), async
+  html += '<div class="sec"><div class="sec-h">Memberships</div>'
+    + '<div id="prof-mems"><div class="card pad" style="color:var(--muted);font-size:14px">Loading…</div></div>'
+    + '<button class="add-mem" onclick="posOpenMembershipFor(\''+m.id+'\')">＋ Sell / add membership</button></div>';
 
   // stub accordions (fed by other apps)
   html += '<div class="sec"><div class="sec-h">More</div>';
@@ -3140,6 +3176,44 @@ function renderProfile(){
   loadProfileAttendance(m.id);
   loadProfileHousehold(m.id);
   loadProfileLedger(m.id);
+  loadProfileMemberships(m.id);
+}
+
+/* The profile's Memberships card, live from the real `memberships` table —
+ * frozen snapshots survive reloads (previously this card only knew about
+ * memberships sold in the current browser session). Pause/cancel actions
+ * arrive with the recurring-billing build; until then the card is truth,
+ * not controls. */
+async function loadProfileMemberships(contactId){
+  const box = document.getElementById('prof-mems'); if(!box) return;
+  const { data, error } = await sb.from('memberships')
+    .select('id,program,plan_code,status,billing_frequency,started_on,final_recurring_cents,final_down_cents,payment_count,sale_id')
+    .eq('contact_id', contactId)
+    .order('created_at', { ascending:false });
+  if(error){ console.error('profile memberships', error); box.innerHTML='<div class="card pad" style="color:var(--muted);font-size:14px">Could not load memberships.</div>'; return; }
+  const rows = data||[];
+  if(!rows.length){ box.innerHTML='<div class="card pad" style="color:var(--muted);font-size:14px">No membership yet.</div>'; return; }
+  let h = '<div class="card">';
+  rows.forEach(ms=>{
+    const plan = (typeof planByCode==='function' && planByCode(ms.plan_code)) || null;
+    const planName = plan ? plan.name : (ms.plan_code||'—');
+    const per = ms.billing_frequency==='weekly' ? '/wk' : ms.billing_frequency==='monthly' ? '/mo' : '';
+    const sched = ms.billing_frequency==='one_time'
+      ? 'Paid in full · '+money(ms.final_recurring_cents/100)
+      : money(ms.final_recurring_cents/100)+per
+        + (ms.payment_count ? ' · '+ms.payment_count+' payments' : ' · ongoing')
+        + (ms.final_down_cents ? ' · '+money(ms.final_down_cents/100)+' down' : '');
+    const st = ms.status||'active';
+    h += '<div class="mem"><div class="mem-top"><div>'
+      + '<div class="mem-name">'+escHtml(ms.program||'—')+'</div><div class="mem-plan">'+escHtml(planName)+'</div></div>'
+      + '<span class="mstatus '+escAttr(st)+'">'+escHtml(st.charAt(0).toUpperCase()+st.slice(1))+'</span></div>'
+      + '<div class="mem-pay"><span class="due">'+escHtml(sched)+(ms.started_on?' · since '+escHtml(ms.started_on):'')+'</span></div>'
+      + '<div class="mem-foot">'
+      + (ms.sale_id ? '<button class="vc" onclick="showInvoice(\''+ms.sale_id+'\',\'profile\')">View invoice</button>' : '<span></span>')
+      + '<span></span></div></div>';
+  });
+  h += '</div>';
+  box.innerHTML = h;
 }
 
 /* The profile's Account card: real invoices for sales where this contact is

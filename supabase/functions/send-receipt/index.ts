@@ -117,6 +117,7 @@ Deno.serve(async (req) => {
     const paidNet = (paysRes.data ?? []).reduce((a, p) => a + p.amount_cents, 0);
     const balance = Math.max(s.total_cents - paidNet, 0);
     const paid = s.status === "paid";
+    const closed = s.status === "closed";
 
     const brand = BRANDS[s.brand as string] ?? BRANDS.btkd;
     const legalLine = brand.dba ? `${LEGAL_ENTITY} · DBA ${brand.name}` : LEGAL_ENTITY;
@@ -131,8 +132,8 @@ Deno.serve(async (req) => {
           : `<h1 style="font-size:18px;margin:0 0 10px">${esc(brand.name)}</h1>`}
         <p style="font-size:14.5px;margin:6px 0 2px">Here's your ${paid ? "receipt" : "invoice"} from ${esc(brand.name)}.</p>
         <p style="font-size:22px;font-weight:bold;margin:10px 0 2px">${money(s.total_cents)}</p>
-        <p style="font-size:13px;margin:0 0 16px;${paid ? "color:#1e9e54" : "color:#c8102e"};font-weight:bold">
-          ${paid ? "PAID — thank you!" : `Balance due: ${money(balance)}`}</p>
+        <p style="font-size:13px;margin:0 0 16px;${paid ? "color:#1e9e54" : closed ? "color:#6A727E" : "color:#c8102e"};font-weight:bold">
+          ${paid ? "PAID — thank you!" : closed ? "Closed — no balance due" : `Balance due: ${money(balance)}`}</p>
         <a href="${viewUrl}"
            style="display:inline-block;background:#15171C;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:13px 34px;border-radius:8px">
            View ${paid ? "receipt" : "invoice"}</a>
@@ -144,6 +145,8 @@ Deno.serve(async (req) => {
 
     const subject = paid
       ? `Your receipt from ${brand.name} — ${money(s.total_cents)}`
+      : closed
+      ? `Invoice ${shortId} from ${brand.name} — closed`
       : `Invoice from ${brand.name} — ${money(balance)} due`;
 
     const resendRes = await fetch("https://api.resend.com/emails", {
