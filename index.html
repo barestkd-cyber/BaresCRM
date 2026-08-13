@@ -2031,6 +2031,60 @@ function posMemRosterPrograms(l){
   if(c.category==='cubs') return ['Cubs'];
   return [];
 }
+/* ─── Phase A2 staging ───────────────────────────────────────────────────────
+ * When true, tender sends INTENT to the pos-sale Edge Function, which
+ * re-derives every price server-side from the catalog + household and does
+ * ALL the writes (ledger, snapshots, enrollments). The client's total rides
+ * along only as a checksum — a mismatch is a 409 and nothing records.
+ * KEEP false until Race deploys pos-sale; the A1 client-write path below
+ * stays fully functional and is removed only after A2 is verified live. */
+const POS_SERVER_SALES = false;
+
+function posBuildSaleIntent(saleId, method){
+  return {
+    sale_id: saleId,
+    tender_method: method==='Unpaid' ? 'unpaid' : method.toLowerCase(),
+    buyer_contact_id: posSale.memberId||null,
+    sale_date: posSale.date||attYMD(),
+    brand: posSale.brand||'btkd',
+    notes: posSale.notes||null,
+    discount_cents: posSale.discountCents||0,
+    admin_fee_cents: posSale.adminFeeCents||0,
+    client_total_cents: posTotals().cents.totalCents,
+    lines: posSale.lines.map(l=>{
+      if(l.kind==='mem') return { kind:'mem', student_id:l.studentId||null, plan_code:l.requestedCode,
+        override: l.override ? { recurringCents:l.override.recurringCents, downCents:l.override.downCents, reason:l.override.reason } : null };
+      if(l.kind==='prod') return { kind:'prod', product_id:l.productDbId||null, qty:l.qty||1,
+        disc_type: l.discVal ? (l.discType==='amt'?'amt':'pct') : null, disc_val: l.discVal||0 };
+      // events: still a client-side mock — net cents pass through (documented
+      // exception in pos-sale; dies when a real events table lands).
+      return { kind:'event', label:l.label, cents: Math.round(posLineNet(l)*100) };
+    })
+  };
+}
+
+async function posTenderServer(method){
+  const saleId = crypto.randomUUID();
+  const intent = posBuildSaleIntent(saleId, method);
+  let res;
+  try{
+    const r = await sb.functions.invoke('pos-sale', { body: intent });
+    if(r.error) throw new Error(r.error.message||String(r.error));
+    res = r.data;
+    if(!res || !res.ok) throw new Error((res&&res.error)||'Sale was not recorded');
+  }catch(e){
+    console.error('pos-sale', e);
+    $("#view-pos").innerHTML='<div class="bld"><div class="success"><div class="chk">!</div>'
+      +'<h2>Sale NOT recorded</h2><p>'+escHtml(e.message||String(e))+'</p>'
+      +'<div class="ck-hint" style="margin:9px auto 0;max-width:420px;text-align:left">Nothing was written — the invoice you built is still here. If prices changed, reload and re-ring.</div>'
+      +'<div style="margin-top:18px"><button class="newbtn" style="margin:0" onclick="renderPOS()">Back to the sale</button></div></div></div>';
+    return;
+  }
+  INV_BANNER = { saleId: res.sale_id, badges: res.badges||[], notes: res.notes||[], problems: res.problems||[] };
+  posSale=posBlank(); POS_ADD={studentId:null}; POS_STUDENT_CTX={};
+  showInvoice(res.sale_id, 'pos');
+}
+
 /* The POS does not process cards yet — Stripe is a later phase. This confirm
    exists so tapping "Card" can never quietly pretend the system charged one:
    staff must assert the terminal already ran it before it is recorded. */
@@ -2060,6 +2114,9 @@ async function posTender(method){
     posEditMemLine(posSale.lines.indexOf(unattached[0]), false);
     return;
   }
+
+  // A2: hand the whole sale to the server once the pos-sale function is live.
+  if(POS_SERVER_SALES){ await posTenderServer(method); return; }
 
   let notes=[], badges=[], problems=[];
   const staff = await currentStaffEmail();
@@ -2178,7 +2235,7 @@ async function posTender(method){
     const lr = await sb.from('pos_sale_lines').insert(lineRows);
     if(lr.error){ console.error('pos_sale_lines insert', lr.error); problems.push('Sale recorded but its line detail did not save: '+(lr.error.message||lr.error)); }
     if(!isUnpaid){
-      const pr = await sb.from('pos_payments').insert({ sale_id: saleId, kind:'charge', amount_cents: t.cents.totalCents, note: method });
+      const pr = await sb.from('pos_payments').insert({ sale_id: saleId, kind:'charge', amount_cents: t.cents.totalCents, method: method.toLowerCase(), note: method });
       if(pr.error){ console.error('pos_payments insert', pr.error); problems.push('Sale recorded but the payment row did not save: '+(pr.error.message||pr.error)); }
     } else {
       notes.push('Saved as an unpaid invoice — collect from Today\'s drawer.');
@@ -2280,7 +2337,7 @@ async function posAddPayment(saleId, method, balanceCents, reopen){
   if(cents<=0){ toast('Enter the payment amount'); return; }
   if(cents>balanceCents){ toast('That is more than the '+money(balanceCents/100)+' owed'); return; }
   const partial = cents < balanceCents;
-  const pr = await sb.from('pos_payments').insert({ sale_id: saleId, kind:'charge', amount_cents: cents, note: method+(partial?' (partial)':'') });
+  const pr = await sb.from('pos_payments').insert({ sale_id: saleId, kind:'charge', amount_cents: cents, method: method.toLowerCase(), note: method+(partial?' (partial)':'') });
   if(pr.error){ toast('Payment did not record: '+(pr.error.message||pr.error)); return; }
   if(!partial){
     // Balance is zero — auto-mark paid. The finishing method becomes the

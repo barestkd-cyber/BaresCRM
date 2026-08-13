@@ -112,14 +112,14 @@ const FNS = [
   'posAddMembership', 'posPickProgram', 'posAddMemLine',
   'posAttachSheet', 'posAttachSearch', 'posPickStudentForLine', 'posRequoteLine', 'posSetBuyer',
   'posTkdTrackFor', 'posMemRosterPrograms',
-  'posTender',
+  'posTender', 'posBuildSaleIntent',
   'posEditMemLine', 'posSaveMemLine',
   'posOpenMembershipFor',
   'openSheet', 'closeSheet', 'setNavActive', 'closeNav', 'showSection'
 ];
 const VARS = ['\\$', 'escHtml', 'escAttr', 'money', 'centsFromInput', 'dollarsFromCents', 'POS_ANON_CTX', 'POS_STUDENT_CTX', 'POS_ADD',
   'LEGAL_ENTITY', 'RECEIPT_BRANDS', 'POS_LAST_RECEIPT', 'INV_BANNER',
-  'STAFF_DIR', 'STAFF_LIST', 'CURRENT_STAFF_EMAIL'];
+  'STAFF_DIR', 'STAFF_LIST', 'CURRENT_STAFF_EMAIL', 'POS_SERVER_SALES'];
 
 // ── minimal DOM ──────────────────────────────────────────────────────────────
 const registry = {};
@@ -409,6 +409,40 @@ await test('7 a completed sale writes snapshots + enrollments per STUDENT, not p
   assert.ok(banner && banner.saleId === nav.id, 'banner is staged for the landed-on invoice');
   assert.ok(banner.badges.some(b => /Membership saved/.test(b)), 'membership badge rides the banner');
   assert.strictEqual(sandbox.posSale.lines.length, 0, 'builder resets for the next sale');
+});
+
+await test('8 A2 intent: cents-only, plan codes not prices, server-priced products', async () => {
+  sandbox.posSale = sandbox.posBlank();
+  sandbox.posSale.memberId = 'kidB';
+  sandbox.posSale.discountCents = 500;
+  SB_SELECT['memberships'] = [];
+  await call('posAddMembership(null)');
+  run("posPickProgram('Juniors Taekwondo')");
+  run("posAddMemLine('juniors_option_c')");
+  const i = sandbox.posSale.lines.length - 1;
+  await call('posPickStudentForLine(' + i + ", 'kidA', true)");
+  sandbox.posSale.lines.push({ kind: 'prod', label: 'Beginner uniform', amount: 82.25, retail: 82.25, productDbId: 'prod-uuid-1', qty: 2, discType: 'pct', discVal: 10 });
+  const intent = run("posBuildSaleIntent('11111111-2222-3333-4444-555555555555', 'Cash')");
+  assert.strictEqual(intent.tender_method, 'cash');
+  assert.strictEqual(intent.discount_cents, 500);
+  const mem = intent.lines.find(l => l.kind === 'mem');
+  assert.strictEqual(mem.student_id, 'kidA');
+  assert.strictEqual(mem.plan_code, 'juniors_option_c', 'server re-quotes from the CODE — no client price rides the wire');
+  assert.strictEqual(mem.cents, undefined, 'membership lines carry NO amount');
+  const prod = intent.lines.find(l => l.kind === 'prod');
+  assert.strictEqual(prod.product_id, 'prod-uuid-1');
+  assert.strictEqual(prod.disc_type, 'pct');
+  assert.strictEqual(prod.cents, undefined, 'product lines carry NO amount — server prices from the products table');
+  assert.strictEqual(typeof intent.client_total_cents, 'number', 'client total rides along as a checksum only');
+  assert.ok(Number.isInteger(intent.client_total_cents));
+});
+
+await test('9 vendored pricing_esm.js has not drifted from pricing.js', () => {
+  const gen = require(path.join(__dirname, '..', 'tools', 'gen-esm-pricing.js'));
+  const expected = gen.generate(fs.readFileSync(gen.SRC, 'utf8'));
+  const committed = fs.readFileSync(gen.OUT, 'utf8');
+  assert.strictEqual(committed, expected,
+    'supabase/functions/_shared/pricing_esm.js is stale — run: node tools/gen-esm-pricing.js');
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
