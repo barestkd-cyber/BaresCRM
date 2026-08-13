@@ -2435,32 +2435,52 @@ async function showInvoice(saleId, from){
 }
 
 /* Email the receipt/invoice. The server (send-receipt Edge Function) re-reads
- * the ledger row and does the sending; the client supplies ONLY the sale id
- * and the recipient. Prefills the buyer's contact email when there is one. */
+ * the ledger row and sends a SHORT email whose "View receipt" button opens
+ * the live view-only page (receipt-view, by the sale's token). The client
+ * supplies ONLY the sale id and recipients.
+ *
+ * Recipient rule (per Race 2026-08-13): NO typing in the normal case — the
+ * buyer's on-file email is the recipient automatically. Tap it to correct,
+ * "+ Add another" for extra recipients (max 3). An empty input only appears
+ * when there is genuinely no email on file (walk-in / missing email). */
 function posEmailReceiptSheet(saleId){
   sb.from('pos_sales').select('buyer_contact_id,receipt_email,status').eq('id', saleId).single().then(function(r){
     const s = r.data||{};
     const m = s.buyer_contact_id ? MEMBERS.find(x=>x.id===s.buyer_contact_id) : null;
-    const prefill = s.receipt_email || (m && m.email) || '';
+    const prefill = (m && m.email) || s.receipt_email || '';
     $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Email '+(s.status==='paid'?'receipt':'invoice')+'</h3><div class="sub">'+escHtml(posBuyerLabel(s.buyer_contact_id))+'</div></div><button class="close" onclick="closeSheet()">×</button></div>'
       +'<div class="sheet-body">'
-      +'<label class="ed-lbl">Send to</label><input id="er-to" class="ed-in" type="email" value="'+escAttr(prefill)+'" placeholder="their@email.com">'
-      +(m && !m.email && !s.receipt_email ? '<div class="ck-hint" style="margin-top:8px">'+escHtml(m.first+' '+m.last)+' has no email on file — this send won\'t save it to their contact.</div>' : '')
+      +'<label class="ed-lbl">To</label><div id="er-list">'
+      +'<input class="ed-in er-to" type="email" value="'+escAttr(prefill)+'" placeholder="their@email.com">'
+      +'</div>'
+      +(prefill?'' : '<div class="ck-hint" style="margin-top:8px">No email on file for this buyer — enter one. (Buyer profiles should carry an email.)</div>')
+      +'<button class="addopt" style="margin-top:8px" onclick="posEmailAddRecipient()">＋ Add another email</button>'
       +'<button class="tbtn" style="width:100%;margin-top:14px" id="er-send" onclick="posEmailReceiptSend(\''+saleId+'\')">Send</button>'
       +'</div>';
     openSheet();
   });
 }
+function posEmailAddRecipient(){
+  const list = document.getElementById('er-list'); if(!list) return;
+  if(list.querySelectorAll('.er-to').length >= 3){ toast('Three recipients max'); return; }
+  const inp = document.createElement('input');
+  inp.className = 'ed-in er-to'; inp.type = 'email'; inp.placeholder = 'another@email.com';
+  inp.style.marginTop = '6px';
+  list.appendChild(inp); inp.focus();
+}
 async function posEmailReceiptSend(saleId){
-  const to = (document.getElementById('er-to').value||'').trim();
-  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)){ toast('Enter a valid email address'); return; }
+  const to = [...document.querySelectorAll('#er-list .er-to')]
+    .map(i=>(i.value||'').trim()).filter(Boolean);
+  if(!to.length){ toast('Enter at least one email address'); return; }
+  const bad = to.find(t=>!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t));
+  if(bad){ toast('Not a valid email: '+bad); return; }
   const btn = document.getElementById('er-send');
   btn.disabled = true; btn.textContent = 'Sending…';
   try{
     const { data, error } = await sb.functions.invoke('send-receipt', { body: { sale_id: saleId, to: to } });
     if(error) throw new Error(error.message||String(error));
     if(!data || !data.ok) throw new Error((data&&data.error)||'send failed');
-    toast('Sent to '+to);
+    toast('Sent to '+to.join(', '));
     closeSheet();
     showInvoice(saleId, INV_CUR.from);
   }catch(e){
