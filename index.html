@@ -1107,6 +1107,7 @@ function renderDashboard(){
   ];
   let html = '<div class="dash">'
     + '<div class="dash-hd"><h2>Dashboard</h2><div class="ds">'+active+' active members · '+leads+' leads in the pipeline</div></div>'
+    + '<div id="dash-unpaid"></div>'
     + '<div class="dash-sub">Needs you today</div><div class="dcards">';
   cards.forEach(cd=>{
     html += '<button class="dcard'+(cd.alert?' alert':'')+'" onclick="goToFilter(\''+cd.k+'\')">'
@@ -1116,6 +1117,22 @@ function renderDashboard(){
   });
   html += '</div></div>';
   $("#view-dashboard").innerHTML = html;
+  dashLoadUnpaid();
+}
+
+/* Unpaid-invoice notification: shown only when money is actually owed.
+   Tapping it opens Transactions pre-filtered to unpaid. */
+async function dashLoadUnpaid(){
+  const box = document.getElementById('dash-unpaid'); if(!box) return;
+  const { data, error } = await sb.from('pos_sales').select('total_cents').eq('status','unpaid');
+  if(error){ console.error('dash unpaid', error); return; }
+  const rows = data||[];
+  if(!rows.length){ box.innerHTML=''; return; }
+  const owed = rows.reduce((a,r)=>a+r.total_cents,0);
+  box.innerHTML = '<button onclick="showSection(\'pos\');TX_FILTER=\'unpaid\';posTransactions()" '
+    + 'style="display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;text-align:left;background:#FDEBEC;border:1.5px solid #c8102e;border-radius:10px;padding:13px 16px;margin-bottom:16px;cursor:pointer">'
+    + '<span style="font-weight:700;color:#c8102e">⚠ '+rows.length+' unpaid invoice'+(rows.length>1?'s':'')+' · '+money(owed/100)+' owed</span>'
+    + '<span style="font-size:12px;font-weight:700;color:#c8102e;white-space:nowrap">Review →</span></button>';
 }
 
 /* ========== memberships config ========== */
@@ -1652,7 +1669,7 @@ function posStaffList(){
 function posBuyerName(){ if(!posSale.memberId) return "Walk-in / new buyer"; const m=MEMBERS.find(x=>x.id===posSale.memberId); return m? (m.first+" "+m.last) : "Walk-in / new buyer"; }
 function renderPOS(){
   const s=posSale, t=posTotals();
-  let html='<div class="bld"><div class="bld-hd" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px"><div><h2>Point of sale</h2><p>Search a buyer or item on the left, build the invoice on the right.</p></div><button class="pb-change" style="flex-shrink:0" onclick="posTodaySheet()">Today\'s drawer</button></div>';
+  let html='<div class="bld"><div class="bld-hd" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px"><div><h2>Point of sale</h2><p>Search a buyer or item on the left, build the invoice on the right.</p></div><button class="pb-change" style="flex-shrink:0" onclick="TX_FILTER=\'all\';posTransactions()">Transactions</button></div>';
   html+='<div class="pos-grid">';
   html+='<div>';
   html+='<div class="pos-search-wrap"><span class="search-ico">⌕</span><input class="search pos-search" placeholder="Search contacts, products or \'*\' for top 40..." oninput="posSearch(this.value)"></div>';
@@ -2127,9 +2144,17 @@ async function posTender(method){
     totals: posTotals(),
     at: new Date().toLocaleString('en-US')
   };
-  // A write that failed must never read as a clean sale.
-  let h='<div class="bld"><div class="success"><div class="chk">'+(problems.length?'!':'✓')+'</div>'
-    +'<h2>'+(problems.length?'Sale taken — needs attention':(isUnpaid?'Invoice saved — unpaid':'Sale complete'))+'</h2>'
+  // Recorded sale → land straight on its invoice, tender messages riding
+  // along as a one-time banner (per Race 2026-08-10). The standalone screen
+  // survives only for the case where no invoice row exists to land on.
+  if(saleRecorded){
+    INV_BANNER = { saleId: saleId, badges: badges, notes: notes, problems: problems };
+    posSale=posBlank(); POS_ADD={studentId:null}; POS_STUDENT_CTX={};
+    showInvoice(saleId, 'pos');
+    return;
+  }
+  let h='<div class="bld"><div class="success"><div class="chk">!</div>'
+    +'<h2>Sale taken — needs attention</h2>'
     +'<p>'+(isUnpaid ? money(total)+' due.' : money(total)+' paid by '+pm+'.')+(notes.length?(" "+notes.join(" ")):"")+'</p>';
   badges.forEach(b=>h+='<div class="insys" style="margin:6px 4px 0">✓ '+b+'</div>');
   problems.forEach(p=>h+='<div class="ck-hint" style="margin:9px auto 0;max-width:420px;color:var(--warn);text-align:left">'+escHtml(p)+'</div>');
@@ -2139,87 +2164,84 @@ async function posTender(method){
   $("#view-pos").innerHTML=h;
 }
 
-/* ─── today's drawer + unpaid invoices ───────────────────────────────────────
- * Cash-drawer reconciliation (today's collected money by tender method) plus
- * ALL open unpaid invoices — any date — each payable or printable from here. */
 function posBuyerLabel(cid){ if(!cid) return 'Walk-in'; const m=MEMBERS.find(x=>x.id===cid); return m?(m.first+' '+m.last):'Unknown'; }
-async function posTodaySheet(){
-  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Today\'s drawer</h3><button class="close" onclick="closeSheet()">×</button></div>'
+/* ─── Transactions ────────────────────────────────────────────────────────────
+ * Plain recent-transactions list (newest first) with Paid/Unpaid filter chips.
+ * Tap a row to open its invoice. Per Race 2026-08-10: no "drawer", no cash
+ * sums — unpaid money surfaces on the Dashboard, not pinned here. */
+let TX_FILTER = 'all';
+function posTxSetFilter(f){ TX_FILTER = f; posTransactions(); }
+async function posTransactions(){
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Transactions</h3><button class="close" onclick="closeSheet()">×</button></div>'
     +'<div class="sheet-body"><div class="inv-empty" style="padding:18px">Loading…</div></div>';
   openSheet();
-  const today = attYMD();
-  const [tRes, uRes] = await Promise.all([
-    sb.from('pos_sales').select('id,buyer_contact_id,tender_method,status,total_cents').eq('sale_date', today).order('created_at', {ascending:false}),
-    sb.from('pos_sales').select('id,buyer_contact_id,sale_date,total_cents').eq('status','unpaid').order('sale_date')
+  // Recent 40 covers All/Paid; unpaid is fetched completely so an old unpaid
+  // invoice can never scroll out of existence.
+  const [rRes, uRes] = await Promise.all([
+    sb.from('pos_sales').select('id,buyer_contact_id,sale_date,tender_method,status,total_cents').order('created_at', {ascending:false}).limit(40),
+    sb.from('pos_sales').select('id,buyer_contact_id,sale_date,tender_method,status,total_cents').eq('status','unpaid').order('created_at', {ascending:false})
   ]);
-  if(tRes.error || uRes.error){
-    const e = tRes.error||uRes.error;
-    $("#sheet .sheet-body").innerHTML='<div class="ag-empty">Could not load the ledger: '+escHtml(e.message||String(e))+'</div>';
+  if(rRes.error || uRes.error){
+    const e = rRes.error||uRes.error;
+    $("#sheet .sheet-body").innerHTML='<div class="ag-empty">Could not load transactions: '+escHtml(e.message||String(e))+'</div>';
     return;
   }
-  const paid = (tRes.data||[]).filter(r=>r.status==='paid');
-  const unpaid = uRes.data||[];
-  const by = {};
-  paid.forEach(r=>{ const k=r.tender_method||'?'; by[k]=by[k]||{n:0,cents:0}; by[k].n++; by[k].cents+=r.total_cents; });
-  let h='';
-  if(paid.length){
-    h+='<div class="spk-card">';
-    ['cash','check','card','ach'].filter(k=>by[k]).forEach(k=>{
-      h+='<div class="spk-card-row" style="display:flex;justify-content:space-between"><span><b>'+k.charAt(0).toUpperCase()+k.slice(1)+'</b> · '+by[k].n+' sale'+(by[k].n>1?'s':'')+'</span><span style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(by[k].cents/100)+'</span></div>';
-    });
-    const totalPaid = paid.reduce((a,r)=>a+r.total_cents,0);
-    h+='<div class="spk-card-row" style="display:flex;justify-content:space-between;border-top:1px solid var(--line);margin-top:6px;padding-top:8px"><span><b>Collected today</b> · '+paid.length+'</span><span style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(totalPaid/100)+'</span></div>';
-    h+='</div>';
-  } else {
-    h+='<div class="ag-empty">Nothing collected today yet.</div>';
-  }
-  if(unpaid.length){
-    const totalOwed = unpaid.reduce((a,r)=>a+r.total_cents,0);
-    h+='<div class="pos-sec-lbl" style="margin-top:14px">Unpaid invoices · '+money(totalOwed/100)+' owed</div>';
-    unpaid.forEach(r=>{
-      h+='<div class="opt-btn" onclick="showInvoice(\''+r.id+'\',\'drawer\')"><div style="flex:1"><div style="font-weight:700">'+escHtml(posBuyerLabel(r.buyer_contact_id))+'</div>'
-        +'<div style="font-size:12px;color:var(--muted)">'+escHtml(r.sale_date)+' · '+escHtml(r.id.slice(0,8).toUpperCase())+'</div></div>'
-        +'<div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;margin-right:8px">'+money(r.total_cents/100)+'</div>'
-        +'<button class="pb-change" style="font-size:11px;padding:2px 8px;margin-right:5px" onclick="event.stopPropagation();posPrintSaleFromDb(\''+r.id+'\')">Print</button>'
-        +'<button class="pb-change" style="font-size:11px;padding:2px 8px" onclick="event.stopPropagation();posMarkPaidSheet(\''+r.id+'\','+r.total_cents+',\''+escAttr(posBuyerLabel(r.buyer_contact_id))+'\')">Mark paid</button></div>';
-    });
-  }
-  if(paid.length){
-    h+='<div class="pos-sec-lbl" style="margin-top:14px">Today\'s sales</div>';
-    (tRes.data||[]).forEach(r=>{
-      h+='<div class="opt-btn" onclick="showInvoice(\''+r.id+'\',\'drawer\')"><div style="flex:1"><div style="font-weight:700">'+escHtml(posBuyerLabel(r.buyer_contact_id))+'</div>'
-        +'<div style="font-size:12px;color:var(--muted)">'+escHtml(r.id.slice(0,8).toUpperCase())+' · '+escHtml(r.tender_method||'unpaid')+'</div></div>'
+  const recent = rRes.data||[], unpaidAll = uRes.data||[];
+  const rows = TX_FILTER==='unpaid' ? unpaidAll
+             : TX_FILTER==='paid'   ? recent.filter(r=>r.status==='paid')
+             : recent;
+  const chip = (f,lbl)=>'<button class="ck-tab'+(TX_FILTER===f?' on':'')+'" onclick="posTxSetFilter(\''+f+'\')">'+lbl+'</button>';
+  let h='<div class="ck-tabs" style="margin-bottom:10px">'+chip('all','All')+chip('paid','Paid')+chip('unpaid','Unpaid')+'</div>';
+  if(rows.length){
+    rows.forEach(r=>{
+      h+='<div class="opt-btn" onclick="showInvoice(\''+r.id+'\',\'tx\')"><div style="flex:1"><div style="font-weight:700">'+escHtml(posBuyerLabel(r.buyer_contact_id))+'</div>'
+        +'<div style="font-size:12px;color:var(--muted)">'+escHtml(r.sale_date)+' · '+escHtml(r.id.slice(0,8).toUpperCase())+(r.tender_method?' · '+escHtml(r.tender_method):'')+'</div></div>'
         +invStatusChip(r.status)
         +'<div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;margin-left:10px">'+money(r.total_cents/100)+'</div></div>';
     });
+  } else {
+    h+='<div class="ag-empty">'+(TX_FILTER==='unpaid'?'No unpaid invoices — nothing owed.':'No transactions yet.')+'</div>';
   }
-  h+='<div class="ck-hint" style="margin-top:10px">Ledger sales only — sales made before the ledger existed aren\'t here. Tap any sale to open its invoice.</div>';
+  h+='<div class="ck-hint" style="margin-top:10px">Ledger sales only — sales made before the ledger existed aren\'t here. Tap a transaction to open its invoice.</div>';
   $("#sheet .sheet-body").innerHTML=h;
 }
 
-/* Collect an unpaid invoice: pick the method it was actually paid with.
-   `reopen` says where to land afterward: 'inv' = the invoice view, anything
-   else = back to the drawer. */
-function posMarkPaidSheet(saleId, totalCents, who, reopen){
-  const back = reopen==='inv' ? ('showInvoice(\''+saleId+'\')') : 'posTodaySheet()';
-  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Collect '+money(totalCents/100)+'</h3><div class="sub">'+escHtml(who)+'</div></div><button class="close" onclick="closeSheet();'+back+'"">×</button></div>'
-    +'<div class="sheet-body"><div class="ck-hint" style="margin-bottom:11px">How was this invoice paid?</div>'
-    +['Cash','Check','Card'].map(m=>'<button class="addopt" onclick="posMarkPaid(\''+saleId+'\',\''+m+'\','+totalCents+',\''+(reopen||'')+'\')">'+m+'</button>').join('')
+/* ─── Add payment ────────────────────────────────────────────────────────────
+ * Payments are rows AGAINST an invoice. Partial amounts are allowed; the
+ * balance is the payments-table sum, and when it reaches zero the invoice
+ * flips to paid automatically (tender_method = the method that finished it). */
+function posAddPaymentSheet(saleId, balanceCents, who, reopen){
+  const back = reopen==='inv' ? ('showInvoice(\''+saleId+'\')') : 'posTransactions()';
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Add payment</h3><div class="sub">'+escHtml(who)+' · '+money(balanceCents/100)+' owed</div></div><button class="close" onclick="closeSheet();'+back+'">×</button></div>'
+    +'<div class="sheet-body">'
+    +'<label class="ed-lbl">Amount ($)</label><input id="apAmt" class="ed-in" inputmode="decimal" value="'+dollarsFromCents(balanceCents)+'">'
+    +'<div class="ck-hint" style="margin:8px 0 11px">Partial payments are fine — the invoice stays open until the balance hits zero, then marks itself paid.</div>'
+    +['Cash','Check','Card'].map(m=>'<button class="addopt" onclick="posAddPayment(\''+saleId+'\',\''+m+'\','+balanceCents+',\''+(reopen||'')+'\')">'+m+'</button>').join('')
     +'</div>';
   openSheet();
 }
-async function posMarkPaid(saleId, method, totalCents, reopen){
-  const upd = await sb.from('pos_sales')
-    .update({ status:'paid', tender_method:method.toLowerCase(), confirmed_at:new Date().toISOString() })
-    .eq('id', saleId).eq('status','unpaid').select('id');
-  if(upd.error){ toast('Could not mark paid: '+(upd.error.message||upd.error)); return; }
-  // RLS can filter an update to zero rows without an error — treat as failure.
-  if(!upd.data || !upd.data.length){ toast('Invoice not updated — it may already be paid.'); posTodaySheet(); return; }
-  const pr = await sb.from('pos_payments').insert({ sale_id: saleId, kind:'charge', amount_cents: totalCents, note: method+' (collected later)' });
-  if(pr.error){ console.error('pos_payments insert', pr.error); toast('Marked paid, but the payment row failed: '+(pr.error.message||pr.error)); }
-  else toast('Collected — '+money(totalCents/100)+' by '+method.toLowerCase());
+async function posAddPayment(saleId, method, balanceCents, reopen){
+  const cents = centsFromInput(document.getElementById('apAmt').value||'');
+  if(cents<=0){ toast('Enter the payment amount'); return; }
+  if(cents>balanceCents){ toast('That is more than the '+money(balanceCents/100)+' owed'); return; }
+  const partial = cents < balanceCents;
+  const pr = await sb.from('pos_payments').insert({ sale_id: saleId, kind:'charge', amount_cents: cents, note: method+(partial?' (partial)':'') });
+  if(pr.error){ toast('Payment did not record: '+(pr.error.message||pr.error)); return; }
+  if(!partial){
+    // Balance is zero — auto-mark paid. The finishing method becomes the
+    // invoice's tender_method; the payments table holds the full story.
+    const upd = await sb.from('pos_sales')
+      .update({ status:'paid', tender_method:method.toLowerCase(), confirmed_at:new Date().toISOString() })
+      .eq('id', saleId).eq('status','unpaid').select('id');
+    if(upd.error) console.error('auto-paid update', upd.error);
+    // RLS can filter an update to zero rows without an error; the payment row
+    // still recorded, so just say what happened.
+    toast('Paid in full — '+money(cents/100)+' by '+method.toLowerCase());
+  } else {
+    toast('Payment recorded — '+money((balanceCents-cents)/100)+' still owed');
+  }
   closeSheet();
-  if(reopen==='inv') showInvoice(saleId, INV_CUR.from); else posTodaySheet();
+  if(reopen==='inv') showInvoice(saleId, INV_CUR.from); else posTransactions();
 }
 
 /* Rebuild a printable invoice/receipt from the ledger (drawer reprints). */
@@ -2254,6 +2276,7 @@ async function posPrintSaleFromDb(saleId){
  * figures (BTKDPricing.allocateCents), so lines always sum to the recorded
  * totals — the ledger row stays the single source of truth. */
 let INV_CUR = { id: null, from: null };
+let INV_BANNER = null; // one-time tender messages consumed by the next showInvoice
 
 function invStatusChip(st){
   const c = st==='paid' ? ['#E4F5EE','#18A974'] : st==='unpaid' ? ['#FDEBEC','#c8102e'] : ['#EDEFF2','#6A727E'];
@@ -2288,15 +2311,24 @@ async function showInvoice(saleId, from){
   const discAlloc = BTKDPricing.allocateCents(s.discount_cents, lines.map(l=>l.line_total_cents));
   const taxAlloc  = BTKDPricing.allocateCents(s.tax_cents, lines.map((l,i)=>l.taxable ? (l.line_total_cents - discAlloc[i]) : 0));
 
+  const balance = Math.max(s.total_cents - paidNet, 0);
   const backLbl = INV_CUR.from==='profile' ? '‹ Profile' : '‹ Point of sale';
   let h = '<div class="bld">';
   h += '<div class="pbar" style="display:flex;align-items:center;justify-content:space-between">'
     + '<button class="back" onclick="invBack()">'+backLbl+'</button>'
     + '<div style="display:flex;gap:8px">'
     + '<button class="pb-change" onclick="posPrintSaleFromDb(\''+s.id+'\')">'+(s.status==='paid'?'Print receipt':'Print invoice')+'</button>'
-    + (s.status==='unpaid' ? '<button class="pb-change" onclick="posMarkPaidSheet(\''+s.id+'\','+s.total_cents+',\''+escAttr(posBuyerLabel(s.buyer_contact_id))+'\',\'inv\')">Mark paid</button>' : '')
+    + (s.status==='unpaid' && balance>0 ? '<button class="pb-change" onclick="posAddPaymentSheet(\''+s.id+'\','+balance+',\''+escAttr(posBuyerLabel(s.buyer_contact_id))+'\',\'inv\')">Add payment</button>' : '')
     + (s.status==='paid' && paidNet>0 ? '<button class="pb-change" onclick="posRefundSheet(\''+s.id+'\','+paidNet+')">Record refund</button>' : '')
     + '</div></div>';
+
+  // One-time banner: what the tender just did (memberships, rosters, problems).
+  if(INV_BANNER && INV_BANNER.saleId===s.id){
+    if(INV_BANNER.badges.length) h += '<div style="margin-bottom:10px">'+INV_BANNER.badges.map(x=>'<span class="insys" style="margin:0 6px 6px 0">✓ '+escHtml(x)+'</span>').join('')+'</div>';
+    if(INV_BANNER.notes.length)  h += '<div class="ck-hint" style="margin-bottom:10px">'+INV_BANNER.notes.map(escHtml).join(' ')+'</div>';
+    if(INV_BANNER.problems.length) INV_BANNER.problems.forEach(p=>{ h += '<div class="ck-hint" style="margin-bottom:10px;color:var(--warn)">'+escHtml(p)+'</div>'; });
+    INV_BANNER = null;
+  }
 
   // header card
   h += '<div class="card pad" style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:14px">'
@@ -2326,7 +2358,8 @@ async function showInvoice(saleId, from){
   h += '</tbody></table>'
     + '<div style="background:var(--ink);color:#fff;display:flex;justify-content:space-between;align-items:center;padding:14px 16px">'
     + '<span style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#9AA1AC">'+(s.status==='paid'?'Total paid':'Balance due')+'</span>'
-    + '<span class="num" style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;font-size:24px">'+money(s.total_cents/100)+'</span></div>';
+    + '<span class="num" style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;font-size:24px">'+money((s.status==='paid'?s.total_cents:balance)/100)+'</span></div>';
+  if(s.status!=='paid' && paidNet>0) h += '<div style="padding:8px 16px;font-size:12px;color:var(--muted)">'+money(paidNet/100)+' of '+money(s.total_cents/100)+' paid so far</div>';
   if(s.admin_fee_cents) h += '<div style="padding:8px 16px;font-size:12px;color:var(--muted)">Includes admin fee '+money(s.admin_fee_cents/100)+' (not taxed)</div>';
   h += '</div>';
 
@@ -2359,7 +2392,7 @@ async function showInvoice(saleId, from){
 function invBack(){
   if(INV_CUR.from==='profile' && currentMember){ openProfile(currentMember.id); return; }
   showSection('pos');
-  if(INV_CUR.from==='drawer') posTodaySheet();
+  if(INV_CUR.from==='tx') posTransactions();
 }
 
 /* Record money handed back (cash refund, terminal refund). Append-only: a

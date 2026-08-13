@@ -118,7 +118,7 @@ const FNS = [
   'openSheet', 'closeSheet', 'setNavActive', 'closeNav', 'showSection'
 ];
 const VARS = ['\\$', 'escHtml', 'escAttr', 'money', 'centsFromInput', 'dollarsFromCents', 'POS_ANON_CTX', 'POS_STUDENT_CTX', 'POS_ADD',
-  'LEGAL_ENTITY', 'RECEIPT_BRANDS', 'POS_LAST_RECEIPT'];
+  'LEGAL_ENTITY', 'RECEIPT_BRANDS', 'POS_LAST_RECEIPT', 'INV_BANNER'];
 
 // ── minimal DOM ──────────────────────────────────────────────────────────────
 const registry = {};
@@ -230,8 +230,13 @@ const sandbox = {
   crypto: { _n: 0, randomUUID() { return 'test-sale-' + (++this._n); } },
   posBrand: k => ({ key: k || 'btkd', name: 'Bares Taekwondo Fitness', dba: true, effective: false }),
   posPrintReceipt: () => {},
+  // A recorded tender lands on the invoice view; the view itself is
+  // DB-rendering chrome, so the sim only records that we navigated there.
+  showInvoice: (id, from) => { sandboxNav.push({ id, from }); },
   window: { open: () => null },
 };
+const sandboxNav = [];
+sandbox.sandboxNav = sandboxNav;
 vm.createContext(sandbox);
 vm.runInContext(VARS.map(liftVar).join('\n') + '\n' + FNS.map(liftFn).join('\n'), sandbox);
 sandbox.posSale = sandbox.posBlank();
@@ -395,8 +400,14 @@ await test('7 a completed sale writes snapshots + enrollments per STUDENT, not p
   assert.strictEqual(enrInsert.rows[0].student_id, 'kidA');
   const student = sandbox.MEMBERS.find(m => m.id === 'kidA');
   assert.strictEqual(student.memberships.length, 1, 'bookkeeping lands on the actual student');
-  const viewHtml = ensureEl('view-pos').innerHTML;
-  assert.ok(viewHtml.includes('Sale complete'), 'a fully-attached sale must succeed: ' + viewHtml.slice(0, 200));
+  // A recorded tender lands on the invoice page with a one-time banner
+  // (owner decision 2026-08-10), and the builder resets behind it.
+  const nav = sandboxNav[sandboxNav.length - 1];
+  assert.ok(nav && nav.from === 'pos', 'must navigate to the invoice view after tender');
+  const banner = run('INV_BANNER');
+  assert.ok(banner && banner.saleId === nav.id, 'banner is staged for the landed-on invoice');
+  assert.ok(banner.badges.some(b => /Membership saved/.test(b)), 'membership badge rides the banner');
+  assert.strictEqual(sandbox.posSale.lines.length, 0, 'builder resets for the next sale');
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
