@@ -109,7 +109,10 @@ const FNS = [
   'renderPOS',
   'posStudentContext', 'posForgetStudent', 'posStudentName',
   'posQuote', 'posMemDueCents', 'posMemLineDueCents', 'posMemRecurringNote', 'posProgramBuckets',
-  'posSuggestedAdminFeeCents', 'posPaperConfirm', 'posSaveAmount',
+  'posSuggestedAdminFeeCents', 'posSaveAmount',
+  'posPayOpen', 'posPayTab', 'posPayRender', 'posPayChange', 'posPayQuick',
+  'posPayFeePrompt', 'posPayFeeAnswer', 'posPaySubmit', 'posPayClose',
+  'pmNowParts', 'pmOccurredAt',
   'posAddMembership', 'posPickProgram', 'posAddMemLine',
   'posAttachSheet', 'posAttachSearch', 'posPickStudentForLine', 'posRequoteLine', 'posSetBuyer',
   'posTkdTrackFor', 'posMemRosterPrograms',
@@ -118,7 +121,7 @@ const FNS = [
   'posOpenMembershipFor',
   'openSheet', 'closeSheet', 'setNavActive', 'closeNav', 'showSection'
 ];
-const VARS = ['\\$', 'escHtml', 'escAttr', 'money', 'centsFromInput', 'dollarsFromCents', 'POS_ANON_CTX', 'POS_STUDENT_CTX', 'POS_ADD',
+const VARS = ['\\$', 'escHtml', 'escAttr', 'money', 'centsFromInput', 'dollarsFromCents', 'POS_ANON_CTX', 'POS_STUDENT_CTX', 'POS_ADD', 'PAY', 'PAY_DETAIL', 'IV_ICO',
   'LEGAL_ENTITY', 'RECEIPT_BRANDS', 'POS_LAST_RECEIPT', 'INV_BANNER',
   'STAFF_DIR', 'STAFF_LIST', 'CURRENT_STAFF_EMAIL', 'POS_SERVER_SALES'];
 
@@ -127,7 +130,9 @@ const registry = {};
 function ensureEl(id) {
   if (!registry[id]) {
     const el = {
-      id, value: '', checked: false, style: {}, _html: '', textContent: '',
+      id, value: '', checked: false, style: {}, _html: '', textContent: '', disabled: false,
+      insertAdjacentHTML(pos, html){ this.innerHTML = (pos==='afterbegin') ? (html + this._html) : (this._html + html); },
+      remove(){ delete registry[this.id]; },
       classList: {
         set: new Set(),
         add(c) { this.set.add(c); },
@@ -478,11 +483,64 @@ await test('11 admin fee rides every invoice by default; manual edit and paper-t
   run('renderPOS()');
   assert.strictEqual(sandbox.posSale.adminFeeCents, 500, 'manual fee survives later line changes');
 
-  // Cash/Check offer removal rather than tendering straight through.
-  run("posPaperConfirm('Cash')");
-  const sheet = ensureEl('sheet').innerHTML;
-  assert.ok(/Remove admin fee\?/.test(sheet), 'paper tender asks before recording');
-  assert.ok(/posTender\(.Cash.\)/.test(sheet), 'both answers still lead to recording the sale');
+  // The modal opens on Card and only asks about the fee when a PAPER tab is
+  // chosen — the fee is a card-processing pass-through.
+  await call("posPayOpen({mode:'sale'})");
+  assert.ok(!/Remove admin fee\?/.test(ensureEl('sheet').innerHTML), 'card tab never asks');
+  run("posPayTab('Cash')");
+  assert.ok(/Remove admin fee\?/.test(ensureEl('pmBody').innerHTML), 'paper tab asks at selection time');
+
+  // Answering No keeps the fee; the modal still pays.
+  await call('posPayFeeAnswer(false)');
+  assert.strictEqual(sandbox.posSale.adminFeeCents, 500, 'No leaves the fee alone');
+
+  // Answering Yes zeroes it and re-quotes the balance.
+  run("posPayTab('Check')");
+  await call('posPayFeeAnswer(true)');
+  assert.strictEqual(sandbox.posSale.adminFeeCents, 0, 'Yes removes the fee from the sale');
+  assert.strictEqual(run('PAY.feeCents'), 0);
+});
+
+await test('12 payment modal: change, partial, and the detail handed to posTender', async () => {
+  sandbox.PRICE_SETTINGS.admin_fee_bps = 0;      // isolate the money math
+  sandbox.PRICE_SETTINGS.admin_fee_flat_cents = 0;
+  sandbox.posSale = sandbox.posBlank();
+  sandbox.posSale.memberId = 'kidA';
+  sandbox.posSale.lines.push({ kind: 'prod', label: 'Beginner uniform', amount: 82.25, qty: 1, taxable: true });
+  run('renderPOS()');
+  const total = run('posTotals()').cents.totalCents;   // 8225 + 8.25% tax
+
+  await call("posPayOpen({mode:'sale'})");
+  assert.strictEqual(run('PAY.balanceCents'), total, 'modal opens owing the full invoice');
+  assert.strictEqual(ensureEl('pmAmt').value, run('dollarsFromCents(' + total + ')'), 'amount prefills to the balance');
+
+  // Cash: tender more than due -> change, and it is only ever a display value.
+  run("posPayTab('Cash')");
+  ensureEl('pmTendered').value = '100.00';
+  run('posPayChange()');
+  assert.strictEqual(ensureEl('pmChangeV').textContent, run('money(' + ((10000 - total) / 100) + ')'),
+    'change = tendered − amount due');
+
+  // Tendering LESS than the amount being paid is a mistake, not a partial.
+  ensureEl('pmTendered').value = '50.00';
+  SB_CALLS.length = 0;
+  await call('posPaySubmit()');
+  assert.ok(TOASTS.some(t => /less than the amount/i.test(t)), 'refuses short cash');
+  assert.ok(!SB_CALLS.some(c => c.table === 'pos_sales'), 'nothing was written');
+
+  // A partial payment: sale is created UNPAID with a real payment row.
+  ensureEl('pmAmt').value = '20.00';
+  ensureEl('pmTendered').value = '20.00';
+  SB_CALLS.length = 0;
+  await call('posPaySubmit()');
+  const sale = SB_CALLS.find(c => c.table === 'pos_sales' && c.op === 'insert');
+  const pay = SB_CALLS.find(c => c.table === 'pos_payments' && c.op === 'insert');
+  assert.ok(sale && pay, 'both the invoice and the payment were written');
+  assert.strictEqual(sale.rows.status, 'unpaid', 'a partial leaves the invoice open');
+  assert.strictEqual(sale.rows.tender_method, null, 'no tender method until it is actually paid');
+  assert.strictEqual(sale.rows.total_cents, total, 'the invoice still owes the full amount');
+  assert.strictEqual(pay.rows.amount_cents, 2000, 'the payment row carries what was collected');
+  assert.strictEqual(pay.rows.method, 'cash');
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');

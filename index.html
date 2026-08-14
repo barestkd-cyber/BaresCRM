@@ -587,6 +587,26 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .iv-empty2{display:flex;align-items:center;gap:11px;padding:6px 16px 16px;color:var(--muted);font-size:13px}
 .iv-empty2 .ic{width:34px;height:34px;border-radius:9px;background:var(--surface);display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .iv-empty2 .ic svg{width:17px;height:17px}
+/* payment modal */
+.pm-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:13px}
+.pm-tab{display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 4px;border:1.5px solid var(--line);border-radius:10px;background:var(--card);font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;font-family:inherit}
+.pm-tab svg{width:19px;height:19px}
+.pm-tab.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.pm-total{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:13px 14px;margin-bottom:6px}
+.pm-total .ic{width:38px;height:38px;border-radius:9px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.pm-total .ic svg{width:18px;height:18px;color:var(--muted)}
+.pm-total .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+.pm-total .v{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:22px;margin-left:auto}
+.pm-row{display:flex;gap:10px}
+.pm-row>div{flex:1;min-width:0}
+.pm-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+.pm-chip{padding:8px 13px;border:1.5px solid var(--line);border-radius:8px;background:var(--card);font-size:13px;font-weight:700;color:var(--text);cursor:pointer;font-family:inherit}
+.pm-chip.exact{border-color:var(--go);color:var(--go)}
+.pm-change{background:#E4F5EE;border:1px solid #BFE6D6;border-radius:11px;padding:12px 14px;margin-top:12px;display:flex;align-items:center;justify-content:space-between}
+.pm-change .k{font-size:11px;color:#18A974;text-transform:uppercase;letter-spacing:1px;font-weight:700}
+.pm-change .v{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:23px;color:#18A974}
+.pm-warn{background:#FDEBEC;border:1px solid #F5C6CB;color:#c8102e;border-radius:10px;padding:10px 12px;margin-top:11px;font-size:12.5px;font-weight:600}
+
 .iv-card .inv-tbl{font-size:13px}
 .iv-card .inv-tbl th:first-child,.iv-card .inv-tbl td:first-child{padding-left:16px}
 .iv-card .inv-tbl th:last-child,.iv-card .inv-tbl td:last-child{padding-right:16px}
@@ -1871,7 +1891,7 @@ function renderPOS(){
   html+='</div></div>';
   html+='<div class="inv-add"><button onclick="posAmountSheet(\'discount\')">＋ Discount</button><button onclick="posAmountSheet(\'fee\')">＋ Admin fee</button></div>';
   html+='<textarea class="inv-notes" placeholder="Invoice notes..." oninput="posSale.notes=this.value">'+(s.notes||"")+'</textarea>';
-  if(s.lines.length) html+='<div class="tenders" style="margin-top:11px"><button class="tbtn" onclick="posPaperConfirm(\'Cash\')">Cash</button><button class="tbtn" onclick="posCardConfirm()">Card</button><button class="tbtn" onclick="posPaperConfirm(\'Check\')">Check</button><button class="tbtn" onclick="posTender(\'Unpaid\')">Save unpaid</button></div>';
+  if(s.lines.length) html+='<div class="tenders" style="margin-top:11px"><button class="tbtn" onclick="posPayOpen({mode:\'sale\'})">Add payment</button><button class="tbtn" style="background:var(--ink)" onclick="posTender(\'Unpaid\')">Save unpaid</button></div>';
   html+='</div></div>';
   html+='<div class="proto-note">Every sale writes the pos_sales ledger (see Today\'s drawer). Memberships price live from pricing_plans and save frozen snapshots; products come from the products table. Invoice math is integer cents; discounts reduce the sales-tax base (accountant to confirm). Events are still a local list. Card/ACH arrive with the Stripe build — the fee model is with the attorney.</div></div>';
   $("#view-pos").innerHTML=html;
@@ -2225,34 +2245,215 @@ function posSuggestedAdminFeeCents(){
   if(base<=0) return 0;
   return Math.floor(base*bps/10000 + 0.5) + flat;
 }
-async function posCardConfirm(){
-  const {total}=posTotals();
-  const fee = posSale.adminFeeCents||0;
-  $("#sheet").innerHTML='<div class="grab"></div>'
-    +'<div class="sheet-head"><div><h3>Card payment</h3><div class="sub">No card is charged here (yet)</div></div><button class="close" onclick="closeSheet()">×</button></div>'
-    +'<div class="sheet-body">'
-    +(fee?'<div class="ck-hint" style="margin-bottom:11px">Includes the '+money(fee/100)+' admin fee (card processing pass-through).</div>':'')
-    +'<div class="ck-hint" style="margin-bottom:11px">This records a card payment — it does not process one. Run <b>'+money(total)+'</b> on the card terminal first, then record it here.</div>'
-    +'<button class="addopt" onclick="closeSheet();posTender(\'Card\')">Card was charged on the terminal — record it</button>'
-    +'<button class="addopt" style="margin-top:8px" onclick="closeSheet()">Cancel</button>'
-    +'</div>';
+/* ─── unified payment modal ──────────────────────────────────────────────────
+ * One component, two contexts (owner spec from the Spark walkthrough,
+ * 2026-08-15):
+ *   mode 'sale'    — ringing a new sale; Pay Now creates the invoice AND the
+ *                    payment (partial ⇒ invoice created unpaid + payment row).
+ *   mode 'invoice' — collecting on an existing unpaid invoice; Pay Now adds a
+ *                    payment row and auto-marks paid when the balance clears.
+ * Tabs are Card | Cash | Check. ACH is deliberately absent: owner decision
+ * 2026-08-15 makes ACH recurring-only (set up on the membership) so nobody
+ * waits days for settlement on a uniform.
+ * Admin fee: prompted the moment a paper tab is chosen, per the mockups —
+ * the fee is a card-processing pass-through, so cash/check may drop it.
+ * Money is integer cents throughout; the inputs are the only dollar surface. */
+let PAY = null;         // live modal state
+let PAY_DETAIL = null;  // handed to posTender for the payment row
+
+function pmNowParts(){
+  const d = new Date();
+  const p = n => String(n).padStart(2,'0');
+  return { date: d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()),
+           time: p(d.getHours())+':'+p(d.getMinutes()) };
+}
+function pmOccurredAt(){
+  const dEl=document.getElementById('pmDate'), tEl=document.getElementById('pmTime');
+  if(!dEl || !tEl || !dEl.value || !tEl.value) return new Date().toISOString();
+  const dt = new Date(dEl.value+'T'+tEl.value); // parsed as local time
+  return isNaN(dt) ? new Date().toISOString() : dt.toISOString();
+}
+
+async function posPayOpen(opts){
+  opts = opts || {};
+  if(opts.mode==='sale'){
+    const t = posTotals();
+    if(!posSale.lines.length){ toast('Add something to the invoice first'); return; }
+    PAY = { mode:'sale', saleId:null, totalCents:t.cents.totalCents, balanceCents:t.cents.totalCents,
+            who: posBuyerName(), reopen:null, method:'Card', tendered:'', feeCents: posSale.adminFeeCents||0 };
+  } else {
+    PAY = { mode:'invoice', saleId:opts.saleId, totalCents:opts.totalCents||opts.balanceCents,
+            balanceCents:opts.balanceCents, who:opts.who||'', reopen:opts.reopen||null,
+            method:'Card', tendered:'', feeCents:opts.feeCents||0 };
+  }
+  const n = pmNowParts();
+  PAY.date = n.date; PAY.time = n.time;
+  PAY.amount = dollarsFromCents(PAY.balanceCents);
+  posPayRender();
   openSheet();
 }
 
-/* Cash/Check tender: paper money skips the card fee — ask, in the order the
- * owner specified: fee visible while quoting, question at the moment of
- * tender. Yes removes and records; No keeps it and records. */
-function posPaperConfirm(method){
-  const fee = posSale.adminFeeCents||0;
-  if(!fee){ posTender(method); return; }
-  $("#sheet").innerHTML='<div class="grab"></div>'
-    +'<div class="sheet-head"><div><h3>Remove admin fee?</h3><div class="sub">'+method+' payment · fee is '+money(fee/100)+'</div></div><button class="close" onclick="closeSheet()">×</button></div>'
-    +'<div class="sheet-body">'
-    +'<div class="ck-hint" style="margin-bottom:11px">'+method+' doesn\'t carry the card-processing fee. Remove it from this invoice?</div>'
-    +'<button class="addopt" onclick="closeSheet();posSale.adminFeeCents=0;posSale.adminFeeManual=true;renderPOS();posTender(\''+method+'\')">Yes — remove it and record '+method.toLowerCase()+'</button>'
-    +'<button class="addopt" style="margin-top:8px" onclick="closeSheet();posTender(\''+method+'\')">No — keep the fee</button>'
-    +'</div>';
-  openSheet();
+function posPayTab(method){
+  // Keep what the operator already typed across a tab switch.
+  const a=document.getElementById('pmAmt'); if(a) PAY.amount=a.value;
+  const d=document.getElementById('pmDate'); if(d) PAY.date=d.value;
+  const tm=document.getElementById('pmTime'); if(tm) PAY.time=tm.value;
+  PAY.method = method;
+  posPayRender();
+  // Paper money doesn't carry the card-processing fee — ask right here, the
+  // moment the method is chosen (mockup behaviour).
+  if((method==='Cash'||method==='Check') && PAY.feeCents>0 && !PAY.feeAsked){
+    PAY.feeAsked = true;
+    posPayFeePrompt(method);
+  }
+}
+
+function posPayFeePrompt(method){
+  const body = document.getElementById('pmBody'); if(!body) return;
+  body.insertAdjacentHTML('afterbegin',
+    '<div id="pmFeeAsk" style="background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;text-align:center">'
+    +'<div style="font-weight:700;font-size:15px;margin-bottom:3px">Remove admin fee?</div>'
+    +'<div style="font-size:12.5px;color:var(--muted);margin-bottom:11px">'+method+' payments can drop the '+money(PAY.feeCents/100)+' card-processing fee.</div>'
+    +'<div style="display:flex;gap:9px"><button class="pm-chip" style="flex:1" onclick="posPayFeeAnswer(false)">No</button>'
+    +'<button class="pm-chip" style="flex:1;background:var(--ink);border-color:var(--ink);color:#fff" onclick="posPayFeeAnswer(true)">Yes</button></div></div>');
+}
+async function posPayFeeAnswer(remove){
+  const box=document.getElementById('pmFeeAsk'); if(box) box.remove();
+  if(!remove) return;
+  if(PAY.mode==='sale'){
+    posSale.adminFeeCents = 0; posSale.adminFeeManual = true;
+    renderPOS();
+    const t = posTotals();
+    PAY.totalCents = t.cents.totalCents; PAY.balanceCents = t.cents.totalCents;
+  } else {
+    const upd = await sb.from('pos_sales').update({ admin_fee_cents:0, total_cents: PAY.totalCents - PAY.feeCents })
+      .eq('id', PAY.saleId).eq('status','unpaid').gt('admin_fee_cents',0).select('id');
+    if(upd.error || !upd.data || !upd.data.length){ toast('Could not remove the fee — the invoice may no longer be unpaid.'); return; }
+    PAY.totalCents -= PAY.feeCents; PAY.balanceCents -= PAY.feeCents;
+  }
+  PAY.feeCents = 0;
+  PAY.amount = dollarsFromCents(PAY.balanceCents);
+  posPayRender();
+  toast('Admin fee removed');
+}
+
+function posPayQuick(cents){
+  PAY.tendered = cents===0 ? dollarsFromCents(centsFromInput(document.getElementById('pmAmt').value||'')) : dollarsFromCents(cents);
+  const el=document.getElementById('pmTendered'); if(el) el.value = PAY.tendered;
+  posPayChange();
+}
+function posPayChange(){
+  const amt = centsFromInput((document.getElementById('pmAmt')||{}).value||'');
+  const ten = centsFromInput((document.getElementById('pmTendered')||{}).value||'');
+  const box = document.getElementById('pmChangeV');
+  if(box) box.textContent = money(Math.max(ten-amt,0)/100);
+  const rem = document.getElementById('pmRemaining');
+  if(rem) rem.innerHTML = (amt>0 && amt<PAY.balanceCents)
+    ? '<div class="pm-warn">Partial payment — '+money((PAY.balanceCents-amt)/100)+' will still be owed and the invoice stays open.</div>' : '';
+  const btn = document.getElementById('pmPay');
+  if(btn) btn.textContent = 'Pay now · '+money(Math.min(Math.max(amt,0),PAY.balanceCents)/100);
+}
+
+function posPayRender(){
+  const M = PAY.method;
+  const tab = (key,label,ico) => '<button class="pm-tab'+(M===key?' on':'')+'" onclick="posPayTab(\''+key+'\')">'+ico+'<span>'+label+'</span></button>';
+  let h = '<div class="grab"></div>'
+    + '<div class="sheet-head"><div><h3>Pay for invoice</h3><div class="sub">'+escHtml(PAY.who||'')+'</div></div>'
+    + '<button class="close" onclick="posPayClose()">×</button></div>'
+    + '<div class="sheet-body" id="pmBody">'
+    + '<div class="pm-tabs">'+tab('Card','Card',IV_ICO.payadd)+tab('Cash','Cash',IV_ICO.wallet)+tab('Check','Check',IV_ICO.print)+'</div>'
+    + '<div class="pm-total"><span class="ic">'+IV_ICO.pos+'</span><span><span class="k">Invoice total</span></span>'
+    + '<span class="v num">'+money(PAY.totalCents/100)+'</span></div>'
+    + (PAY.balanceCents!==PAY.totalCents ? '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">'+money((PAY.totalCents-PAY.balanceCents)/100)+' already paid · '+money(PAY.balanceCents/100)+' owed</div>' : '');
+
+  h += '<div class="pm-row"><div><label class="ed-lbl">Date received</label>'
+    + '<input id="pmDate" class="ed-in" type="date" value="'+escAttr(PAY.date)+'"></div>'
+    + '<div><label class="ed-lbl">Time received</label>'
+    + '<input id="pmTime" class="ed-in" type="time" value="'+escAttr(PAY.time)+'"></div></div>';
+
+  h += '<label class="ed-lbl">Amount to pay now</label>'
+    + '<div class="spk-price"><span class="spk-dollar">$</span>'
+    + '<input id="pmAmt" class="ed-in" inputmode="decimal" value="'+escAttr(PAY.amount)+'" oninput="posPayChange()"></div>';
+
+  if(M==='Cash'){
+    const bal = PAY.balanceCents;
+    const chips = [bal, 2000, 4000, 6000, 10000].filter((v,i,a)=>a.indexOf(v)===i);
+    h += '<label class="ed-lbl">Cash tendered</label>'
+      + '<div class="spk-price"><span class="spk-dollar">$</span>'
+      + '<input id="pmTendered" class="ed-in" inputmode="decimal" value="'+escAttr(PAY.tendered)+'" oninput="posPayChange()"></div>'
+      + '<div class="pm-chips">'
+      + '<button class="pm-chip exact" onclick="posPayQuick(0)">Exact</button>'
+      + chips.slice(1).map(c=>'<button class="pm-chip" onclick="posPayQuick('+c+')">'+money(c/100)+'</button>').join('')
+      + '</div>'
+      + '<div class="pm-change"><span class="k">Change to give</span><span class="v num" id="pmChangeV">$0.00</span></div>';
+  } else if(M==='Check'){
+    h += '<label class="ed-lbl">Name on check</label><input id="pmCheckName" class="ed-in" placeholder="Name as written">'
+      + '<label class="ed-lbl">Check number</label><input id="pmCheckNo" class="ed-in" inputmode="numeric" placeholder="e.g. 1042">';
+  } else {
+    h += '<div class="ck-hint" style="margin-top:11px">Records a card payment run on the terminal — nothing is charged from here yet. Stripe checkout replaces this step.</div>';
+  }
+
+  h += '<div id="pmRemaining"></div>'
+    + '<button class="tbtn" id="pmPay" style="width:100%;margin-top:14px" onclick="posPaySubmit()">Pay now · '+money(PAY.balanceCents/100)+'</button>'
+    + '</div>';
+  $("#sheet").innerHTML = h;
+  posPayChange();
+}
+
+function posPayClose(){
+  const reopen = PAY && PAY.reopen, saleId = PAY && PAY.saleId;
+  PAY = null; closeSheet();
+  if(saleId) showInvoice(saleId, reopen==='inv' ? INV_CUR.from : reopen);
+}
+
+async function posPaySubmit(){
+  const amt = centsFromInput((document.getElementById('pmAmt')||{}).value||'');
+  if(amt<=0){ toast('Enter the amount to pay'); return; }
+  if(amt>PAY.balanceCents){ toast('That is more than the '+money(PAY.balanceCents/100)+' owed'); return; }
+  const method = PAY.method;
+  const occurredAt = pmOccurredAt();
+  let note = method, changeCents = 0;
+
+  if(method==='Cash'){
+    const ten = centsFromInput((document.getElementById('pmTendered')||{}).value||'');
+    if(ten>0 && ten<amt){ toast('Cash tendered is less than the amount being paid'); return; }
+    if(ten>amt){ changeCents = ten-amt; note = 'Cash — tendered '+money(ten/100)+', change '+money(changeCents/100); }
+    else note = 'Cash';
+  } else if(method==='Check'){
+    const nm=((document.getElementById('pmCheckName')||{}).value||'').trim();
+    const no=((document.getElementById('pmCheckNo')||{}).value||'').trim();
+    note = 'Check'+(no?' #'+no:'')+(nm?' — '+nm:'');
+  }
+  const partial = amt < PAY.balanceCents;
+  if(partial) note += ' (partial)';
+
+  const btn=document.getElementById('pmPay'); if(btn){ btn.disabled=true; btn.textContent='Recording…'; }
+
+  if(PAY.mode==='sale'){
+    PAY_DETAIL = { amountCents:amt, note:note, occurredAt:occurredAt, changeCents:changeCents };
+    const m = method;
+    PAY = null; closeSheet();
+    try { await posTender(m); } finally { PAY_DETAIL = null; }
+    return;
+  }
+
+  const saleId = PAY.saleId, reopen = PAY.reopen, bal = PAY.balanceCents;
+  const pr = await sb.from('pos_payments').insert({
+    sale_id: saleId, kind:'charge', amount_cents: amt,
+    method: method.toLowerCase(), note: note, occurred_at: occurredAt
+  });
+  if(pr.error){ toast('Payment did not record: '+(pr.error.message||pr.error)); if(btn){btn.disabled=false;posPayChange();} return; }
+  if(!partial){
+    const upd = await sb.from('pos_sales')
+      .update({ status:'paid', tender_method:method.toLowerCase(), confirmed_at:new Date().toISOString() })
+      .eq('id', saleId).eq('status','unpaid').select('id');
+    if(upd.error) console.error('auto-paid update', upd.error);
+    toast('Paid in full — '+money(amt/100)+' by '+method.toLowerCase()+(changeCents?' · change '+money(changeCents/100):''));
+  } else {
+    toast('Payment recorded — '+money((bal-amt)/100)+' still owed');
+  }
+  PAY = null; closeSheet();
+  showInvoice(saleId, reopen==='inv' ? INV_CUR.from : reopen);
 }
 
 async function posTender(method){
@@ -2283,7 +2484,14 @@ async function posTender(method){
   // Every sale IS an invoice: paid (cash/card/check now) or unpaid (saved,
   // collected later from the drawer). An unpaid invoice has NO tender method
   // yet — the method is recorded at the moment it is actually paid.
+  // PAY_DETAIL is set by the payment modal (amount actually collected, the
+  // method's own detail line, and when it was received). Absent = legacy
+  // full-amount tender. A payment smaller than the total leaves the invoice
+  // UNPAID with a real payment row against it — same shape as collecting a
+  // partial later, so there is only one partial-payment concept in the system.
   const isUnpaid = method==='Unpaid';
+  const payAmt = (PAY_DETAIL && PAY_DETAIL.amountCents>0) ? PAY_DETAIL.amountCents : t.cents.totalCents;
+  const isPartial = !isUnpaid && payAmt < t.cents.totalCents;
   const saleId = crypto.randomUUID();
   const saleRecorded = await (async ()=>{
     const r = await sb.from('pos_sales').insert({
@@ -2292,15 +2500,15 @@ async function posTender(method){
       sale_date: posSale.date||attYMD(),
       staff_email: staff||posSale.staff||'unknown',
       brand: posSale.brand||'btkd',
-      tender_method: isUnpaid ? null : (({Cash:'cash',Card:'card',Check:'check'})[method]||'cash'),
-      status: isUnpaid ? 'unpaid' : 'paid',
+      tender_method: (isUnpaid||isPartial) ? null : (({Cash:'cash',Card:'card',Check:'check'})[method]||'cash'),
+      status: (isUnpaid||isPartial) ? 'unpaid' : 'paid',
       subtotal_cents: t.cents.subtotalCents,
       discount_cents: t.cents.discountCents,
       admin_fee_cents: t.cents.adminFeeCents,
       tax_cents: t.cents.taxCents,
       total_cents: t.cents.totalCents,
       notes: posSale.notes||null,
-      confirmed_at: isUnpaid ? null : new Date().toISOString()
+      confirmed_at: (isUnpaid||isPartial) ? null : new Date().toISOString()
     });
     if(r.error){ console.error('pos_sales insert', r.error); problems.push('This sale was NOT recorded in the sales ledger: '+(r.error.message||r.error)+' — keep a paper note for reconciliation.'); return false; }
     return true;
@@ -2406,10 +2614,17 @@ async function posTender(method){
     const lr = await sb.from('pos_sale_lines').insert(lineRows);
     if(lr.error){ console.error('pos_sale_lines insert', lr.error); problems.push('Sale recorded but its line detail did not save: '+(lr.error.message||lr.error)); }
     if(!isUnpaid){
-      const pr = await sb.from('pos_payments').insert({ sale_id: saleId, kind:'charge', amount_cents: t.cents.totalCents, method: method.toLowerCase(), note: method });
+      const pr = await sb.from('pos_payments').insert({
+        sale_id: saleId, kind:'charge', amount_cents: payAmt,
+        method: method.toLowerCase(),
+        note: (PAY_DETAIL && PAY_DETAIL.note) || method,
+        occurred_at: (PAY_DETAIL && PAY_DETAIL.occurredAt) || new Date().toISOString()
+      });
       if(pr.error){ console.error('pos_payments insert', pr.error); problems.push('Sale recorded but the payment row did not save: '+(pr.error.message||pr.error)); }
+      if(isPartial) notes.push(money((t.cents.totalCents-payAmt)/100)+' still owed — the invoice stays open until it is paid.');
+      if(PAY_DETAIL && PAY_DETAIL.changeCents>0) notes.push('Change given: '+money(PAY_DETAIL.changeCents/100)+'.');
     } else {
-      notes.push('Saved as an unpaid invoice — collect from Today\'s drawer.');
+      notes.push('Saved as an unpaid invoice — collect it from Transactions.');
     }
   }
 
@@ -2493,7 +2708,16 @@ async function posTransactions(){
  * Payments are rows AGAINST an invoice. Partial amounts are allowed; the
  * balance is the payments-table sum, and when it reaches zero the invoice
  * flips to paid automatically (tender_method = the method that finished it). */
+/* Compatibility shim: every old call site opens the unified modal. */
 function posAddPaymentSheet(saleId, balanceCents, who, reopen){
+  sb.from('pos_sales').select('total_cents,admin_fee_cents').eq('id', saleId).single().then(function(r){
+    const s = r.data||{};
+    posPayOpen({ mode:'invoice', saleId:saleId, balanceCents:balanceCents,
+                 totalCents: s.total_cents||balanceCents, feeCents: s.admin_fee_cents||0,
+                 who:who, reopen:reopen });
+  });
+}
+function posAddPaymentSheetLegacy(saleId, balanceCents, who, reopen){
   const back = reopen==='inv' ? ('showInvoice(\''+saleId+'\')') : 'posTransactions()';
   $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Add payment</h3><div class="sub">'+escHtml(who)+' · '+money(balanceCents/100)+' owed</div></div><button class="close" onclick="closeSheet();'+back+'">×</button></div>'
     +'<div class="sheet-body">'
