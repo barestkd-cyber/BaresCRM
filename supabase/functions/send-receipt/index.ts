@@ -122,7 +122,9 @@ Deno.serve(async (req) => {
     const brand = BRANDS[s.brand as string] ?? BRANDS.btkd;
     const legalLine = brand.dba ? `${LEGAL_ENTITY} · DBA ${brand.name}` : LEGAL_ENTITY;
     const shortId = saleId.slice(0, 8).toUpperCase();
-    const viewUrl = `${url}/functions/v1/receipt-view?t=${token}`;
+    // Customers get our own domain, never a supabase.co URL — that page
+    // wraps the same card the function renders (fragment mode).
+    const viewUrl = `https://www.barestkd.fit/invoice/?t=${token}`;
 
     // ── short email: state + total + one big button ────────────────────────
     const html =

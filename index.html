@@ -3055,7 +3055,7 @@ function buildPaymentsCard(o){
 async function posCopyInvoiceLink(saleId){
   const r = await sb.from('pos_sales').select('view_token').eq('id', saleId).single();
   if(r.error || !r.data || !r.data.view_token){ toast('No link available — run the receipt SQL block first'); return; }
-  const url = 'https://akdncbzxiwvihfcyijvm.supabase.co/functions/v1/receipt-view?t='+r.data.view_token;
+  const url = 'https://www.barestkd.fit/invoice/?t='+r.data.view_token;
   try { await navigator.clipboard.writeText(url); toast('Invoice link copied'); }
   catch(e){ window.prompt('Copy the invoice link:', url); }
 }

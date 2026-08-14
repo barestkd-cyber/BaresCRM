@@ -112,7 +112,7 @@ function page(title: string, body: string, status = 200) {
       '<meta name="viewport" content="width=device-width, initial-scale=1">' +
       '<meta name="robots" content="noindex, nofollow">' +
       "<title>" + esc(title) + "</title><style>" + CSS + "</style></head><body>" + body + "</body></html>",
-    { status, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } },
+    { status, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" } },
   );
 }
 
@@ -219,6 +219,17 @@ Deno.serve(async (req) => {
       (paid && paidNet >= s.total_cents ? '<div class="stampwrap"><span class="stamp paid">PAID</span></div>' : "") +
       "</div>";
 
+    // Fragment mode: the customer-facing page at www.barestkd.fit/invoice/
+    // pulls this and injects it, so the card is rendered in ONE place and
+    // the customer never sees a supabase.co URL. The full page below stays
+    // as a fallback for anyone hitting this function directly.
+    if ((new URL(req.url).searchParams.get("f") ?? "") === "frag") {
+      return new Response(
+        "<style>" + CSS + "</style>" + body +
+          `<script id="iv-state" type="application/json">${JSON.stringify({ status: s.status, balance_cents: balance, total_cents: s.total_cents, short_id: shortId, brand: brand.name })}</script>`,
+        { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" } },
+      );
+    }
     return page((paid ? "Receipt " : "Invoice ") + shortId, body);
   } catch (e) {
     console.error("receipt-view error", e);
