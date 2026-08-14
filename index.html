@@ -2205,11 +2205,29 @@ async function posTenderServer(method){
 /* The POS does not process cards yet — Stripe is a later phase. This confirm
    exists so tapping "Card" can never quietly pretend the system charged one:
    staff must assert the terminal already ran it before it is recorded. */
-function posCardConfirm(){
+/* Card admin fee (owner decision 2026-08-15): auto-suggested on Card tenders
+ * from pricing_settings admin_fee_bps + admin_fee_flat_cents, labeled
+ * "Admin fee" per Race, applied to the pre-fee, pre-tax invoice base.
+ * Staff can edit or zero it before recording. NOTE: a card-only fee is
+ * mechanically a surcharge whatever the label; attorney flag remains open in
+ * ECOSYSTEM §15 — implemented per explicit owner instruction. */
+function posSuggestedAdminFeeCents(){
+  const bps = PRICE_SETTINGS.admin_fee_bps||0, flat = PRICE_SETTINGS.admin_fee_flat_cents||0;
+  if(!bps && !flat) return 0;
+  const t = posTotals();
+  const base = t.cents.subtotalCents - t.cents.discountCents;
+  if(base<=0) return 0;
+  return Math.floor(base*bps/10000 + 0.5) + flat;
+}
+async function posCardConfirm(){
+  if(!CATALOG_LOADED) await loadCatalog(); // fee settings ride the catalog load
+  const fee = posSuggestedAdminFeeCents();
+  if(fee && !posSale.adminFeeCents){ posSale.adminFeeCents = fee; renderPOS(); }
   const {total}=posTotals();
   $("#sheet").innerHTML='<div class="grab"></div>'
     +'<div class="sheet-head"><div><h3>Card payment</h3><div class="sub">No card is charged here (yet)</div></div><button class="close" onclick="closeSheet()">×</button></div>'
     +'<div class="sheet-body">'
+    +(fee?'<div class="ck-hint" style="margin-bottom:11px">Admin fee of <b>'+money((posSale.adminFeeCents||0)/100)+'</b> added ('+(PRICE_SETTINGS.admin_fee_bps/100).toFixed(2)+'% + '+money((PRICE_SETTINGS.admin_fee_flat_cents||0)/100)+'). Adjust or remove it with the ＋ Admin fee button before recording.</div>':'')
     +'<div class="ck-hint" style="margin-bottom:11px">This records a card payment — it does not process one. Run <b>'+money(total)+'</b> on the card terminal first, then record it here.</div>'
     +'<button class="addopt" onclick="closeSheet();posTender(\'Card\')">Card was charged on the terminal — record it</button>'
     +'<button class="addopt" style="margin-top:8px" onclick="closeSheet()">Cancel</button>'
@@ -2648,10 +2666,17 @@ function buildInvoiceCard(o, forPrint){
       + '<td class="r num iv-d">'+money((l.line_total_cents - o.discAlloc[i] + o.taxAlloc[i])/100)+'</td></tr>';
   });
   h += '</tbody></table>';
+  // totals stack — the receipt's honest math, admin fee as its own line
+  const trow = (k,v,neg) => '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:12.5px'+(neg?';color:var(--muted)':'')+'"><span>'+k+'</span><span class="num">'+(neg?'−':'')+money(v/100)+'</span></div>';
+  h += '<div style="padding:8px 16px 2px">'
+    + trow('Subtotal', s.subtotal_cents)
+    + (s.discount_cents ? trow('Discount', s.discount_cents, true) : '')
+    + (s.admin_fee_cents ? trow('Admin fee', s.admin_fee_cents) : '')
+    + trow('Sales tax', s.tax_cents)
+    + '</div>';
   h += '<div class="iv-total"><span class="lbl">'+(s.status==='paid'?'Total paid':s.status==='closed'?'Closed · balance waived':'Balance due')+'</span>'
     + '<span class="amt num">'+money((s.status==='paid'?s.total_cents:o.balance)/100)+'</span></div>';
   if(s.status!=='paid' && o.paidNet>0) h += '<div style="padding:0 16px 10px;font-size:12px;color:var(--muted)">'+money(o.paidNet/100)+' of '+money(s.total_cents/100)+' paid'+(s.status==='closed'?' before this invoice was closed':' so far')+'</div>';
-  if(s.admin_fee_cents) h += '<div style="padding:0 16px 10px;font-size:12px;color:var(--muted)">Includes admin fee '+money(s.admin_fee_cents/100)+' (not taxed)</div>';
   h += '<div class="iv-foot">Invoice #'+escHtml(s.id.slice(0,8).toUpperCase())
     + (forPrint ? '<br>'+escHtml(b.dba ? (LEGAL_ENTITY+' · DBA '+b.name) : LEGAL_ENTITY)+' · Thank you!' : '')
     + '</div>';
