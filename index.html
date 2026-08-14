@@ -2205,12 +2205,13 @@ async function posTenderServer(method){
 /* The POS does not process cards yet — Stripe is a later phase. This confirm
    exists so tapping "Card" can never quietly pretend the system charged one:
    staff must assert the terminal already ran it before it is recorded. */
-/* Card admin fee (owner decision 2026-08-15): auto-suggested on Card tenders
- * from pricing_settings admin_fee_bps + admin_fee_flat_cents, labeled
- * "Admin fee" per Race, applied to the pre-fee, pre-tax invoice base.
- * Staff can edit or zero it before recording. NOTE: a card-only fee is
- * mechanically a surcharge whatever the label; attorney flag remains open in
- * ECOSYSTEM §15 — implemented per explicit owner instruction. */
+/* Admin fee (owner rule 2026-08-15, final): pass Stripe's cost through, per
+ * method — card 2.9% + 30¢ (admin_fee_bps/admin_fee_flat_cents), ACH 0.8%
+ * capped  at the Stripe build (admin_fee_ach_* keys), cash/check never.
+ * Customer pays tuition + Stripe's cut; Race nets tuition. Fee computed on
+ * the pre-fee pre-tax base (close to exact; a gross-up formula nets exact to
+ * the penny — flip if ever wanted). Editable/zeroable per invoice.
+ */
 function posSuggestedAdminFeeCents(){
   const bps = PRICE_SETTINGS.admin_fee_bps||0, flat = PRICE_SETTINGS.admin_fee_flat_cents||0;
   if(!bps && !flat) return 0;
