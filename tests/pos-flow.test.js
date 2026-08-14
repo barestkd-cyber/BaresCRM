@@ -111,7 +111,7 @@ const FNS = [
   'posQuote', 'posMemDueCents', 'posMemLineDueCents', 'posMemRecurringNote', 'posProgramBuckets',
   'posSuggestedAdminFeeCents', 'posSaveAmount',
   'posPayOpen', 'posPayTab', 'posPayRender', 'posPayChange', 'posPayQuick',
-  'posPayFeePrompt', 'posPayFeeAnswer', 'posPaySubmit', 'posPayClose',
+  'posPayFeePrompt', 'posPayFeeAnswer', 'posPayAskClose', 'posPaySubmit', 'posPayClose',
   'pmNowParts', 'pmOccurredAt',
   'posAddMembership', 'posPickProgram', 'posAddMemLine',
   'posAttachSheet', 'posAttachSearch', 'posPickStudentForLine', 'posRequoteLine', 'posSetBuyer',
@@ -488,7 +488,8 @@ await test('11 admin fee rides every invoice by default; manual edit and paper-t
   await call("posPayOpen({mode:'sale'})");
   assert.ok(!/Remove admin fee\?/.test(ensureEl('sheet').innerHTML), 'card tab never asks');
   run("posPayTab('Cash')");
-  assert.ok(/Remove admin fee\?/.test(ensureEl('pmBody').innerHTML), 'paper tab asks at selection time');
+  assert.ok(/Remove admin fee\?/.test(ensureEl('pmAsk').innerHTML),
+    'paper tab asks at selection time, in its own centered dialog');
 
   // Answering No keeps the fee; the modal still pays.
   await call('posPayFeeAnswer(false)');
