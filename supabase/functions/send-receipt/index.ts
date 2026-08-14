@@ -73,13 +73,20 @@ Deno.serve(async (req) => {
     const resendKey = Deno.env.get("RESEND_API_KEY");
     if (!resendKey) return json({ error: "RESEND_API_KEY not configured" }, 500, cors);
 
-    // ── caller must be staff ────────────────────────────────────────────────
+    // ── caller must be staff, OR an internal server-to-server call ─────────
+    // The Stripe webhook and other server code have no staff JWT, so they
+    // authenticate with the service-role key instead. That key never leaves
+    // Supabase, so possessing it IS the authorization.
     const authHeader = req.headers.get("Authorization") ?? "";
-    const caller = createClient(url, anonKey, { global: { headers: { Authorization: authHeader } } });
-    const { data: userData, error: userErr } = await caller.auth.getUser();
-    if (userErr || !userData?.user) return json({ error: "Not signed in" }, 401, cors);
-    const { data: staffOk, error: staffErr } = await caller.rpc("is_staff");
-    if (staffErr || staffOk !== true) return json({ error: "Staff only" }, 403, cors);
+    const bearer = authHeader.replace(/^Bearers+/i, "").trim();
+    const internal = !!bearer && bearer === serviceKey;
+    if (!internal) {
+      const caller = createClient(url, anonKey, { global: { headers: { Authorization: authHeader } } });
+      const { data: userData, error: userErr } = await caller.auth.getUser();
+      if (userErr || !userData?.user) return json({ error: "Not signed in" }, 401, cors);
+      const { data: staffOk, error: staffErr } = await caller.rpc("is_staff");
+      if (staffErr || staffOk !== true) return json({ error: "Staff only" }, 403, cors);
+    }
 
     // ── input: sale id + recipient list, nothing else trusted ──────────────
     const body = await req.json().catch(() => ({}));
@@ -89,17 +96,27 @@ Deno.serve(async (req) => {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(saleId)) {
       return json({ error: "Bad sale_id" }, 400, cors);
     }
-    if (!to.length || to.length > 3 || to.some((t) => !EMAIL_RE.test(t) || t.length > 200)) {
-      return json({ error: "Bad recipient list (1-3 valid emails)" }, 400, cors);
+    if (to.length > 3 || to.some((t) => !EMAIL_RE.test(t) || t.length > 200)) {
+      return json({ error: "Bad recipient list (max 3 valid emails)" }, 400, cors);
     }
+    // Empty list = "send it to whoever this invoice belongs to". Automatic
+    // sends after a payment use this; the CRM button passes explicit emails.
 
     // ── load the sale; make sure it has a view token ────────────────────────
     const admin = createClient(url, serviceKey);
     const saleRes = await admin.from("pos_sales")
-      .select("id,status,brand,total_cents,sale_date,view_token")
+      .select("id,status,brand,total_cents,sale_date,view_token,buyer_contact_id")
       .eq("id", saleId).single();
     if (saleRes.error || !saleRes.data) return json({ error: "Sale not found" }, 404, cors);
     const s = saleRes.data;
+
+    if (!to.length) {
+      if (!s.buyer_contact_id) return json({ ok: false, skipped: "walk-in sale, nobody to email" }, 200, cors);
+      const c = await admin.from("contacts").select("email").eq("id", s.buyer_contact_id).maybeSingle();
+      const onFile = (c.data?.email ?? "").trim().toLowerCase();
+      if (!onFile || !EMAIL_RE.test(onFile)) return json({ ok: false, skipped: "no email on file" }, 200, cors);
+      to.push(onFile);
+    }
 
     let token = s.view_token as string | null;
     if (!token) {

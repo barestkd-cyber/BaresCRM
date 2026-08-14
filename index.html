@@ -2511,6 +2511,7 @@ async function posPaySubmit(){
       .eq('id', saleId).eq('status','unpaid').select('id');
     if(upd.error) console.error('auto-paid update', upd.error);
     toast('Paid in full — '+money(amt/100)+' by '+method.toLowerCase()+(changeCents?' · change '+money(changeCents/100):''));
+    posAutoReceipt(saleId);
   } else {
     toast('Payment recorded — '+money((bal-amt)/100)+' still owed');
   }
@@ -2689,6 +2690,9 @@ async function posTender(method){
       notes.push('Saved as an unpaid invoice — collect it from Transactions.');
     }
   }
+
+  // Paid in full right here at the desk -> the receipt goes out on its own.
+  if(saleRecorded && !isUnpaid && !isPartial) posAutoReceipt(saleId);
 
   const pm = method.toLowerCase();
   // Receipt snapshot BEFORE the success screen replaces the invoice state.
@@ -3110,6 +3114,22 @@ async function showInvoice(saleId, from){
   if(s.notes) h += '<div class="ck-hint" style="margin-top:12px">'+escHtml(s.notes)+'</div>';
   h += '</div></div>';
   $("#view-invoice").innerHTML = h;
+}
+
+/* Automatic receipt after a payment (owner rule 2026-08-15): the customer
+ * should never have to be SENT a receipt by hand. Fire-and-forget — the
+ * money is already recorded, so a mail failure must never look like a
+ * payment failure. The server resolves the recipient from the buyer on
+ * file and quietly skips walk-ins and contacts with no email. */
+function posAutoReceipt(saleId){
+  if(!saleId) return;
+  sb.functions.invoke('send-receipt', { body: { sale_id: saleId } })
+    .then(function(r){
+      const d = r && r.data;
+      if(d && d.ok && d.to && d.to.length) toast('Receipt emailed to '+d.to[0]);
+      else if(d && d.skipped) console.info('receipt not sent:', d.skipped);
+    })
+    .catch(function(e){ console.error('auto receipt failed', e); });
 }
 
 /* Email the receipt/invoice. The server (send-receipt Edge Function) re-reads

@@ -73,6 +73,28 @@ async function verifyStripeSignature(raw: string, header: string, secret: string
   return v1.some((sig) => hexEqual(sig, expected));
 }
 
+/** Fire the receipt email server-to-server. Never throws into the payment
+ *  path: the money is already recorded, and a mail failure must not turn a
+ *  successful payment into a retried webhook. */
+async function sendReceipt(saleId: string): Promise<void> {
+  try {
+    const url = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const res = await fetch(`${url}/functions/v1/send-receipt`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${serviceKey}`,
+        "Content-Type": "application/json",
+        "Origin": "https://crm.barestkd.fit",
+      },
+      body: JSON.stringify({ sale_id: saleId }), // no `to`: it resolves the buyer on file
+    });
+    if (!res.ok) console.error("receipt send failed", res.status, await res.text().catch(() => ""));
+  } catch (e) {
+    console.error("receipt send threw", e);
+  }
+}
+
 function methodFromSession(session: Record<string, any>): string {
   const types: string[] = session?.payment_method_types ?? [];
   if (types.includes("us_bank_account")) return "ach";
@@ -156,6 +178,7 @@ Deno.serve(async (req) => {
             confirmed_at: new Date().toISOString(), stripe_payment_intent: pi,
           }).eq("id", saleId);
           if (upd.error) console.error("mark paid failed", upd.error);
+          else await sendReceipt(saleId);
         } else if (sale.data.status === "paid") {
           console.warn("payment recorded against an already-paid invoice", saleId, obj.id);
         }
