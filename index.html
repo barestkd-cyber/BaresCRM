@@ -1790,7 +1790,7 @@ const RECEIPT_BRANDS = [
 ];
 function posBrand(key){ return RECEIPT_BRANDS.find(b=>b.key===key) || RECEIPT_BRANDS[0]; }
 
-function posBlank(){ return {memberId:null, lines:[], discountCents:0, adminFeeCents:0, taxRate:0.0825, brand:'btkd', notes:'', date:attYMD(), staff:''}; }
+function posBlank(){ return {memberId:null, lines:[], discountCents:0, adminFeeCents:0, adminFeeManual:false, taxRate:0.0825, brand:'btkd', notes:'', date:attYMD(), staff:''}; }
 let posSale = posBlank();
 
 /* ─── staff directory ────────────────────────────────────────────────────────
@@ -1824,6 +1824,11 @@ function posStaffList(){
 }
 function posBuyerName(){ if(!posSale.memberId) return "Walk-in / new buyer"; const m=MEMBERS.find(x=>x.id===posSale.memberId); return m? (m.first+" "+m.last) : "Walk-in / new buyer"; }
 function renderPOS(){
+  // Fee-by-default (owner 2026-08-15): every invoice carries the admin fee as
+  // built — card-inclusive pricing is the quoted price. Cash/Check offer to
+  // remove it at tender. Manual edits via the ＋ Admin fee sheet stop the
+  // auto-tracking for that invoice.
+  if(!posSale.adminFeeManual && CATALOG_LOADED) posSale.adminFeeCents = posSuggestedAdminFeeCents();
   const s=posSale, t=posTotals();
   let html='<div class="bld"><div class="bld-hd" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px"><div><h2>Point of sale</h2><p>Search a buyer or item on the left, build the invoice on the right.</p></div><button class="pb-change" style="flex-shrink:0" onclick="TX_FILTER=\'all\';posTransactions()">Transactions</button></div>';
   html+='<div class="pos-grid">';
@@ -1866,7 +1871,7 @@ function renderPOS(){
   html+='</div></div>';
   html+='<div class="inv-add"><button onclick="posAmountSheet(\'discount\')">＋ Discount</button><button onclick="posAmountSheet(\'fee\')">＋ Admin fee</button></div>';
   html+='<textarea class="inv-notes" placeholder="Invoice notes..." oninput="posSale.notes=this.value">'+(s.notes||"")+'</textarea>';
-  if(s.lines.length) html+='<div class="tenders" style="margin-top:11px"><button class="tbtn" onclick="posTender(\'Cash\')">Cash</button><button class="tbtn" onclick="posCardConfirm()">Card</button><button class="tbtn" onclick="posTender(\'Check\')">Check</button><button class="tbtn" onclick="posTender(\'Unpaid\')">Save unpaid</button></div>';
+  if(s.lines.length) html+='<div class="tenders" style="margin-top:11px"><button class="tbtn" onclick="posPaperConfirm(\'Cash\')">Cash</button><button class="tbtn" onclick="posCardConfirm()">Card</button><button class="tbtn" onclick="posPaperConfirm(\'Check\')">Check</button><button class="tbtn" onclick="posTender(\'Unpaid\')">Save unpaid</button></div>';
   html+='</div></div>';
   html+='<div class="proto-note">Every sale writes the pos_sales ledger (see Today\'s drawer). Memberships price live from pricing_plans and save frozen snapshots; products come from the products table. Invoice math is integer cents; discounts reduce the sales-tax base (accountant to confirm). Events are still a local list. Card/ACH arrive with the Stripe build — the fee model is with the attorney.</div></div>';
   $("#view-pos").innerHTML=html;
@@ -2215,23 +2220,37 @@ async function posTenderServer(method){
 function posSuggestedAdminFeeCents(){
   const bps = PRICE_SETTINGS.admin_fee_bps||0, flat = PRICE_SETTINGS.admin_fee_flat_cents||0;
   if(!bps && !flat) return 0;
-  const t = posTotals();
-  const base = t.cents.subtotalCents - t.cents.discountCents;
+  const sub = posSale.lines.reduce((a,l)=>a+Math.round(posLineNet(l)*100),0);
+  const base = sub - (posSale.discountCents||0);
   if(base<=0) return 0;
   return Math.floor(base*bps/10000 + 0.5) + flat;
 }
 async function posCardConfirm(){
-  if(!CATALOG_LOADED) await loadCatalog(); // fee settings ride the catalog load
-  const fee = posSuggestedAdminFeeCents();
-  if(fee && !posSale.adminFeeCents){ posSale.adminFeeCents = fee; renderPOS(); }
   const {total}=posTotals();
+  const fee = posSale.adminFeeCents||0;
   $("#sheet").innerHTML='<div class="grab"></div>'
     +'<div class="sheet-head"><div><h3>Card payment</h3><div class="sub">No card is charged here (yet)</div></div><button class="close" onclick="closeSheet()">×</button></div>'
     +'<div class="sheet-body">'
-    +(fee?'<div class="ck-hint" style="margin-bottom:11px">Admin fee of <b>'+money((posSale.adminFeeCents||0)/100)+'</b> added ('+(PRICE_SETTINGS.admin_fee_bps/100).toFixed(2)+'% + '+money((PRICE_SETTINGS.admin_fee_flat_cents||0)/100)+'). Adjust or remove it with the ＋ Admin fee button before recording.</div>':'')
+    +(fee?'<div class="ck-hint" style="margin-bottom:11px">Includes the '+money(fee/100)+' admin fee (card processing pass-through).</div>':'')
     +'<div class="ck-hint" style="margin-bottom:11px">This records a card payment — it does not process one. Run <b>'+money(total)+'</b> on the card terminal first, then record it here.</div>'
     +'<button class="addopt" onclick="closeSheet();posTender(\'Card\')">Card was charged on the terminal — record it</button>'
     +'<button class="addopt" style="margin-top:8px" onclick="closeSheet()">Cancel</button>'
+    +'</div>';
+  openSheet();
+}
+
+/* Cash/Check tender: paper money skips the card fee — ask, in the order the
+ * owner specified: fee visible while quoting, question at the moment of
+ * tender. Yes removes and records; No keeps it and records. */
+function posPaperConfirm(method){
+  const fee = posSale.adminFeeCents||0;
+  if(!fee){ posTender(method); return; }
+  $("#sheet").innerHTML='<div class="grab"></div>'
+    +'<div class="sheet-head"><div><h3>Remove admin fee?</h3><div class="sub">'+method+' payment · fee is '+money(fee/100)+'</div></div><button class="close" onclick="closeSheet()">×</button></div>'
+    +'<div class="sheet-body">'
+    +'<div class="ck-hint" style="margin-bottom:11px">'+method+' doesn\'t carry the card-processing fee. Remove it from this invoice?</div>'
+    +'<button class="addopt" onclick="closeSheet();posSale.adminFeeCents=0;posSale.adminFeeManual=true;renderPOS();posTender(\''+method+'\')">Yes — remove it and record '+method.toLowerCase()+'</button>'
+    +'<button class="addopt" style="margin-top:8px" onclick="closeSheet();posTender(\''+method+'\')">No — keep the fee</button>'
     +'</div>';
   openSheet();
 }
@@ -2480,9 +2499,43 @@ function posAddPaymentSheet(saleId, balanceCents, who, reopen){
     +'<div class="sheet-body">'
     +'<label class="ed-lbl">Amount ($)</label><input id="apAmt" class="ed-in" inputmode="decimal" value="'+dollarsFromCents(balanceCents)+'">'
     +'<div class="ck-hint" style="margin:8px 0 11px">Partial payments are fine — the invoice stays open until the balance hits zero, then marks itself paid.</div>'
-    +['Cash','Check','Card'].map(m=>'<button class="addopt" onclick="posAddPayment(\''+saleId+'\',\''+m+'\','+balanceCents+',\''+(reopen||'')+'\')">'+m+'</button>').join('')
+    +['Cash','Check','Card'].map(m=>'<button class="addopt" onclick="posApMethod(\''+saleId+'\',\''+m+'\','+balanceCents+',\''+(reopen||'')+'\')">'+m+'</button>').join('')
     +'</div>';
   openSheet();
+}
+/* Method chosen while collecting: paper money on a fee-carrying UNPAID
+ * invoice gets the same remove-fee question before the payment records.
+ * Removing rewrites admin_fee_cents/total on the still-unpaid sale (its
+ * totals are only frozen once money exists against them), then reopens the
+ * sheet at the corrected balance. Card records straight through. */
+async function posApMethod(saleId, method, balanceCents, reopen){
+  if(method==='Card'){ posAddPayment(saleId, method, balanceCents, reopen); return; }
+  const r = await sb.from('pos_sales').select('admin_fee_cents,total_cents,status,buyer_contact_id').eq('id', saleId).single();
+  const s = r.data;
+  if(r.error || !s || s.status!=='unpaid' || !(s.admin_fee_cents>0)){ posAddPayment(saleId, method, balanceCents, reopen); return; }
+  const fee = s.admin_fee_cents;
+  $("#sheet").innerHTML='<div class="grab"></div>'
+    +'<div class="sheet-head"><div><h3>Remove admin fee?</h3><div class="sub">'+method+' payment · fee is '+money(fee/100)+'</div></div><button class="close" onclick="closeSheet()">×</button></div>'
+    +'<div class="sheet-body">'
+    +'<div class="ck-hint" style="margin-bottom:11px">'+method+' doesn\'t carry the card-processing fee. Remove it? The balance becomes '+money((balanceCents-fee)/100)+'.</div>'
+    +'<button class="addopt" onclick="posApRemoveFee(\''+saleId+'\','+fee+',\''+(reopen||'')+'\')">Yes — remove it</button>'
+    +'<button class="addopt" style="margin-top:8px" onclick="posAddPaymentSheet(\''+saleId+'\','+balanceCents+',\''+escAttr(posBuyerLabel(s.buyer_contact_id))+'\',\''+(reopen||'')+'\')">No — keep the fee</button>'
+    +'</div>';
+}
+async function posApRemoveFee(saleId, feeCents, reopen){
+  const upd = await sb.from('pos_sales')
+    .update({ admin_fee_cents: 0 })
+    .eq('id', saleId).eq('status','unpaid').gt('admin_fee_cents', 0).select('id,total_cents,buyer_contact_id');
+  if(upd.error){ toast('Could not remove the fee: '+(upd.error.message||upd.error)); return; }
+  if(!upd.data || !upd.data.length){ toast('Fee not removed — the invoice may no longer be unpaid.'); return; }
+  const row = upd.data[0];
+  const newTotal = row.total_cents - feeCents;
+  const tu = await sb.from('pos_sales').update({ total_cents: newTotal }).eq('id', saleId).eq('status','unpaid').select('id');
+  if(tu.error || !tu.data || !tu.data.length){ toast('Fee zeroed but total did not update — check the invoice.'); return; }
+  const pRes = await sb.from('pos_payments').select('amount_cents').eq('sale_id', saleId);
+  const paidNet = (pRes.data||[]).reduce((a,p)=>a+p.amount_cents,0);
+  toast('Admin fee removed');
+  posAddPaymentSheet(saleId, Math.max(newTotal - paidNet, 0), posBuyerLabel(row.buyer_contact_id), reopen);
 }
 async function posAddPayment(saleId, method, balanceCents, reopen){
   const cents = centsFromInput(document.getElementById('apAmt').value||'');
@@ -3247,7 +3300,7 @@ function posAmountSheet(kind){
 }
 function posSaveAmount(kind){
   const c=centsFromInput(document.getElementById("edAmt").value);
-  if(kind==="discount") posSale.discountCents=Math.max(c,0); else posSale.adminFeeCents=Math.max(c,0);
+  if(kind==="discount") posSale.discountCents=Math.max(c,0); else { posSale.adminFeeCents=Math.max(c,0); posSale.adminFeeManual=true; }
   closeSheet(); renderPOS();
 }
 

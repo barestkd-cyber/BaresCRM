@@ -109,6 +109,7 @@ const FNS = [
   'renderPOS',
   'posStudentContext', 'posForgetStudent', 'posStudentName',
   'posQuote', 'posMemDueCents', 'posMemLineDueCents', 'posMemRecurringNote', 'posProgramBuckets',
+  'posSuggestedAdminFeeCents', 'posPaperConfirm', 'posSaveAmount',
   'posAddMembership', 'posPickProgram', 'posAddMemLine',
   'posAttachSheet', 'posAttachSearch', 'posPickStudentForLine', 'posRequoteLine', 'posSetBuyer',
   'posTkdTrackFor', 'posMemRosterPrograms',
@@ -443,6 +444,45 @@ await test('9 vendored pricing_esm.js has not drifted from pricing.js', () => {
   const committed = fs.readFileSync(gen.OUT, 'utf8');
   assert.strictEqual(committed, expected,
     'supabase/functions/_shared/pricing_esm.js is stale — run: node tools/gen-esm-pricing.js');
+});
+
+await test('11 admin fee rides every invoice by default; manual edit and paper-tender removal stick', async () => {
+  // Card pass-through rates, as seeded in pricing_settings.
+  sandbox.PRICE_SETTINGS.admin_fee_bps = 290;
+  sandbox.PRICE_SETTINGS.admin_fee_flat_cents = 30;
+  sandbox.posSale = sandbox.posBlank();
+  sandbox.posSale.lines.push({ kind: 'prod', label: 'Beginner uniform', amount: 82.25, qty: 1, taxable: true });
+
+  // Built, not tendered: the fee is already on the invoice.
+  run('renderPOS()');
+  assert.strictEqual(sandbox.posSale.adminFeeCents, Math.floor(8225 * 290 / 10000 + 0.5) + 30,
+    'fee = 2.9% of the pre-fee pre-tax base + 30c, applied at build time');
+  assert.strictEqual(sandbox.posSale.adminFeeCents, 269);
+
+  // It tracks line changes while untouched.
+  sandbox.posSale.lines.push({ kind: 'prod', label: 'Testing fee', amount: 60, qty: 1, taxable: true });
+  run('renderPOS()');
+  assert.strictEqual(sandbox.posSale.adminFeeCents, Math.floor(14225 * 290 / 10000 + 0.5) + 30);
+
+  // Tax is computed on goods only — the fee is never taxed.
+  const t = run('posTotals()');
+  assert.strictEqual(t.cents.taxCents, Math.floor(14225 * 0.0825 + 0.5),
+    'admin fee must not enter the tax base');
+  assert.strictEqual(t.cents.totalCents, 14225 + sandbox.posSale.adminFeeCents + t.cents.taxCents);
+
+  // A manual edit stops the auto-tracking for this invoice.
+  ensureEl('edAmt').value = '5.00';
+  run("posSaveAmount('fee')");
+  assert.strictEqual(sandbox.posSale.adminFeeManual, true);
+  sandbox.posSale.lines.push({ kind: 'prod', label: 'Extra', amount: 10, qty: 1, taxable: true });
+  run('renderPOS()');
+  assert.strictEqual(sandbox.posSale.adminFeeCents, 500, 'manual fee survives later line changes');
+
+  // Cash/Check offer removal rather than tendering straight through.
+  run("posPaperConfirm('Cash')");
+  const sheet = ensureEl('sheet').innerHTML;
+  assert.ok(/Remove admin fee\?/.test(sheet), 'paper tender asks before recording');
+  assert.ok(/posTender\(.Cash.\)/.test(sheet), 'both answers still lead to recording the sale');
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
