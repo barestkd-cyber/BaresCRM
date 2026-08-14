@@ -587,6 +587,11 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .iv-empty2{display:flex;align-items:center;gap:11px;padding:6px 16px 16px;color:var(--muted);font-size:13px}
 .iv-empty2 .ic{width:34px;height:34px;border-radius:9px;background:var(--surface);display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .iv-empty2 .ic svg{width:17px;height:17px}
+.iv-card .inv-tbl{font-size:13px}
+.iv-card .inv-tbl th:first-child,.iv-card .inv-tbl td:first-child{padding-left:16px}
+.iv-card .inv-tbl th:last-child,.iv-card .inv-tbl td:last-child{padding-right:16px}
+.iv-card .inv-tbl td{vertical-align:middle;padding-top:10px;padding-bottom:10px}
+.iv-card .inv-tbl td.qty{color:var(--muted)}
 .iv-d{display:none}
 .iv-m{font-size:11px;color:var(--muted)}
 @media(min-width:700px){.iv-d{display:table-cell}.iv-m{display:none}}
@@ -2484,26 +2489,64 @@ async function posAddPayment(saleId, method, balanceCents, reopen){
   if(reopen==='inv') showInvoice(saleId, INV_CUR.from); else posTransactions();
 }
 
-/* Rebuild a printable invoice/receipt from the ledger (drawer reprints). */
+/* Print = the SAME card the screen shows, minus buttons (owner rule
+ * 2026-08-15), rendered by the shared builder into a bare window with a
+ * literal-color copy of the iv styles. Paper is desktop-width: the per-line
+ * Total column comes back (.iv-d shows, .iv-m hides). */
+const POS_PRINT_CSS = [
+  'body{font-family:Arial,Helvetica,sans-serif;color:#1A1D23;margin:18px auto;max-width:560px;padding:0 10px;background:#fff}',
+  '.iv-wrap{max-width:560px;margin:0 auto}',
+  '.iv-card{border:1px solid #E2E6EB;border-radius:14px;overflow:hidden;margin-bottom:14px;page-break-inside:avoid}',
+  '.iv-brandrow{display:flex;gap:14px;align-items:center;padding:16px 16px 12px}',
+  '.iv-logo{width:62px;height:62px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#15171C}',
+  '.iv-logo img{max-width:76%;max-height:76%}',
+  '.iv-logo.light{background:#fff;border:1px solid #E2E6EB}',
+  '.iv-logo .ini{color:#fff;font-weight:700;font-size:19px}',
+  '.iv-bname{font-weight:700;font-size:19px;line-height:1.25}',
+  '.iv-line{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#6A727E;margin-top:4px}',
+  '.iv-line svg{width:14px;height:14px;flex-shrink:0}',
+  '.iv-div{border-top:1px solid #E2E6EB;margin:0 16px}',
+  '.iv-daterow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px}',
+  '.iv-daterow .dt{display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:600}',
+  '.iv-daterow .dt svg{width:16px;height:16px;color:#6A727E}',
+  '.iv-cols{display:flex;padding:12px 16px;gap:14px}',
+  '.iv-col{flex:1;min-width:0}',
+  '.iv-col + .iv-col{border-left:1px solid #E2E6EB;padding-left:14px}',
+  '.iv-k{font-size:10.5px;color:#6A727E;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:3px}',
+  '.iv-v{font-weight:600;font-size:14.5px}',
+  '.iv-total{background:#15171C;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:15px 16px;border-radius:12px;margin:12px 16px 14px;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+  '.iv-total .lbl{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#9AA1AC}',
+  '.iv-total .amt{font-weight:700;font-size:25px}',
+  '.iv-foot{background:#EEF1F4;color:#6A727E;font-size:12px;text-align:center;padding:9px;border-top:1px solid #E2E6EB;line-height:1.6;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+  '.iv-payhd{display:flex;align-items:center;gap:9px;padding:14px 16px 8px;font-weight:700;font-size:13px;letter-spacing:1.5px}',
+  '.iv-payhd svg{width:17px;height:17px}',
+  'table.inv-tbl{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}',
+  '.inv-tbl th{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:#6A727E;text-align:left;padding:6px 8px;border-bottom:1px solid #E2E6EB}',
+  '.inv-tbl td{padding:10px 8px;border-bottom:1px solid #EEF1F4;vertical-align:middle}',
+  '.inv-tbl th:first-child,.inv-tbl td:first-child{padding-left:16px}',
+  '.inv-tbl th:last-child,.inv-tbl td:last-child{padding-right:16px}',
+  '.inv-tbl .r{text-align:right;white-space:nowrap}',
+  '.inv-tbl td.qty{color:#6A727E}',
+  '.iv-d{display:table-cell}',
+  '.iv-m{display:none}',
+  '.stampwrap{text-align:center;margin:16px 0}',
+  '.stamp{display:inline-block;border:3px solid;border-radius:6px;padding:3px 18px;font-weight:700;font-size:22px;letter-spacing:4px;transform:rotate(-7deg)}',
+  '.stamp.paid{color:#1e9e54}',
+  '@media print{body{margin:0 auto}}'
+].join('');
+
 async function posPrintSaleFromDb(saleId){
-  const [sRes, lRes] = await Promise.all([
-    sb.from('pos_sales').select('*').eq('id', saleId).single(),
-    sb.from('pos_sale_lines').select('*').eq('sale_id', saleId)
-  ]);
-  if(sRes.error || !sRes.data){ toast('Could not load that invoice'); return; }
-  const s = sRes.data, lines = lRes.data||[];
-  posPrintReceipt({
-    saleId: s.id,
-    paid: s.status==='paid',
-    brand: s.brand, date: s.sale_date, staff: staffDisplay(s.staff_email),
-    method: s.tender_method ? (s.tender_method.charAt(0).toUpperCase()+s.tender_method.slice(1)) : '—',
-    buyer: posBuyerLabel(s.buyer_contact_id),
-    lines: lines.map(l=>({ label:l.label, sub:'', qty:l.qty||1, net:l.line_total_cents/100,
-      student: l.student_contact_id ? posBuyerLabel(l.student_contact_id) : null })),
-    totals: { cents: { subtotalCents:s.subtotal_cents, discountCents:s.discount_cents,
-      adminFeeCents:s.admin_fee_cents, taxCents:s.tax_cents, totalCents:s.total_cents } },
-    at: new Date(s.created_at).toLocaleString('en-US')
-  });
+  const o = await loadInvoiceData(saleId);
+  if(o.error){ toast('Could not load that invoice'); return; }
+  const w = window.open('', '_blank');
+  if(!w){ toast('Pop-up blocked — allow pop-ups to print'); return; }
+  w.document.write('<!DOCTYPE html><html><head><title>'+(o.s.status==='paid'?'Receipt ':'Invoice ')+o.s.id.slice(0,8).toUpperCase()+'</title>'
+    + '<style>'+POS_PRINT_CSS+'</style></head><body><div class="iv-wrap">'
+    + buildInvoiceCard(o, true)
+    + buildPaymentsCard(o)
+    + (o.s.status==='paid' && o.paidNet>=o.s.total_cents ? '<div class="stampwrap"><span class="stamp paid">PAID</span></div>' : '')
+    + '</div></body></html>');
+  w.document.close(); w.focus(); w.print();
 }
 
 /* ─── invoice detail view ────────────────────────────────────────────────────
@@ -2527,6 +2570,7 @@ const IV_ICO = {
   close: "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"15\" y1=\"9\" x2=\"9\" y2=\"15\"/><line x1=\"9\" y1=\"9\" x2=\"15\" y2=\"15\"/></svg>",
   trash: "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"3 6 5 6 21 6\"/><path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\"/><line x1=\"10\" y1=\"11\" x2=\"10\" y2=\"17\"/><line x1=\"14\" y1=\"11\" x2=\"14\" y2=\"17\"/></svg>",
   refund: "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"1 4 1 10 7 10\"/><path d=\"M3.5 15a9 9 0 1 0 2-9.4L1 10\"/></svg>",
+  link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>',
   wallet: "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"2\" y=\"5\" width=\"20\" height=\"14\" rx=\"2\"/><line x1=\"2\" y1=\"10\" x2=\"22\" y2=\"10\"/></svg>"
 };
 /* Circular brand avatar: dark circle + white wordmark for BTKD, light circle
@@ -2544,6 +2588,104 @@ function invStatusChip(st){
   return '<span style="background:'+c[0]+';color:'+c[1]+';font-size:11px;font-weight:700;padding:2px 9px;border-radius:9px;text-transform:capitalize">'+escHtml(st)+'</span>';
 }
 
+/* One loader + one card builder feed BOTH the on-screen invoice and the
+ * print window, so paper and screen can never drift (owner rule 2026-08-15:
+ * print = the mobile card, minus the buttons). */
+async function loadInvoiceData(saleId){
+  const [sRes, lRes, pRes] = await Promise.all([
+    sb.from('pos_sales').select('*').eq('id', saleId).single(),
+    sb.from('pos_sale_lines').select('*').eq('sale_id', saleId),
+    sb.from('pos_payments').select('*').eq('sale_id', saleId).order('occurred_at')
+  ]);
+  if(sRes.error || !sRes.data) return { error: sRes.error || new Error('not found') };
+  const s = sRes.data, lines = lRes.data||[], pays = pRes.data||[];
+  const discAlloc = BTKDPricing.allocateCents(s.discount_cents, lines.map(l=>l.line_total_cents));
+  const taxAlloc  = BTKDPricing.allocateCents(s.tax_cents, lines.map((l,i)=>l.taxable ? (l.line_total_cents - discAlloc[i]) : 0));
+  const paidNet = pays.reduce((a,p)=>a+p.amount_cents,0);
+  return {
+    s: s, lines: lines, pays: pays,
+    b: posBrand(s.brand),
+    buyer: s.buyer_contact_id ? MEMBERS.find(m=>m.id===s.buyer_contact_id) : null,
+    discAlloc: discAlloc, taxAlloc: taxAlloc,
+    paidNet: paidNet,
+    balance: Math.max(s.total_cents - paidNet, 0),
+    refunded: -pays.filter(p=>p.amount_cents<0).reduce((a,p)=>a+p.amount_cents,0)
+  };
+}
+
+/* The invoice card itself. forPrint: buyer renders as plain text (no link)
+ * and the legal entity line joins the footer. */
+function buildInvoiceCard(o, forPrint){
+  const s=o.s, b=o.b;
+  let h = '<div class="iv-card">';
+  h += '<div class="iv-brandrow">'+posBrandCircle(b)
+    + '<div><div class="iv-bname">'+escHtml((b.dba && !b.effective) ? LEGAL_ENTITY : b.name)+'</div>'
+    + '<div class="iv-line">'+IV_ICO.pin+'<span>1901 Deerbrook Dr, Tyler, TX 75703</span></div>'
+    + '<div class="iv-line">'+IV_ICO.phone+'<span>(903) 561-2966 · barestkd.fit</span></div>'
+    + '</div></div>';
+  h += '<div class="iv-div"></div>';
+  h += '<div class="iv-daterow"><span class="dt">'+IV_ICO.cal+'<span>'+escHtml(s.sale_date)+' · '+escHtml(new Date(s.created_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}))+'</span></span>'
+    + '<span>'+invStatusChip(s.status)+(o.refunded?' <span style="font-size:11px;color:var(--muted)">refunded '+money(o.refunded/100)+'</span>':'')+'</span></div>';
+  h += '<div class="iv-div"></div>';
+  h += '<div class="iv-cols">'
+    + '<div class="iv-col"><div class="iv-k">Sold to</div><div class="iv-v">'
+    + (o.buyer
+        ? (forPrint ? escHtml(o.buyer.first+' '+o.buyer.last)
+                    : '<a href="javascript:void(0)" onclick="openProfile(\''+o.buyer.id+'\')" style="color:var(--accent);text-decoration:none">'+escHtml(o.buyer.first+' '+o.buyer.last)+'</a>')
+        : 'Walk-in')+'</div></div>'
+    + '<div class="iv-col"><div class="iv-k">Created by</div><div class="iv-v">'+escHtml(staffDisplay(s.staff_email))+'</div></div>'
+    + '</div>';
+  h += '<div class="iv-div"></div>';
+  h += '<div style="padding:12px 16px 4px"><div class="iv-k">'+(s.status==='paid'?'Paid by':'Payment')+'</div><div class="iv-v" style="text-transform:capitalize">'+escHtml(s.tender_method||'Not Yet Received')+'</div></div>';
+  h += '<table class="inv-tbl" style="margin-top:8px"><thead><tr><th style="width:40px">Qty</th><th>Item</th><th class="r">Price</th><th class="r">Disc</th><th class="r">Tax</th><th class="r iv-d">Total</th></tr></thead><tbody>';
+  o.lines.forEach((l,i)=>{
+    const st = l.student_contact_id ? posBuyerLabel(l.student_contact_id) : null;
+    h += '<tr><td class="qty">'+(l.qty||1)+'</td><td>'+escHtml(l.label)
+      + (st?'<div style="font-size:12px;color:var(--muted)">For '+escHtml(st)+'</div>':'')
+      + '</td><td class="r num">'+money(l.unit_cents/100)+'</td>'
+      + '<td class="r num">'+((l.discount_cents||o.discAlloc[i])?('−'+money(((l.discount_cents||0)+o.discAlloc[i])/100)):'—')+'</td>'
+      + '<td class="r num">'+(o.taxAlloc[i]?money(o.taxAlloc[i]/100):'—')+'</td>'
+      + '<td class="r num iv-d">'+money((l.line_total_cents - o.discAlloc[i] + o.taxAlloc[i])/100)+'</td></tr>';
+  });
+  h += '</tbody></table>';
+  h += '<div class="iv-total"><span class="lbl">'+(s.status==='paid'?'Total paid':s.status==='closed'?'Closed · balance waived':'Balance due')+'</span>'
+    + '<span class="amt num">'+money((s.status==='paid'?s.total_cents:o.balance)/100)+'</span></div>';
+  if(s.status!=='paid' && o.paidNet>0) h += '<div style="padding:0 16px 10px;font-size:12px;color:var(--muted)">'+money(o.paidNet/100)+' of '+money(s.total_cents/100)+' paid'+(s.status==='closed'?' before this invoice was closed':' so far')+'</div>';
+  if(s.admin_fee_cents) h += '<div style="padding:0 16px 10px;font-size:12px;color:var(--muted)">Includes admin fee '+money(s.admin_fee_cents/100)+' (not taxed)</div>';
+  h += '<div class="iv-foot">Invoice #'+escHtml(s.id.slice(0,8).toUpperCase())
+    + (forPrint ? '<br>'+escHtml(b.dba ? (LEGAL_ENTITY+' · DBA '+b.name) : LEGAL_ENTITY)+' · Thank you!' : '')
+    + '</div>';
+  h += '</div>';
+  return h;
+}
+
+/* Payments card — only rendered when payments exist (the PAYMENT line inside
+ * the invoice card answers the empty case; owner call 2026-08-15). */
+function buildPaymentsCard(o){
+  if(!o.pays.length) return '';
+  let h = '<div class="iv-card"><div class="iv-payhd">'+IV_ICO.wallet+'<span>PAYMENTS</span></div>';
+  h += '<table class="inv-tbl"><thead><tr><th>Date</th><th>Type</th><th class="iv-d">Note</th><th class="r">Amount</th></tr></thead><tbody>';
+  o.pays.forEach(p=>{
+    h += '<tr><td>'+escHtml(new Date(p.occurred_at).toLocaleDateString('en-US'))+'</td>'
+      + '<td style="text-transform:capitalize">'+escHtml(p.kind)+(p.note?'<div class="iv-m">'+escHtml(p.note)+'</div>':'')+'</td>'
+      + '<td class="iv-d" style="color:var(--muted);font-size:12.5px">'+escHtml(p.note||'')+'</td>'
+      + '<td class="r num"'+(p.amount_cents<0?' style="color:#c8102e"':'')+'>'+(p.amount_cents<0?'−':'')+money(Math.abs(p.amount_cents)/100)+'</td></tr>';
+  });
+  h += '</tbody></table>'
+    + '<div style="display:flex;justify-content:space-between;padding:10px 16px;border-top:1.5px solid var(--ink)"><b style="font-size:12px;letter-spacing:1px;text-transform:uppercase">Total paid</b><b class="num">'+money(o.paidNet/100)+'</b></div>';
+  h += '</div>';
+  return h;
+}
+
+/* Copy the invoice's public view link (receipt-view + view_token). */
+async function posCopyInvoiceLink(saleId){
+  const r = await sb.from('pos_sales').select('view_token').eq('id', saleId).single();
+  if(r.error || !r.data || !r.data.view_token){ toast('No link available — run the receipt SQL block first'); return; }
+  const url = 'https://akdncbzxiwvihfcyijvm.supabase.co/functions/v1/receipt-view?t='+r.data.view_token;
+  try { await navigator.clipboard.writeText(url); toast('Invoice link copied'); }
+  catch(e){ window.prompt('Copy the invoice link:', url); }
+}
+
 async function showInvoice(saleId, from){
   INV_CUR = { id: saleId, from: from||INV_CUR.from||'pos' };
   closeSheet();
@@ -2553,27 +2695,13 @@ async function showInvoice(saleId, from){
   $("#view-invoice").innerHTML = '<div class="bld"><div class="inv-empty" style="padding:40px">Loading invoice…</div></div>';
   document.querySelector("main").scrollTop = 0;
 
-  const [sRes, lRes, pRes] = await Promise.all([
-    sb.from('pos_sales').select('*').eq('id', saleId).single(),
-    sb.from('pos_sale_lines').select('*').eq('sale_id', saleId),
-    sb.from('pos_payments').select('*').eq('sale_id', saleId).order('occurred_at')
-  ]);
-  if(sRes.error || !sRes.data){
-    $("#view-invoice").innerHTML = '<div class="bld"><div class="ag-empty">Could not load this invoice'+(sRes.error?': '+escHtml(sRes.error.message||String(sRes.error)):'')+'</div></div>';
+  const o = await loadInvoiceData(saleId);
+  if(o.error){
+    $("#view-invoice").innerHTML = '<div class="bld"><div class="ag-empty">Could not load this invoice'+(o.error.message?': '+escHtml(o.error.message):'')+'</div></div>';
     return;
   }
-  const s = sRes.data, lines = lRes.data||[], pays = pRes.data||[];
-  const b = posBrand(s.brand);
-  const buyer = s.buyer_contact_id ? MEMBERS.find(m=>m.id===s.buyer_contact_id) : null;
-  const paidNet = pays.reduce((a,p)=>a+p.amount_cents,0);
-  const refunded = -pays.filter(p=>p.amount_cents<0).reduce((a,p)=>a+p.amount_cents,0);
+  const s = o.s, pays = o.pays, balance = o.balance, paidNet = o.paidNet;
 
-  // Display-only allocations that reconcile exactly to the stored totals.
-  const discAlloc = BTKDPricing.allocateCents(s.discount_cents, lines.map(l=>l.line_total_cents));
-  const taxAlloc  = BTKDPricing.allocateCents(s.tax_cents, lines.map((l,i)=>l.taxable ? (l.line_total_cents - discAlloc[i]) : 0));
-
-  const balance = Math.max(s.total_cents - paidNet, 0);
-  // ── mobile-first layout per the owner's mockup (2026-08-15) ───────────────
   const backLbl = INV_CUR.from==='profile' ? 'Profile' : 'Point of sale';
   let h = '<div class="bld"><div class="iv-wrap">';
 
@@ -2585,72 +2713,20 @@ async function showInvoice(saleId, from){
     INV_BANNER = null;
   }
 
-  // ── the invoice card ───────────────────────────────────────────────────────
-  h += '<div class="iv-card">';
-  h += '<div class="iv-brandrow">'+posBrandCircle(b)
-    + '<div><div class="iv-bname">'+escHtml((b.dba && !b.effective) ? LEGAL_ENTITY : b.name)+'</div>'
-    + '<div class="iv-line">'+IV_ICO.pin+'<span>1901 Deerbrook Dr, Tyler, TX 75703</span></div>'
-    + '<div class="iv-line">'+IV_ICO.phone+'<span>(903) 561-2966 · barestkd.fit</span></div>'
-    + '</div></div>';
-  h += '<div class="iv-div"></div>';
-  h += '<div class="iv-daterow"><span class="dt">'+IV_ICO.cal+'<span>'+escHtml(s.sale_date)+' · '+escHtml(new Date(s.created_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}))+'</span></span>'
-    + '<span>'+invStatusChip(s.status)+(refunded?' <span style="font-size:11px;color:var(--muted)">refunded '+money(refunded/100)+'</span>':'')+'</span></div>';
-  h += '<div class="iv-div"></div>';
-  h += '<div class="iv-cols">'
-    + '<div class="iv-col"><div class="iv-k">Sold to</div><div class="iv-v">'
-    + (buyer ? '<a href="javascript:void(0)" onclick="openProfile(\''+buyer.id+'\')" style="color:var(--accent);text-decoration:none">'+escHtml(buyer.first+' '+buyer.last)+'</a>' : 'Walk-in')+'</div></div>'
-    + '<div class="iv-col"><div class="iv-k">Created by</div><div class="iv-v">'+escHtml(staffDisplay(s.staff_email))+'</div></div>'
-    + '</div>';
-  h += '<div class="iv-div"></div>';
-  h += '<div style="padding:12px 16px 4px"><div class="iv-k">'+(s.status==='paid'?'Paid by':'Payment')+'</div><div class="iv-v" style="text-transform:capitalize">'+escHtml(s.tender_method||'Not Yet Received')+'</div></div>';
+  h += buildInvoiceCard(o, false);
 
-  // items — per-line Total is desktop-only (col-d); mobile matches the mockup.
-  h += '<table class="inv-tbl" style="margin-top:8px"><thead><tr><th style="width:40px">Qty</th><th>Item</th><th class="r">Price</th><th class="r">Disc</th><th class="r">Tax</th><th class="r iv-d">Total</th></tr></thead><tbody>';
-  lines.forEach((l,i)=>{
-    const st = l.student_contact_id ? posBuyerLabel(l.student_contact_id) : null;
-    h += '<tr><td class="qty">'+(l.qty||1)+'</td><td>'+escHtml(l.label)
-      + (st?'<div style="font-size:12px;color:var(--muted)">For '+escHtml(st)+'</div>':'')
-      + '</td><td class="r num">'+money(l.unit_cents/100)+'</td>'
-      + '<td class="r num">'+((l.discount_cents||discAlloc[i])?('−'+money(((l.discount_cents||0)+discAlloc[i])/100)):'—')+'</td>'
-      + '<td class="r num">'+(taxAlloc[i]?money(taxAlloc[i]/100):'—')+'</td>'
-      + '<td class="r num iv-d">'+money((l.line_total_cents - discAlloc[i] + taxAlloc[i])/100)+'</td></tr>';
-  });
-  h += '</tbody></table>';
-
-  h += '<div class="iv-total"><span class="lbl">'+(s.status==='paid'?'Total paid':s.status==='closed'?'Closed · balance waived':'Balance due')+'</span>'
-    + '<span class="amt num">'+money((s.status==='paid'?s.total_cents:balance)/100)+'</span></div>';
-  if(s.status!=='paid' && paidNet>0) h += '<div style="padding:0 16px 10px;font-size:12px;color:var(--muted)">'+money(paidNet/100)+' of '+money(s.total_cents/100)+' paid'+(s.status==='closed'?' before this invoice was closed':' so far')+'</div>';
-  if(s.admin_fee_cents) h += '<div style="padding:0 16px 10px;font-size:12px;color:var(--muted)">Includes admin fee '+money(s.admin_fee_cents/100)+' (not taxed)</div>';
-  h += '<div class="iv-foot">Invoice #'+escHtml(s.id.slice(0,8).toUpperCase())+'</div>';
-  h += '</div>'; // /iv-card
-
-  // ── actions grid below the card ────────────────────────────────────────────
   h += '<div class="iv-actions">';
   h += '<button class="iv-abtn" onclick="invBack()">'+IV_ICO.pos+'<span>'+backLbl+'</span></button>';
-  h += '<button class="iv-abtn" onclick="posPrintSaleFromDb(\''+s.id+'\')">'+IV_ICO.print+'<span>Print '+(s.status==='paid'?'receipt':'invoice')+'</span></button>';
-  h += '<button class="iv-abtn" onclick="posEmailReceiptSheet(\''+s.id+'\')">'+IV_ICO.mail+'<span>Email '+(s.status==='paid'?'receipt':'invoice')+'</span></button>';
+  h += '<button class="iv-abtn" onclick="posPrintSaleFromDb(\''+s.id+'\')">'+IV_ICO.print+'<span>Print</span></button>';
+  h += '<button class="iv-abtn" onclick="posEmailReceiptSheet(\''+s.id+'\')">'+IV_ICO.mail+'<span>Email</span></button>';
+  h += '<button class="iv-abtn" onclick="posCopyInvoiceLink(\''+s.id+'\')">'+IV_ICO.link+'<span>Copy link</span></button>';
   if(s.status==='unpaid' && balance>0) h += '<button class="iv-abtn" onclick="posAddPaymentSheet(\''+s.id+'\','+balance+',\''+escAttr(posBuyerLabel(s.buyer_contact_id))+'\',\'inv\')">'+IV_ICO.payadd+'<span>Add payment</span></button>';
   if(s.status==='paid' && paidNet>0) h += '<button class="iv-abtn" onclick="posRefundSheet(\''+s.id+'\','+paidNet+')">'+IV_ICO.refund+'<span>Refund</span></button>';
   if(s.status==='unpaid') h += '<button class="iv-abtn" onclick="posCloseInvoiceSheet(\''+s.id+'\','+balance+')">'+IV_ICO.close+'<span>Close</span></button>';
   if(s.status==='unpaid' && paidNet===0 && pays.length===0) h += '<button class="iv-abtn danger" onclick="posDeleteInvoiceSheet(\''+s.id+'\')">'+IV_ICO.trash+'<span>Delete</span></button>';
   h += '</div>';
 
-  // ── payments card ──────────────────────────────────────────────────────────
-  h += '<div class="iv-card"><div class="iv-payhd">'+IV_ICO.wallet+'<span>PAYMENTS</span></div>';
-  if(pays.length){
-    h += '<table class="inv-tbl"><thead><tr><th>Date</th><th>Type</th><th class="iv-d">Note</th><th class="r">Amount</th></tr></thead><tbody>';
-    pays.forEach(p=>{
-      h += '<tr><td>'+escHtml(new Date(p.occurred_at).toLocaleDateString('en-US'))+'</td>'
-        + '<td style="text-transform:capitalize">'+escHtml(p.kind)+(p.note?'<div class="iv-m">'+escHtml(p.note)+'</div>':'')+'</td>'
-        + '<td class="iv-d" style="color:var(--muted);font-size:12.5px">'+escHtml(p.note||'')+'</td>'
-        + '<td class="r num"'+(p.amount_cents<0?' style="color:#c8102e"':'')+'>'+(p.amount_cents<0?'−':'')+money(Math.abs(p.amount_cents)/100)+'</td></tr>';
-    });
-    h += '</tbody></table>'
-      + '<div style="display:flex;justify-content:space-between;padding:10px 16px;border-top:1.5px solid var(--ink)"><b style="font-size:12px;letter-spacing:1px;text-transform:uppercase">Total paid</b><b class="num">'+money(paidNet/100)+'</b></div>';
-  } else {
-    h += '<div class="iv-empty2"><span class="ic">'+IV_ICO.wallet+'</span><span>No payments recorded — this invoice is '+escHtml(s.status)+'.</span></div>';
-  }
-  h += '</div>';
+  h += buildPaymentsCard(o);
 
   if(s.status==='paid' && paidNet>=s.total_cents){
     h += '<div style="margin:18px 2px"><div style="font-size:13px;font-weight:600;margin-bottom:8px">This invoice is marked paid in full.</div>'
