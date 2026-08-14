@@ -49,6 +49,11 @@ const esc = (v: unknown) =>
   String(v == null ? "" : v).replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
 
+const fmtDate = (ymd: unknown) => {
+  const p = String(ymd ?? "").slice(0, 10).split("-");
+  return p.length === 3 ? p[1] + "-" + p[2] + "-" + p[0] : String(ymd ?? "");
+};
+
 const money = (cents: number) =>
   "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -78,7 +83,7 @@ Deno.serve(async (req) => {
     // authenticate with the service-role key instead. That key never leaves
     // Supabase, so possessing it IS the authorization.
     const authHeader = req.headers.get("Authorization") ?? "";
-    const bearer = authHeader.replace(/^Bearers+/i, "").trim();
+    const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
     const internal = !!bearer && bearer === serviceKey;
     if (!internal) {
       const caller = createClient(url, anonKey, { global: { headers: { Authorization: authHeader } } });
@@ -153,10 +158,15 @@ Deno.serve(async (req) => {
         <p style="font-size:22px;font-weight:bold;margin:10px 0 2px">${money(s.total_cents)}</p>
         <p style="font-size:13px;margin:0 0 16px;${paid ? "color:#1e9e54" : closed ? "color:#6A727E" : "color:#c8102e"};font-weight:bold">
           ${paid ? "PAID — thank you!" : closed ? "Closed — no balance due" : `Balance due: ${money(balance)}`}</p>
-        <a href="${viewUrl}"
-           style="display:inline-block;background:#15171C;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:13px 34px;border-radius:8px">
-           View ${paid ? "receipt" : "invoice"}</a>
-        <p style="font-size:11px;color:#777;margin-top:16px">Invoice ${shortId} · ${esc(s.sale_date)}</p>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:4px auto 0">
+          <tr><td bgcolor="#15171C" style="border-radius:8px">
+            <a href="${viewUrl}" style="display:inline-block;padding:15px 38px;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:8px">
+              View ${paid ? "receipt" : "invoice"} &rarr;</a>
+          </td></tr>
+        </table>
+        <p style="font-size:11px;color:#999;margin-top:12px">Or paste this into your browser:<br>
+          <a href="${viewUrl}" style="color:#999;word-break:break-all">${viewUrl}</a></p>
+        <p style="font-size:11px;color:#777;margin-top:16px">Invoice ${shortId} · ${fmtDate(s.sale_date)}</p>
         <p style="font-size:10px;color:#999;margin-top:16px;line-height:1.6">${esc(legalLine)}<br>
           1901 Deerbrook Dr, Tyler, TX 75703 · 903-561-2966<br>
           Questions? Just reply to this email.</p>

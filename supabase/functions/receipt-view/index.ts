@@ -36,6 +36,11 @@ const esc = (v: unknown) =>
   String(v == null ? "" : v).replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
 
+const fmtDate = (ymd: unknown) => {
+  const p = String(ymd ?? "").slice(0, 10).split("-");
+  return p.length === 3 ? p[1] + "-" + p[2] + "-" + p[0] : String(ymd ?? "");
+};
+
 const money = (cents: number) =>
   "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -97,6 +102,8 @@ const CSS = [
   ".stampwrap{text-align:center;margin:16px 0}",
   ".stamp{display:inline-block;border:3px solid;border-radius:6px;padding:3px 18px;font-weight:700;font-size:22px;letter-spacing:4px;transform:rotate(-7deg)}",
   ".stamp.paid{color:#1e9e54}",
+  ".lg-light{display:none}",
+  "@media print{.iv-logo{background:#fff;border:1px solid #E2E6EB}.lg-dark{display:none}.lg-light{display:block}.iv-total,.iv-foot{-webkit-print-color-adjust:exact;print-color-adjust:exact}}",
 ].join("");
 
 const ICO = {
@@ -159,8 +166,8 @@ Deno.serve(async (req) => {
       ? "background:#E4F5EE;color:#18A974" : s.status === "unpaid"
       ? "background:#FDEBEC;color:#c8102e" : "background:#EDEFF2;color:#6A727E";
 
-    const logoCircle = brand.logoDark
-      ? '<div class="iv-logo"><img src="' + brand.logoDark + '" alt=""></div>'
+    const logoCircle = brand.logoDark && brand.logo
+      ? '<div class="iv-logo"><img class="lg-dark" src="' + brand.logoDark + '" alt=""><img class="lg-light" src="' + brand.logo + '" alt=""></div>'
       : brand.logo
       ? '<div class="iv-logo light"><img src="' + brand.logo + '" alt=""></div>'
       : '<div class="iv-logo"><span class="ini">G</span></div>';
@@ -193,7 +200,7 @@ Deno.serve(async (req) => {
       '<div class="iv-line">' + ICO.phone + "<span>(903) 561-2966 · barestkd.fit</span></div>" +
       "</div></div>" +
       '<div class="iv-div"></div>' +
-      '<div class="iv-daterow"><span class="dt">' + ICO.cal + "<span>" + esc(s.sale_date) + "</span></span>" +
+      '<div class="iv-daterow"><span class="dt">' + ICO.cal + "<span>" + fmtDate(s.sale_date) + "</span></span>" +
       '<span><span class="chip" style="' + chipStyle + '">' + esc(s.status) + "</span>" +
       (refunded ? ' <span style="font-size:11px;color:#6A727E">refunded ' + money(refunded) + "</span>" : "") + "</span></div>" +
       '<div class="iv-div"></div>' +

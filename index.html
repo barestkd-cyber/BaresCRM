@@ -1270,7 +1270,7 @@ async function posExpiringSheet(){
     h+='<div class="opt-btn"'+(r.contact_id?' onclick="closeSheet();openProfile(\''+r.contact_id+'\')"':'')+'>'
       +'<div style="flex:1"><div style="font-weight:700">'+escHtml(posBuyerLabel(r.contact_id))+'</div>'
       +'<div style="font-size:12px;color:var(--muted)">'+escHtml(pl?pl.name:(r.plan_code||''))+(r.program?' · '+escHtml(r.program):'')+'</div></div>'
-      +'<div style="text-align:right"><div style="font-weight:700;font-size:13px">'+escHtml(r.ended_on)+'</div>'
+      +'<div style="text-align:right"><div style="font-weight:700;font-size:13px">'+escHtml(fmtDate(r.ended_on))+'</div>'
       +'<div style="font-size:11px;color:'+(days<=7?'#c8102e':'var(--muted)')+'">'+(days===0?'today':days+' day'+(days>1?'s':''))+'</div></div></div>';
   });
   h+='<div class="ck-hint" style="margin-top:10px">Expiry is billing only — it never changes someone\'s standing as a contact. Renewal notices (month-ahead) are designed and queued for the Stripe recurring phase.</div>';
@@ -2771,7 +2771,7 @@ async function posTransactions(){
   if(rows.length){
     rows.forEach(r=>{
       h+='<div class="opt-btn" onclick="showInvoice(\''+r.id+'\',\'tx\')"><div style="flex:1"><div style="font-weight:700">'+escHtml(posBuyerLabel(r.buyer_contact_id))+'</div>'
-        +'<div style="font-size:12px;color:var(--muted)">'+escHtml(r.sale_date)+' · '+escHtml(r.id.slice(0,8).toUpperCase())+(r.tender_method?' · '+escHtml(r.tender_method):'')+'</div></div>'
+        +'<div style="font-size:12px;color:var(--muted)">'+escHtml(fmtDate(r.sale_date))+' · '+escHtml(r.id.slice(0,8).toUpperCase())+(r.tender_method?' · '+escHtml(r.tender_method):'')+'</div></div>'
         +invStatusChip(r.status)
         +'<div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;margin-left:10px">'+money(r.total_cents/100)+'</div></div>';
     });
@@ -2958,10 +2958,23 @@ const IV_ICO = {
 };
 /* Circular brand avatar: dark circle + white wordmark for BTKD, light circle
    for the GBS bear, initials fallback for the plain LLC. */
-function posBrandCircle(b){
-  if(b.key==='btkd') return '<div class="iv-logo"><img src="https://barestkd.fit/assets/img/logo-reverse.png" alt=""></div>';
+/* Display date, owner preference 2026-08-15: MM-DD-YYYY. Storage stays ISO —
+   this only changes what people read. Split the string rather than using
+   new Date(), which parses a bare date as UTC and shifts it a day in Texas. */
+function fmtDate(ymd){
+  const p = String(ymd==null?'':ymd).slice(0,10).split('-');
+  return p.length===3 ? p[1]+'-'+p[2]+'-'+p[0] : String(ymd==null?'':ymd);
+}
+
+/* forPrint flips to the dark-on-white treatment: printers drop background
+   colours by default, which turned the white wordmark on its black circle
+   into white-on-white paper. */
+function posBrandCircle(b, forPrint){
+  if(b.key==='btkd') return forPrint
+    ? '<div class="iv-logo light"><img src="https://barestkd.fit/assets/img/logo.png" alt=""></div>'
+    : '<div class="iv-logo"><img src="https://barestkd.fit/assets/img/logo-reverse.png" alt=""></div>';
   if(b.key==='gbs')  return '<div class="iv-logo light"><img src="https://crm.barestkd.fit/gbs-logo.png" alt=""></div>';
-  return '<div class="iv-logo"><span class="ini">G</span></div>';
+  return '<div class="iv-logo'+(forPrint?' light':'')+'"><span class="ini"'+(forPrint?' style="color:var(--ink)"':'')+'>G</span></div>';
 }
 let INV_CUR = { id: null, from: null };
 let INV_BANNER = null; // one-time tender messages consumed by the next showInvoice
@@ -3001,13 +3014,13 @@ async function loadInvoiceData(saleId){
 function buildInvoiceCard(o, forPrint){
   const s=o.s, b=o.b;
   let h = '<div class="iv-card">';
-  h += '<div class="iv-brandrow">'+posBrandCircle(b)
+  h += '<div class="iv-brandrow">'+posBrandCircle(b, forPrint)
     + '<div><div class="iv-bname">'+escHtml((b.dba && !b.effective) ? LEGAL_ENTITY : b.name)+'</div>'
     + '<div class="iv-line">'+IV_ICO.pin+'<span>1901 Deerbrook Dr, Tyler, TX 75703</span></div>'
     + '<div class="iv-line">'+IV_ICO.phone+'<span>(903) 561-2966 · barestkd.fit</span></div>'
     + '</div></div>';
   h += '<div class="iv-div"></div>';
-  h += '<div class="iv-daterow"><span class="dt">'+IV_ICO.cal+'<span>'+escHtml(s.sale_date)+' · '+escHtml(new Date(s.created_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}))+'</span></span>'
+  h += '<div class="iv-daterow"><span class="dt">'+IV_ICO.cal+'<span>'+escHtml(fmtDate(s.sale_date))+' · '+escHtml(new Date(s.created_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}))+'</span></span>'
     + '<span>'+invStatusChip(s.status)+(o.refunded?' <span style="font-size:11px;color:var(--muted)">refunded '+money(o.refunded/100)+'</span>':'')+'</span></div>';
   h += '<div class="iv-div"></div>';
   h += '<div class="iv-cols">'
@@ -3321,7 +3334,7 @@ async function loadReports(){
     sales.forEach(r=>{
       h += '<div class="opt-btn" style="border-radius:0;border-left:none;border-right:none" onclick="showInvoice(\''+r.id+'\',\'reports\')">'
         + '<div style="flex:1"><div style="font-weight:700">'+escHtml(posBuyerLabel(r.buyer_contact_id))+'</div>'
-        + '<div style="font-size:12px;color:var(--muted)">'+escHtml(r.sale_date)+' · '+escHtml(r.id.slice(0,8).toUpperCase())+(r.tender_method?' · '+escHtml(r.tender_method):'')+'</div></div>'
+        + '<div style="font-size:12px;color:var(--muted)">'+escHtml(fmtDate(r.sale_date))+' · '+escHtml(r.id.slice(0,8).toUpperCase())+(r.tender_method?' · '+escHtml(r.tender_method):'')+'</div></div>'
         + invStatusChip(r.status)
         + '<div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;margin-left:10px">'+money(r.total_cents/100)+'</div></div>';
     });
@@ -4032,7 +4045,7 @@ async function loadProfileMemberships(contactId){
     h += '<div class="mem"><div class="mem-top"><div>'
       + '<div class="mem-name">'+escHtml(ms.program||'—')+'</div><div class="mem-plan">'+escHtml(planName)+'</div></div>'
       + '<span class="mstatus '+escAttr(st)+'">'+escHtml(st.charAt(0).toUpperCase()+st.slice(1))+'</span></div>'
-      + '<div class="mem-pay"><span class="due">'+escHtml(sched)+(ms.started_on?' · since '+escHtml(ms.started_on):'')+'</span></div>'
+      + '<div class="mem-pay"><span class="due">'+escHtml(sched)+(ms.started_on?' · since '+escHtml(fmtDate(ms.started_on)):'')+'</span></div>'
       + '<div class="mem-foot">'
       + (ms.sale_id ? '<button class="vc" onclick="showInvoice(\''+ms.sale_id+'\',\'profile\')">View invoice</button>' : '<span></span>')
       + '<span></span></div></div>';
@@ -4057,7 +4070,7 @@ async function loadProfileLedger(contactId){
   let h = '<div class="bal"><span class="bl">Balance owed</span><span class="bv num"'+(owed?' style="color:#c8102e"':'')+'>'+money(owed/100)+'</span></div>';
   if(rows.length){
     rows.slice(0,5).forEach(r=>{
-      h += '<div class="inv" style="cursor:pointer" onclick="showInvoice(\''+r.id+'\',\'profile\')"><div class="id">'+escHtml(r.id.slice(0,8).toUpperCase())+'<small>'+escHtml(r.sale_date)+(r.tender_method?' · '+escHtml(r.tender_method):'')+'</small></div>'
+      h += '<div class="inv" style="cursor:pointer" onclick="showInvoice(\''+r.id+'\',\'profile\')"><div class="id">'+escHtml(r.id.slice(0,8).toUpperCase())+'<small>'+escHtml(fmtDate(r.sale_date))+(r.tender_method?' · '+escHtml(r.tender_method):'')+'</small></div>'
         + '<div class="ia">'+money(r.total_cents/100)+'<div class="st '+(r.status==='paid'?'paid':'over')+'">'+(r.status==='paid'?'Paid':r.status==='unpaid'?'Unpaid':escHtml(r.status))+'</div></div></div>';
     });
     if(rows.length>5) h += '<div class="linkrow" onclick="toast(\'Full history view comes with the payments build\')">'+rows.length+' invoices — showing 5</div>';
@@ -4792,6 +4805,15 @@ async function bootCrm(){
   loadProducts();  // async — POS quick-list swaps in live rows when it lands
   loadEvents();    // async — real events replace the mock list when the table exists
   loadStaffDir();  // async — real staff names for picker/created-by/receipts
+  // PRICE_SETTINGS lives here, and the admin fee needs it on EVERY sale — not
+  // just membership sales. Before this, a plain uniform sale never loaded the
+  // catalog, so no fee was applied and the cash/check "remove fee?" prompt had
+  // nothing to ask about. Re-render POS if it is already on screen when this
+  // lands.
+  loadCatalog().then(function(){
+    const v = document.getElementById('view-pos');
+    if(v && v.classList.contains('on')) renderPOS();
+  });
   await attComputeLastVisits();
   renderChips();
   renderList();
