@@ -369,6 +369,9 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
   .mrow{display:grid;grid-template-columns:var(--cols);align-items:center;gap:16px;padding:13px 16px}
   .mrow .msub{display:none}            /* rank lives in its own column now */
   .col-d{display:block}
+  /* POS quick list: dropdown on phones, big tap targets on a real screen */
+  .pos-prods{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:11px}
+  .pos-prodsel{display:none}
   .mright{flex-direction:column;align-items:flex-end}
   /* profile is a normal full-width view with its back bar */
   .phead{display:flex;align-items:center;text-align:left;gap:18px;padding:24px 28px}
@@ -468,7 +471,9 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .pos-search-wrap{position:relative;margin-bottom:2px}
 .pos-search-wrap .search-ico{left:16px;font-size:19px}
 .pos-search{font-size:16px;padding:15px 16px 15px 44px}
-.pos-prods{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:11px}
+.pos-prods{display:none}                     /* desktop-only: see the 900px query */
+.pos-prodsel{display:block}                  /* mobile default: one dropdown */
+.pos-prodsel select{width:100%;background:var(--card);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:13px 12px;font-size:15px;font-family:inherit;color:var(--text);outline:none}
 .pos-prods button{background:var(--card);border:1.5px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px 14px;min-height:86px;text-align:center;color:var(--text);font-weight:700;font-size:15px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;transition:border-color .15s,box-shadow .15s}
 .pos-prods button:hover{border-color:var(--ink);box-shadow:0 4px 14px rgba(0,0,0,.08)}
 .pos-prods .pp-amt{display:block;font-family:'Space Grotesk',sans-serif;font-weight:700;color:var(--muted);font-size:14px}
@@ -1882,7 +1887,14 @@ function renderPOS(){
   html+='<div class="pos-search-wrap"><span class="search-ico">⌕</span><input class="search pos-search" placeholder="Search contacts, products or \'*\' for top 40..." oninput="posSearch(this.value)"></div>';
   html+='<div id="posResults" class="pos-results"></div>';
   html+='<div class="inv-add" style="margin-top:10px"><button onclick="posAddMembership()">＋ Membership</button><button onclick="posAddEvent()">＋ Event</button></div>';
-  html+='<div class="pos-sec-lbl">Quick List Products</div><div class="pos-prods">'+PRODUCTS.map(p=>'<button onclick="posAddProdLine(\''+p.id+'\')">'+p.label+'<span class="pp-amt">'+money(p.amount)+'</span></button>').join("")+'</div>';
+  // Both forms render; the stylesheet picks one — dropdown on phones, big tap
+  // targets on desktop (owner call 2026-08-15).
+  html+='<div class="pos-sec-lbl">Quick List Products</div>';
+  html+='<div class="pos-prodsel"><select onchange="if(this.value){posAddProdLine(this.value);this.selectedIndex=0;}">'
+    +'<option value="">Add a product…</option>'
+    +PRODUCTS.map(p=>'<option value="'+escAttr(p.id)+'">'+escHtml(p.label)+' · '+money(p.amount)+'</option>').join("")
+    +'</select></div>';
+  html+='<div class="pos-prods">'+PRODUCTS.map(p=>'<button onclick="posAddProdLine(\''+escAttr(p.id)+'\')">'+escHtml(p.label)+'<span class="pp-amt">'+money(p.amount)+'</span></button>').join("")+'</div>';
   html+='<div class="pos-sec-lbl">Reference</div><div class="inv-add">'+PACKETS.map(p=>'<button onclick="openPacket(\''+p.id+'\')">▤ '+p.label+(p.url?'':' · add')+'</button>').join("")+'</div>';
   html+='</div>';
   html+='<div><div class="inv pos-inv">';

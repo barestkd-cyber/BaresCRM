@@ -112,6 +112,7 @@ const FNS = [
   'posSuggestedAdminFeeCents', 'posSaveAmount',
   'posPayOpen', 'posPayTab', 'posPayRender', 'posPayChange', 'posPayQuick',
   'posPayFeePrompt', 'posPayFeeAnswer', 'posPayAskClose', 'posPaySubmit', 'posPayClose',
+  'posAutoReceipt',
   'pmNowParts', 'pmOccurredAt',
   'posAddMembership', 'posPickProgram', 'posAddMemLine',
   'posAttachSheet', 'posAttachSearch', 'posPickStudentForLine', 'posRequoteLine', 'posSetBuyer',
@@ -194,7 +195,18 @@ function qb(table, opts) {
   };
   return self;
 }
-const sbShim = { from: table => qb(table) };
+// Edge Function calls are recorded, not made. RECEIPTS holds every
+// send-receipt invocation so tests can assert automatic receipts fire.
+const RECEIPTS = [];
+const sbShim = {
+  from: table => qb(table),
+  functions: {
+    invoke: (name, opts) => {
+      if (name === 'send-receipt') RECEIPTS.push((opts && opts.body) || {});
+      return Promise.resolve({ data: { ok: true, to: ['buyer@test'] }, error: null });
+    }
+  }
+};
 
 // ── catalog fixture (post-membership-programs.sql shape) ────────────────────
 const P_ = (code, name, program, category, freq, rec, down, pay, pif, fam, hh, sellable) =>
@@ -542,6 +554,31 @@ await test('12 payment modal: change, partial, and the detail handed to posTende
   assert.strictEqual(sale.rows.total_cents, total, 'the invoice still owes the full amount');
   assert.strictEqual(pay.rows.amount_cents, 2000, 'the payment row carries what was collected');
   assert.strictEqual(pay.rows.method, 'cash');
+});
+
+await test('13 a paid sale emails its receipt automatically; an unpaid one does not', async () => {
+  sandbox.PRICE_SETTINGS.admin_fee_bps = 0;
+  sandbox.PRICE_SETTINGS.admin_fee_flat_cents = 0;
+
+  // Saved unpaid: nothing to receipt yet.
+  sandbox.posSale = sandbox.posBlank();
+  sandbox.posSale.memberId = 'kidA';
+  sandbox.posSale.lines.push({ kind: 'prod', label: 'Beginner uniform', amount: 82.25, qty: 1, taxable: true });
+  RECEIPTS.length = 0;
+  await call("posTender('Unpaid')");
+  assert.strictEqual(RECEIPTS.length, 0, 'an unpaid invoice must not send a receipt');
+
+  // Paid at the desk: the receipt goes out on its own, addressed by sale id
+  // only — the server resolves who to send it to.
+  sandbox.posSale = sandbox.posBlank();
+  sandbox.posSale.memberId = 'kidA';
+  sandbox.posSale.lines.push({ kind: 'prod', label: 'Beginner uniform', amount: 82.25, qty: 1, taxable: true });
+  RECEIPTS.length = 0;
+  await call("posTender('Cash')");
+  assert.strictEqual(RECEIPTS.length, 1, 'a paid sale sends exactly one receipt');
+  assert.ok(RECEIPTS[0].sale_id, 'the receipt is addressed by sale id');
+  assert.strictEqual(RECEIPTS[0].to, undefined,
+    'the client never picks the recipient — the server reads the buyer on file');
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
