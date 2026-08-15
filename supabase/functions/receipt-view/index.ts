@@ -25,7 +25,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const LEGAL_ENTITY = "Grizzly Martial Arts and Fitness LLC";
+const LEGAL_ENTITY = "Grizzly Martial Arts & Fitness LLC";
 const BRANDS: Record<string, { name: string; dba: boolean; logo: string | null; logoDark: string | null }> = {
   btkd: { name: "Bares Taekwondo Fitness", dba: true, logo: "https://barestkd.fit/assets/img/logo.png", logoDark: "https://barestkd.fit/assets/img/logo-reverse.png" },
   gbs: { name: "Grizzly Business Systems", dba: true, logo: "https://crm.barestkd.fit/gbs-logo.png", logoDark: null },

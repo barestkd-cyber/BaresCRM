@@ -26,7 +26,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const ALLOWED_ORIGINS = ["https://crm.barestkd.fit"];
 const REPLY_TO = "race@barestkd.fit";
-const LEGAL_ENTITY = "Grizzly Martial Arts and Fitness LLC";
+const LEGAL_ENTITY = "Grizzly Martial Arts & Fitness LLC";
 
 // Brand catalog — keep aligned with RECEIPT_BRANDS in BaresCRM/index.html.
 const BRANDS: Record<string, { name: string; dba: boolean; logo: string | null }> = {

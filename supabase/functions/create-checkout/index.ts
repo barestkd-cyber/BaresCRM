@@ -27,7 +27,7 @@ const ALLOWED_ORIGINS = [SITE, "https://barestkd.fit"];
 const BRAND_NAMES: Record<string, string> = {
   btkd: "Bares Taekwondo Fitness",
   gbs: "Grizzly Business Systems",
-  gmaf: "Grizzly Martial Arts and Fitness LLC",
+  gmaf: "Grizzly Martial Arts & Fitness LLC",
 };
 
 function cors(origin: string | null) {

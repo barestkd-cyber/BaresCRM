@@ -1860,13 +1860,13 @@ async function loadProducts(){
 /* Receipt identity. The legal entity is always safe to print; the DBAs are
  * PENDING state filings — until Race flips `effective`, receipts print the
  * LLC name instead of an unregistered assumed name. */
-const LEGAL_ENTITY = 'Grizzly Martial Arts and Fitness LLC';
+const LEGAL_ENTITY = 'Grizzly Martial Arts & Fitness LLC';
 const RECEIPT_BRANDS = [
   // Both DBAs registered and effective per Race, 2026-08-13.
   // Logos are hosted URLs so the SAME markup works in print windows and email.
   {key:'btkd', name:'Bares Taekwondo Fitness',           dba:true,  effective:true,  logo:'https://barestkd.fit/assets/img/logo.png'},
   {key:'gbs',  name:'Grizzly Business Systems',          dba:true,  effective:true,  logo:'https://crm.barestkd.fit/gbs-logo.png'},
-  {key:'gmaf', name:'Grizzly Martial Arts and Fitness LLC', dba:false, effective:true, logo:null}
+  {key:'gmaf', name:'Grizzly Martial Arts & Fitness LLC', dba:false, effective:true, logo:null}
 ];
 function posBrand(key){ return RECEIPT_BRANDS.find(b=>b.key===key) || RECEIPT_BRANDS[0]; }
 
