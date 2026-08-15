@@ -110,7 +110,7 @@ const FNS = [
   'posStudentContext', 'posForgetStudent', 'posStudentName',
   'posQuote', 'posMemDueCents', 'posMemLineDueCents', 'posMemRecurringNote', 'posProgramBuckets',
   'posSuggestedAdminFeeCents', 'posSaveAmount',
-  'posPayOpen', 'posPayTab', 'posPayRender', 'posPayChange', 'posPayQuick',
+  'posPayOpen', 'posPayTab', 'posPayRender', 'posPayChange', 'posPayEffectiveCents', 'posPayQuick',
   'posPayFeePrompt', 'posPayFeeAnswer', 'posPayAskClose', 'posPayRestoreFee', 'posPaySubmit', 'posPayClose',
   'posAutoReceipt',
   'pmNowParts', 'pmOccurredAt',
@@ -260,6 +260,7 @@ vm.createContext(sandbox);
 vm.runInContext(VARS.map(liftVar).join('\n') + '\n' + FNS.map(liftFn).join('\n'), sandbox);
 sandbox.posSale = sandbox.posBlank();
 
+function dollarsFromCentsHost(c){ return (c/100).toFixed(2); }
 function run(fn) { return vm.runInContext(fn, sandbox); }
 async function call(expr) { return await vm.runInContext(expr, sandbox); }
 
@@ -534,26 +535,28 @@ await test('12 payment modal: change, partial, and the detail handed to posTende
   assert.strictEqual(ensureEl('pmChangeV').textContent, run('money(' + ((10000 - total) / 100) + ')'),
     'change = tendered − amount due');
 
-  // Tendering LESS than the amount being paid is a mistake, not a partial.
+  // Handing over LESS than the asked amount is a PARTIAL payment, not an
+  // error (reported 2026-08-15: $40 cash against an $89.04 invoice). The cash
+  // that changed hands is the payment, there is no change, and the invoice
+  // stays open for the rest.
+  ensureEl('pmAmt').value = dollarsFromCentsHost(total);
   ensureEl('pmTendered').value = '50.00';
-  SB_CALLS.length = 0;
-  await call('posPaySubmit()');
-  assert.ok(TOASTS.some(t => /less than the amount/i.test(t)), 'refuses short cash');
-  assert.ok(!SB_CALLS.some(c => c.table === 'pos_sales'), 'nothing was written');
+  run('posPayChange()');
+  assert.strictEqual(ensureEl('pmChangeV').textContent, run('money(0)'),
+    'short cash gives no change');
+  assert.ok(/still be owed/.test(ensureEl('pmRemaining').innerHTML),
+    'and says plainly what is left owed');
 
-  // A partial payment: sale is created UNPAID with a real payment row.
-  ensureEl('pmAmt').value = '20.00';
-  ensureEl('pmTendered').value = '20.00';
   SB_CALLS.length = 0;
   await call('posPaySubmit()');
   const sale = SB_CALLS.find(c => c.table === 'pos_sales' && c.op === 'insert');
   const pay = SB_CALLS.find(c => c.table === 'pos_payments' && c.op === 'insert');
   assert.ok(sale && pay, 'both the invoice and the payment were written');
+  assert.strictEqual(pay.rows.amount_cents, 5000, 'the cash actually taken is the payment');
+  assert.strictEqual(pay.rows.method, 'cash');
   assert.strictEqual(sale.rows.status, 'unpaid', 'a partial leaves the invoice open');
   assert.strictEqual(sale.rows.tender_method, null, 'no tender method until it is actually paid');
   assert.strictEqual(sale.rows.total_cents, total, 'the invoice still owes the full amount');
-  assert.strictEqual(pay.rows.amount_cents, 2000, 'the payment row carries what was collected');
-  assert.strictEqual(pay.rows.method, 'cash');
 });
 
 await test('13 a paid sale emails its receipt automatically; an unpaid one does not', async () => {

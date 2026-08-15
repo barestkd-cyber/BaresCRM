@@ -2459,14 +2459,29 @@ function posPayQuick(cents){
   const el=document.getElementById('pmTendered'); if(el) el.value = PAY.tendered;
   posPayChange();
 }
-function posPayChange(){
+/* What is ACTUALLY being collected. On the cash tab, handing over less than
+   the amount asked for is not a mistake — it is a partial payment, and the
+   cash that changed hands is the payment (owner report 2026-08-15: "$40 on an
+   $89.04 invoice"). The typed fields are never rewritten mid-keystroke; the
+   effective figure is derived here and used at submit. */
+function posPayEffectiveCents(){
   const amt = centsFromInput((document.getElementById('pmAmt')||{}).value||'');
   const ten = centsFromInput((document.getElementById('pmTendered')||{}).value||'');
+  if(PAY.method==='Cash' && ten>0 && ten<amt) return { pay: ten, change: 0, short: true };
+  return { pay: amt, change: Math.max(ten-amt,0), short: false };
+}
+function posPayChange(){
+  const e = posPayEffectiveCents();
   const box = document.getElementById('pmChangeV');
-  if(box) box.textContent = money(Math.max(ten-amt,0)/100);
+  if(box) box.textContent = money(e.change/100);
   const rem = document.getElementById('pmRemaining');
-  if(rem) rem.innerHTML = (amt>0 && amt<PAY.balanceCents)
-    ? '<div class="pm-warn">Partial payment — '+money((PAY.balanceCents-amt)/100)+' will still be owed and the invoice stays open.</div>' : '';
+  if(rem){
+    const owed = PAY.balanceCents - e.pay;
+    rem.innerHTML = (e.pay>0 && owed>0)
+      ? '<div class="pm-warn">'+(e.short?'Taking '+money(e.pay/100)+' in cash — ':'Partial payment — ')
+        + money(owed/100)+' will still be owed and the invoice stays open.</div>'
+      : '';
+  }
   // Button label stays "Pay Now" per the mockups; the amount lives in the
   // field above it and in the invoice-total card.
 }
@@ -2553,17 +2568,20 @@ function posPayClose(){
 
 async function posPaySubmit(){
   if(PAY.method==='Terminal'){ toast('No card reader is set up yet'); return; }
-  const amt = centsFromInput((document.getElementById('pmAmt')||{}).value||'');
+  // Cash short of the asked amount is a partial payment, not an error — the
+  // money that changed hands is what gets recorded.
+  const eff = posPayEffectiveCents();
+  const amt = eff.pay;
   if(amt<=0){ toast('Enter the amount to pay'); return; }
   if(amt>PAY.balanceCents){ toast('That is more than the '+money(PAY.balanceCents/100)+' owed'); return; }
   const method = PAY.method;
   const occurredAt = pmOccurredAt();
-  let note = method, changeCents = 0;
+  let note = method, changeCents = eff.change;
 
   if(method==='Cash'){
     const ten = centsFromInput((document.getElementById('pmTendered')||{}).value||'');
-    if(ten>0 && ten<amt){ toast('Cash tendered is less than the amount being paid'); return; }
-    if(ten>amt){ changeCents = ten-amt; note = 'Cash — tendered '+money(ten/100)+', change '+money(changeCents/100); }
+    if(changeCents>0) note = 'Cash — tendered '+money(ten/100)+', change '+money(changeCents/100);
+    else if(eff.short) note = 'Cash — took '+money(ten/100);
     else note = 'Cash';
   } else if(method==='Check'){
     const nm=((document.getElementById('pmCheckName')||{}).value||'').trim();
