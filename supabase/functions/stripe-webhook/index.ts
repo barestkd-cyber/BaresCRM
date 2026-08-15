@@ -75,7 +75,11 @@ async function verifyStripeSignature(raw: string, header: string, secret: string
 
 /** Fire the receipt email server-to-server. Never throws into the payment
  *  path: the money is already recorded, and a mail failure must not turn a
- *  successful payment into a retried webhook. */
+ *  successful payment into a retried webhook.
+ *
+ *  `notify_owner` BCCs the owner so a payment that lands while nobody is at
+ *  the desk still reaches a human — previously an online payment by a walk-in
+ *  notified nobody at all. */
 async function sendReceipt(saleId: string): Promise<void> {
   try {
     const url = Deno.env.get("SUPABASE_URL")!;
@@ -87,7 +91,9 @@ async function sendReceipt(saleId: string): Promise<void> {
         "Content-Type": "application/json",
         "Origin": "https://crm.barestkd.fit",
       },
-      body: JSON.stringify({ sale_id: saleId }), // no `to`: it resolves the buyer on file
+      // No `to`: send-receipt resolves the recipient itself — the address the
+      // payer used at checkout, else the buyer on file.
+      body: JSON.stringify({ sale_id: saleId, notify_owner: true }),
     });
     if (!res.ok) console.error("receipt send failed", res.status, await res.text().catch(() => ""));
   } catch (e) {
@@ -154,6 +160,18 @@ Deno.serve(async (req) => {
 
       const method = methodFromSession(obj);
       const pi = typeof obj.payment_intent === "string" ? obj.payment_intent : obj.payment_intent?.id ?? null;
+
+      // The address the payer typed at checkout. For a walk-in sale this is
+      // the ONLY email anybody has, so without it the receipt goes nowhere.
+      // Stored as-is and never written onto a contact here: an email entered
+      // at a checkout page is not proof of identity, and silently changing a
+      // member's address would redirect all their future receipts. The CRM
+      // asks staff before adopting it.
+      const payerEmail = String(obj.customer_details?.email ?? obj.customer_email ?? "").trim().toLowerCase();
+      if (payerEmail && payerEmail.length <= 200) {
+        const se = await admin.from("pos_sales").update({ stripe_email: payerEmail }).eq("id", saleId);
+        if (se.error) console.error("stripe_email stamp failed", se.error); // not fatal to the payment
+      }
 
       // Idempotency at the money level too: one payment row per session.
       const existing = await admin.from("pos_payments")

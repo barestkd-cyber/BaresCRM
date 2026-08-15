@@ -335,6 +335,12 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .dcard .dc-desc{color:var(--muted);font-size:12.5px;margin-top:2px}
 .dcard .dc-go{color:#2563EB;font-size:12.5px;font-weight:600;margin-top:10px;display:inline-block}
 
+/* ---------- checkout-email notice on an invoice ---------- */
+.iv-emailbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;padding:10px 13px;border-radius:12px;background:#EFF6FF;border:1px solid #BFDBFE;color:#1E3A8A;font-size:13.5px}
+.iv-emailbar.warn{background:#FFF7ED;border-color:#FED7AA;color:#7C2D12}
+.iv-ebsub{font-size:12.5px;opacity:.85;margin-top:2px;font-weight:400}
+.iv-emailbar .pb-change{flex-shrink:0}
+
 /* ---------- membership agreements ---------- */
 /* Status of the agreement, under its membership line in the POS invoice. */
 .agr-chip{display:inline-flex;align-items:center;gap:5px;margin-top:5px;padding:3px 9px;border-radius:999px;font-size:11.5px;font-weight:700;cursor:pointer;border:1px solid}
@@ -3557,6 +3563,74 @@ function invStatusChip(st){
 /* One loader + one card builder feed BOTH the on-screen invoice and the
  * print window, so paper and screen can never drift (owner rule 2026-08-15:
  * print = the mobile card, minus the buttons). */
+/* ── the email a payer typed at Stripe checkout ─────────────────────────────
+ * Stripe always collects one, so it is the only address a walk-in sale has.
+ * It is recorded on the sale but NEVER written onto a contact automatically:
+ * an address typed at a checkout page is not proof of identity, and quietly
+ * replacing a member's email would redirect every future receipt to it. So it
+ * surfaces here and a human decides. */
+function invEmailBanner(s, buyer){
+  const typed = String(s.stripe_email||'').trim().toLowerCase();
+  if(!typed) return '';
+  const onFile = String((buyer && buyer.email)||'').trim().toLowerCase();
+  if(onFile && onFile === typed) return '';   // nothing to say
+
+  if(!buyer){
+    // Walk-in: no profile to update, but the address is worth seeing — it is
+    // where the receipt went and the only way to identify who paid.
+    return '<div class="iv-emailbar"><div><b>Paid by '+escHtml(typed)+'</b>'
+      + '<div class="iv-ebsub">Walk-in sale — no profile attached. The receipt went to this address.</div></div></div>';
+  }
+  const who = escHtml(buyer.first+' '+buyer.last);
+  if(!onFile){
+    return '<div class="iv-emailbar"><div><b>'+who+' paid from '+escHtml(typed)+'</b>'
+      + '<div class="iv-ebsub">No email on their profile yet.</div></div>'
+      + '<button class="pb-change" onclick="invAdoptEmail(\''+escAttr(s.id)+'\')">Save to profile</button></div>';
+  }
+  return '<div class="iv-emailbar warn"><div><b>Paid from a different email</b>'
+    + '<div class="iv-ebsub">'+who+' paid from <b>'+escHtml(typed)+'</b>, but the profile has <b>'+escHtml(onFile)+'</b>.</div></div>'
+    + '<button class="pb-change" onclick="invAdoptEmail(\''+escAttr(s.id)+'\')">Use the new one</button></div>';
+}
+
+/* Adopt the checkout address onto the buyer's profile, after a confirm that
+ * spells out exactly what changes — this address receives every future
+ * receipt, so it is not a silent edit. */
+async function invAdoptEmail(saleId){
+  const r = await sb.from('pos_sales').select('stripe_email,buyer_contact_id').eq('id', saleId).single();
+  if(r.error || !r.data){ toast('Could not read that sale'); return; }
+  const typed = String(r.data.stripe_email||'').trim().toLowerCase();
+  const cid = r.data.buyer_contact_id;
+  if(!typed || !cid){ toast('Nothing to save — this sale has no buyer attached'); return; }
+  const buyer = MEMBERS.find(m=>m.id===cid);
+  const onFile = String((buyer&&buyer.email)||'').trim().toLowerCase();
+  const who = buyer ? (buyer.first+' '+buyer.last) : 'this contact';
+
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head"><div><h3>Change the email on file?</h3>'
+    + '<div class="sub">'+escHtml(who)+'</div></div>'
+    + '<button class="close" onclick="closeSheet()">×</button></div>'
+    + '<div class="sheet-body">'
+    + (onFile
+        ? '<div class="ck-hint" style="text-align:left">This is not the email on file. Their profile says <b>'+escHtml(onFile)+'</b>, but they paid from <b>'+escHtml(typed)+'</b>.</div>'
+        : '<div class="ck-hint" style="text-align:left">Their profile has no email yet. They paid from <b>'+escHtml(typed)+'</b>.</div>')
+    + '<div class="proto-note" style="text-align:left">Saving it means every future receipt, invoice and reminder for '+escHtml(who)+' goes to '+escHtml(typed)+'.</div>'
+    + '<button class="opt-btn" onclick="invAdoptEmailConfirm(\''+escAttr(cid)+'\',\''+escAttr(typed)+'\',\''+escAttr(saleId)+'\')"><span class="oi">✓</span>'
+    + '<div style="flex:1"><div style="font-weight:700">Yes, use '+escHtml(typed)+'</div>'
+    + '<div style="font-size:12.5px;color:var(--muted)">Saves it to their profile</div></div></button>'
+    + '<button class="opt-btn" onclick="closeSheet()"><span class="oi">✕</span>No, keep '+escHtml(onFile||'the profile as it is')+'</button>'
+    + '</div>';
+  openSheet();
+}
+async function invAdoptEmailConfirm(contactId, email, saleId){
+  const u = await sb.from('contacts').update({ email: email }).eq('id', contactId);
+  if(u.error){ toast('Could not save that email: '+(u.error.message||u.error)); return; }
+  const m = MEMBERS.find(x=>x.id===contactId);
+  if(m) m.email = email;
+  closeSheet();
+  toast('Profile email updated to '+email);
+  showInvoice(saleId, INV_CUR.from);
+}
+
 async function loadInvoiceData(saleId){
   const [sRes, lRes, pRes] = await Promise.all([
     sb.from('pos_sales').select('*').eq('id', saleId).single(),
@@ -3706,6 +3780,10 @@ async function showInvoice(saleId, from){
     if(INV_BANNER.problems.length) INV_BANNER.problems.forEach(p=>{ h += '<div class="ck-hint" style="margin-bottom:10px;color:var(--warn)">'+escHtml(p)+'</div>'; });
     INV_BANNER = null;
   }
+
+  // The address the payer typed at Stripe checkout, when it tells us something
+  // the profile does not already know.
+  h += invEmailBanner(s, o.buyer);
 
   h += buildInvoiceCard(o, false);
 

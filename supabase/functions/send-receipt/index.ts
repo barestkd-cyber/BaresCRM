@@ -110,18 +110,37 @@ Deno.serve(async (req) => {
     // ── load the sale; make sure it has a view token ────────────────────────
     const admin = createClient(url, serviceKey);
     const saleRes = await admin.from("pos_sales")
-      .select("id,status,brand,total_cents,sale_date,view_token,buyer_contact_id")
+      .select("id,status,brand,total_cents,sale_date,view_token,buyer_contact_id,stripe_email")
       .eq("id", saleId).single();
     if (saleRes.error || !saleRes.data) return json({ error: "Sale not found" }, 404, cors);
     const s = saleRes.data;
 
     if (!to.length) {
-      if (!s.buyer_contact_id) return json({ ok: false, skipped: "walk-in sale, nobody to email" }, 200, cors);
-      const c = await admin.from("contacts").select("email").eq("id", s.buyer_contact_id).maybeSingle();
-      const onFile = (c.data?.email ?? "").trim().toLowerCase();
-      if (!onFile || !EMAIL_RE.test(onFile)) return json({ ok: false, skipped: "no email on file" }, 200, cors);
-      to.push(onFile);
+      // Resolution order, most-specific first:
+      //   1. the address the payer typed at Stripe checkout — they just chose
+      //      it and are expecting the receipt there, and for a WALK-IN it is
+      //      the only address that exists;
+      //   2. the buyer's address on file.
+      // Before this, a walk-in simply skipped and nobody was emailed at all.
+      const typed = String(s.stripe_email ?? "").trim().toLowerCase();
+      if (typed && EMAIL_RE.test(typed)) {
+        to.push(typed);
+      } else if (s.buyer_contact_id) {
+        const c = await admin.from("contacts").select("email").eq("id", s.buyer_contact_id).maybeSingle();
+        const onFile = (c.data?.email ?? "").trim().toLowerCase();
+        if (!onFile || !EMAIL_RE.test(onFile)) return json({ ok: false, skipped: "no email on file" }, 200, cors);
+        to.push(onFile);
+      } else {
+        return json({ ok: false, skipped: "walk-in sale with no checkout email, nobody to email" }, 200, cors);
+      }
     }
+
+    // Automatic post-payment sends BCC the owner: an online payment taken
+    // while nobody is at the desk used to notify no one. BCC rather than a
+    // second To — the customer should not see an internal address.
+    const notifyOwner = body.notify_owner === true;
+    const ownerBcc = (Deno.env.get("OWNER_NOTIFY_EMAIL") ?? REPLY_TO).trim().toLowerCase();
+    const bcc = (notifyOwner && EMAIL_RE.test(ownerBcc) && !to.includes(ownerBcc)) ? [ownerBcc] : [];
 
     let token = s.view_token as string | null;
     if (!token) {
@@ -212,6 +231,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         from: `${brand.name} <receipts@barestkd.fit>`,
         to,
+        ...(bcc.length ? { bcc } : {}),
         reply_to: REPLY_TO,
         subject,
         html,
@@ -229,7 +249,7 @@ Deno.serve(async (req) => {
       .eq("id", saleId);
     if (upd.error) console.error("receipt stamp failed", upd.error); // email DID send
 
-    return json({ ok: true, to, paid }, 200, cors);
+    return json({ ok: true, to, bcc, paid }, 200, cors);
   } catch (e) {
     console.error("send-receipt error", e);
     return json({ error: "Internal error" }, 500, cors);

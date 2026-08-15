@@ -342,4 +342,54 @@ test('the tender gate counts exactly the memberships still unsigned', () => {
   assert.strictEqual(pending[0].i, 0, 'gate pointed at the wrong line');
 });
 
+
+/* ── 3. the checkout-email banner ──────────────────────────────────────────*/
+console.log('\nindex.html — the email a payer typed at Stripe checkout');
+
+vm.runInContext(liftFn('invEmailBanner'), sandbox);
+const { invEmailBanner } = sandbox;
+
+test('nothing is shown when the payer used the address already on file', () => {
+  const out = invEmailBanner({ id: 's1', stripe_email: 'Pat@Example.com' },
+                             { first: 'Pat', last: 'Lee', email: 'pat@example.com' });
+  assert.strictEqual(out, '', 'a banner appeared for a matching address (case differs only)');
+});
+
+test('nothing is shown for a sale that never went through Stripe', () => {
+  assert.strictEqual(invEmailBanner({ id: 's1', stripe_email: null }, { first: 'Pat', last: 'Lee', email: 'pat@example.com' }), '');
+  assert.strictEqual(invEmailBanner({ id: 's1' }, null), '');
+});
+
+test('a walk-in shows where the receipt went and offers no profile edit', () => {
+  // The bug this whole feature exists for: a walk-in had no address at all,
+  // so send-receipt skipped and nobody — customer or owner — was emailed.
+  const out = invEmailBanner({ id: 's1', stripe_email: 'stranger@example.com' }, null);
+  assert.ok(/stranger@example\.com/.test(out), 'the paying address is not shown');
+  assert.ok(/Walk-in/.test(out), 'the walk-in case is not explained');
+  assert.ok(!/invAdoptEmail/.test(out), 'offered to save an email onto a profile that does not exist');
+});
+
+test('a buyer with no email on file gets a plain save action', () => {
+  const out = invEmailBanner({ id: 's1', stripe_email: 'pat@example.com' },
+                             { first: 'Pat', last: 'Lee', email: '' });
+  assert.ok(/No email on their profile yet/.test(out));
+  assert.ok(/invAdoptEmail/.test(out), 'no way to save the address');
+  assert.ok(!/iv-emailbar warn/.test(out), 'a first-time email is not a conflict');
+});
+
+test('a DIFFERENT email is flagged as a conflict showing both addresses', () => {
+  const out = invEmailBanner({ id: 's1', stripe_email: 'new@example.com' },
+                             { first: 'Pat', last: 'Lee', email: 'old@example.com' });
+  assert.ok(/iv-emailbar warn/.test(out), 'a mismatch was not flagged');
+  assert.ok(/new@example\.com/.test(out) && /old@example\.com/.test(out),
+    'the operator cannot compare the two addresses');
+  assert.ok(/Use the new one/.test(out), 'no way to accept the new address');
+});
+
+test('the banner escapes an address rather than trusting it', () => {
+  // stripe_email arrives from an external checkout page.
+  const out = invEmailBanner({ id: 's1', stripe_email: '<script>alert(1)</script>@x.com' }, null);
+  assert.ok(!/<script>/.test(out), 'unescaped markup from Stripe reached the page');
+});
+
 console.log('\n' + passed + ' passed' + (process.exitCode ? ' — SEE FAILURES ABOVE' : '') + '\n');
