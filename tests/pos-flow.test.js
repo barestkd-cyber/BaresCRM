@@ -582,6 +582,19 @@ await test('13 a paid sale emails its receipt automatically; an unpaid one does 
   assert.ok(RECEIPTS[0].sale_id, 'the receipt is addressed by sale id');
   assert.strictEqual(RECEIPTS[0].to, undefined,
     'the client never picks the recipient — the server reads the buyer on file');
+
+  // A PARTIAL payment emails too — that is how they get the balance and the
+  // link to finish paying online (owner call 2026-08-15).
+  sandbox.posSale = sandbox.posBlank();
+  sandbox.posSale.memberId = 'kidA';
+  sandbox.posSale.lines.push({ kind: 'prod', label: 'Beginner uniform', amount: 82.25, qty: 1, taxable: true });
+  run('renderPOS()');
+  await call("posPayOpen({mode:'sale'})");
+  run("posPayTab('Cash')");
+  ensureEl('pmTendered').value = '40.00';
+  RECEIPTS.length = 0;
+  await call('posPaySubmit()');
+  assert.strictEqual(RECEIPTS.length, 1, 'a partial payment still sends the invoice email');
 });
 
 await test('14 admin fee follows the METHOD: off for cash, back on for card', async () => {

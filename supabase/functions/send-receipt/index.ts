@@ -152,7 +152,15 @@ Deno.serve(async (req) => {
     // the ONLY parts the caller controls — every figure, the link, the brand
     // and the legal footer are still derived here from the ledger. Both are
     // escaped, so a typo can never inject markup into a customer's inbox.
-    const defaultIntro = `Here's your ${paid ? "receipt" : "invoice"} from ${brand.name}.`;
+    // Wording follows the state. "Here is your invoice" reads wrong right
+    // after somebody has handed over cash, so a partially-paid invoice
+    // thanks them first and then names the balance.
+    const partlyPaid = !paid && !closed && paidNet > 0;
+    const defaultIntro = paid
+      ? `Here's your receipt from ${brand.name}.`
+      : partlyPaid
+      ? `Thanks — we received ${money(paidNet)}. Here's your updated invoice from ${brand.name}.`
+      : `Here's your invoice from ${brand.name}.`;
     const intro = esc(String(body.intro ?? "").trim().slice(0, 300) || defaultIntro);
     const note = String(body.note ?? "").trim().slice(0, 1200);
 
@@ -185,6 +193,8 @@ Deno.serve(async (req) => {
       ? `Your receipt from ${brand.name} — ${money(s.total_cents)}`
       : closed
       ? `Invoice ${shortId} from ${brand.name} — closed`
+      : partlyPaid
+      ? `Payment received — ${money(balance)} still due · ${brand.name}`
       : `Invoice from ${brand.name} — ${money(balance)} due`;
 
     // Preview: hand back exactly what would be sent, send nothing, touch
