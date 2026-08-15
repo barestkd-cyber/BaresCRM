@@ -1,0 +1,6 @@
+# Supabase CLI scratch — machine-local link state, not part of the app.
+supabase/.temp/
+
+# OS noise
+Thumbs.db
+.DS_Store

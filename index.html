@@ -335,6 +335,56 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .dcard .dc-desc{color:var(--muted);font-size:12.5px;margin-top:2px}
 .dcard .dc-go{color:#2563EB;font-size:12.5px;font-weight:600;margin-top:10px;display:inline-block}
 
+/* ---------- membership agreements ---------- */
+/* Status of the agreement, under its membership line in the POS invoice. */
+.agr-chip{display:inline-flex;align-items:center;gap:5px;margin-top:5px;padding:3px 9px;border-radius:999px;font-size:11.5px;font-weight:700;cursor:pointer;border:1px solid}
+.agr-chip.ok{background:#ECFDF5;border-color:#A7F3D0;color:#047857;cursor:default}
+.agr-chip.need{background:#EFF6FF;border-color:#BFDBFE;color:#1D4ED8}
+.agr-chip.warn{background:#FFF7ED;border-color:#FED7AA;color:#B45309}
+/* The document itself. Deliberately paper-like: serif, generous measure,
+   black on white in every theme — this is a legal instrument, not chrome. */
+.agr-scroll{max-height:46vh;overflow-y:auto;border:1px solid var(--line);border-radius:12px;background:#fff;padding:18px 20px;-webkit-overflow-scrolling:touch}
+.agr-doc{font-family:'Times New Roman',Times,serif;color:#111;font-size:13px;line-height:1.5}
+.agr-hd{text-align:center;margin-bottom:14px}
+.agr-ent{font-weight:700;font-size:13.5px}
+.agr-dba{font-size:12px;color:#333}
+.agr-title{font-weight:700;font-size:17px;margin-top:9px;padding-bottom:6px;border-bottom:1px solid #111}
+.agr-fields{width:100%;border-collapse:collapse;margin:12px 0 4px}
+.agr-fields td{padding:3px 0;vertical-align:bottom}
+.agr-fl{white-space:nowrap;padding-right:10px!important;color:#333}
+.agr-fv{border-bottom:1px solid #111;width:100%;font-weight:700}
+.agr-blank{display:inline-block;min-height:1em}
+.agr-h{font-weight:700;font-size:13.5px;margin:16px 0 5px;letter-spacing:.3px}
+.agr-p{margin:0 0 9px;text-align:justify}
+.agr-sel{font-weight:700}
+.agr-fees{width:100%;border-collapse:collapse;margin:6px 0 10px;font-size:12.5px}
+.agr-fees td{border:1px solid #999;padding:5px 8px}
+.agr-fees tr.on td{background:#FEF9C3;font-weight:700}
+.agr-ol{white-space:nowrap}
+.agr-ot{width:100%}
+.agr-mark{color:#047857;font-weight:700}
+/* Who the agreement is for, above the document. */
+.agr-who{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px}
+.agr-whorow{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:2px 0}
+.agr-wholbl{font-size:12px;color:var(--muted);font-weight:600}
+.agr-whoval{font-weight:700;font-size:14px;text-align:right}
+.agr-minor{display:inline-block;margin-left:5px;padding:1px 7px;border-radius:999px;background:#FEF3C7;border:1px solid #FDE68A;color:#B45309;font-size:10.5px;font-weight:700;vertical-align:middle}
+.agr-whonote{font-size:12px;color:var(--muted);margin-top:5px;padding-top:5px;border-top:1px solid var(--line)}
+.agr-save{font-weight:600;color:#1D4ED8;font-size:11px}
+/* Signing controls, below the document. */
+.agr-form{margin-top:14px}
+.agr-frow{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.agr-frow label{flex:0 0 46%;font-size:12.5px;color:var(--muted);font-weight:600}
+.agr-frow .im-field{flex:1;min-width:0}
+.agr-siglbl{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;font-weight:700;color:var(--muted);margin:12px 0 5px}
+.agr-pad{width:100%;height:150px;border:1px dashed var(--line);border-radius:10px;background:#fff;touch-action:none;display:block;cursor:crosshair}
+.agr-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:11px}
+/* The executed signature, on a stored agreement. */
+.agr-signed{margin-top:14px;padding-top:10px;border-top:1px solid #111}
+.agr-sig{display:block;max-width:280px;max-height:90px}
+.agr-sigline{border-bottom:1px solid #111;height:44px;max-width:280px}
+.agr-sigmeta{font-size:11.5px;color:#333;margin-top:4px}
+
 /* ---------- DESKTOP: wide table list, profile opens on click ---------- */
 @media (min-width:900px){
   body{background:#DCE1E7}
@@ -685,6 +735,7 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://portal.barestkd.fit/shared/auth.js?v=2"></script>
 <script src="pricing.js?v=2"></script>
+<script src="agreements.js?v=1"></script>
 </head>
 <body>
 
@@ -905,6 +956,7 @@ async function loadMembers(){
     since: fmtSince(c.joined_on),
     entered: fmtSince(c.entered_on),
     age: c.dob ? Math.floor((Date.now() - new Date(c.dob)) / 3.15576e10) : 0,
+    dob: c.dob || '',       // printed on the membership agreement
     gender: c.gender || '',
     guardians: guardiansById[c.id] || [],
     phones: [],
@@ -1955,7 +2007,20 @@ function renderPOS(){
       if(l.discVal) meta.push("Discount "+(l.discType==="amt"?money(l.discVal)+" ea":l.discVal+"% off"));
       if(l.orderIt) meta.push("Order it");
       const sub=meta.length?'<div style="font-size:12px;color:var(--muted)">'+meta.join(" · ")+'</div>':"";
-      html+='<tr onclick="posEditLine('+i+')"><td class="qty">'+(l.qty||1)+'</td><td>'+l.label+sub+'</td><td class="r">'+money(t.lineTotal(l))+'</td></tr>';
+      // Agreement state rides under every membership line — signed, or a
+      // one-tap way to fix that before the money is taken.
+      let agr='';
+      if(l.kind==="mem"){
+        if(l.__agreement){
+          agr='<div class="agr-chip ok" onclick="event.stopPropagation()">✓ Agreement signed · '+escHtml(l.__agreement.signer_name)+'</div>';
+        } else {
+          const r=agrResolve(l);
+          agr = r.reason
+            ? '<div class="agr-chip warn" onclick="event.stopPropagation();agrShowBlockedFor('+i+')">⚠ No agreement available — tap</div>'
+            : '<div class="agr-chip need" onclick="event.stopPropagation();agrOpenSign('+i+')">✍ Sign agreement</div>';
+        }
+      }
+      html+='<tr onclick="posEditLine('+i+')"><td class="qty">'+(l.qty||1)+'</td><td>'+l.label+sub+agr+'</td><td class="r">'+money(t.lineTotal(l))+'</td></tr>';
     });
   } else { html+='<tr><td colspan="3" class="inv-empty" style="padding:24px 15px">No items yet. Search or tap a product to add.</td></tr>'; }
   html+='</tbody></table>';
@@ -2248,6 +2313,383 @@ function posMemRosterPrograms(l){
   if(c.category==='cubs') return ['Cubs'];
   return [];
 }
+/* ========== membership agreements ==========================================
+ * One complete standalone agreement per program (owner decision 2026-08-14).
+ * The templates live in agreements.js, generated verbatim from the six FINAL
+ * .docx documents — this file never authors legal prose, it only fills the
+ * money and the names, then freezes the result with the signature.
+ *
+ * ORDER MATTERS: the agreement is signed BEFORE the card is charged, because
+ * the payment authorization the member is agreeing to lives inside it.
+ * Signed documents ride on the cart line (l.__agreement) and are written to
+ * membership_agreements after the membership row exists to point at.
+ */
+
+/* Which document applies, or why none does. Returning a reason instead of
+ * guessing is deliberate: a wrong contract is worse than no contract. */
+function agrResolve(line){
+  if(!window.BTKDAgreements) return { reason:'Agreement templates did not load — reload the page.' };
+  const c = line.calc||{}, program = line.program || c.program || '';
+  const tpl = BTKDAgreements.forProgram(program);
+  if(!tpl){
+    return { reason:'No approved agreement exists for '+(program||'this program')+' yet. '
+      + (program==='Kickboxing + Jiu Jitsu'
+          ? 'The bundle needs its own document — Kickboxing and Jiu Jitsu each have one, the combined deal does not.'
+          : 'Ask Dustin for one before selling it under contract.') };
+  }
+  // Weekly IS a twelve-month agreement (owner, 2026-08-15) — it is just billed
+  // weekly with no down payment. The catalog's old "no contract" wording was
+  // the thing that was wrong, not the pairing.
+  return { template: tpl };
+}
+
+/* Build the finished document: template prose + this sale's money and names.
+ * `ctx` comes either from a POS cart line (pre-sale) or from a saved
+ * membership row (re-print). Everything it returns is plain data, so the same
+ * object renders on screen, in print, and after a reload from the DB. */
+function agrBuildDoc(tpl, ctx){
+  const F = BTKDAgreements.FIELD_LABELS;
+  const fields = tpl.fields.map(k=>({ key:k, label:F[k], value: ctx[k]||'' }));
+
+  const fees = { type: tpl.fees.type, rows:[], note:'' };
+  if(tpl.fees.type==='options'){
+    // Every option for the program, priced from the catalog, with the one they
+    // bought marked. This is the table the attorney reviewed; the CRM just
+    // fills it in, so a price change shows up on the next agreement by itself.
+    (ctx.catalogRows||[]).forEach(p=>{
+      let terms;
+      if(p.billing_frequency==='one_time') terms = (tpl.fees.pifText||'Single payment of {{pif}}').replace('{{pif}}', money((p.pif_cents||0)/100));
+      // Weekly is the same twelve-month term, billed weekly with no down
+      // payment — phrased to match the down/monthly rows above it.
+      else if(p.billing_frequency==='weekly') terms = 'Down payment '+money((p.down_cents||0)/100)+' and weekly payment '+money((p.recurring_cents||0)/100);
+      else terms = 'Down payment '+money((p.down_cents||0)/100)+' and monthly payment '+money((p.recurring_cents||0)/100);
+      fees.rows.push({ label:p.name||p.code, terms:terms, selected: p.code===ctx.planCode });
+    });
+    fees.note = 'Selected option: '+(ctx.planName||'—')
+      + '    Initials: '+(ctx.initials||'________')
+      + '    Payment date: '+(ctx.agreedPaymentDate||'________________');
+  } else if(tpl.fees.type==='monthly'){
+    fees.rows.push({ label:'Down payment',       terms: money((ctx.downCents||0)/100) });
+    fees.rows.push({ label:'Monthly payment',    terms: money((ctx.recurringCents||0)/100) });
+    fees.rows.push({ label:'Agreed payment date',terms: ctx.agreedPaymentDate||'________________' });
+    fees.rows.push({ label:'Participant initials', terms: ctx.initials||'________' });
+  } else { // session
+    fees.note = 'The Little Kickers six (6) week session is a single payment of '
+      + money((ctx.recurringCents||ctx.pifCents||0)/100)+', due in full at enrollment.';
+    fees.rows.push({ label:'Participant initials', terms: ctx.initials||'________' });
+  }
+
+  return {
+    key: tpl.key, version: tpl.version, title: tpl.title, term: tpl.term,
+    program: ctx.program||'', planCode: ctx.planCode||'', planName: ctx.planName||'',
+    fields: fields, fees: fees, feesTail: tpl.feesTail.slice(),
+    sections: tpl.sections.map(s=>({ h:s.h, p:s.p.slice() })), signNote: tpl.signNote
+  };
+}
+
+/* Flatten to text — stored alongside the structure so the agreement survives
+ * any future change to the renderer. */
+function agrDocText(doc){
+  const out = ['GRIZZLY MARTIAL ARTS & FITNESS LLC','doing business as Bares Taekwondo Fitness', doc.title.toUpperCase(), ''];
+  doc.fields.forEach(f=>out.push(f.label+': '+(f.value||'')));
+  out.push('', 'FEES');
+  doc.fees.rows.forEach(r=>out.push('  '+(r.selected?'[X] ':'')+r.label+': '+r.terms));
+  if(doc.fees.note) out.push(doc.fees.note);
+  doc.feesTail.forEach(t=>out.push('', t));
+  doc.sections.forEach(s=>{ out.push('', s.h); s.p.forEach(p=>out.push(p)); });
+  out.push('', 'SIGNATURE', doc.signNote);
+  return out.join('\n');
+}
+
+/* The document, rendered. Used by the signing sheet, the profile viewer and
+ * the print window — one renderer so all three always agree. */
+function agrDocHtml(doc, signed){
+  let h = '<div class="agr-doc">'
+    + '<div class="agr-hd"><div class="agr-ent">Grizzly Martial Arts &amp; Fitness LLC</div>'
+    + '<div class="agr-dba">doing business as Bares Taekwondo Fitness</div>'
+    + '<div class="agr-title">'+escHtml(String(doc.title||'').toUpperCase())+'</div></div>';
+  h += '<table class="agr-fields">'+doc.fields.map(f=>
+      '<tr><td class="agr-fl">'+escHtml(f.label)+'</td><td class="agr-fv">'+(f.value?escHtml(f.value):'<span class="agr-blank"></span>')+'</td></tr>'
+    ).join('')+'</table>';
+  h += '<div class="agr-h">FEES</div>';
+  if(doc.fees.rows.length){
+    h += '<table class="agr-fees">'+doc.fees.rows.map(r=>
+      '<tr'+(r.selected?' class="on"':'')+'><td class="agr-ol">'+(r.selected?'<span class="agr-mark">✓</span> ':'')+escHtml(r.label)+'</td>'
+      +'<td class="agr-ot">'+escHtml(r.terms)+'</td></tr>').join('')+'</table>';
+  }
+  if(doc.fees.note) h += '<p class="agr-p agr-sel">'+escHtml(doc.fees.note)+'</p>';
+  doc.feesTail.forEach(t=>{ h += '<p class="agr-p">'+escHtml(t)+'</p>'; });
+  doc.sections.forEach(s=>{
+    h += '<div class="agr-h">'+escHtml(s.h)+'</div>';
+    s.p.forEach(p=>{ h += '<p class="agr-p">'+escHtml(p)+'</p>'; });
+  });
+  h += '<div class="agr-h">SIGNATURE</div><p class="agr-p">'+escHtml(doc.signNote)+'</p>';
+  if(signed){
+    h += '<div class="agr-signed">'
+      + (signed.signature_png ? '<img class="agr-sig" src="'+escAttr(signed.signature_png)+'" alt="Signature">' : '<div class="agr-sigline"></div>')
+      + '<div class="agr-sigmeta"><b>'+escHtml(signed.signer_name||'')+'</b>'
+      + (signed.signer_relationship?' · '+escHtml(signed.signer_relationship):'')
+      + '<br>Signed '+escHtml(signed.signed_at ? new Date(signed.signed_at).toLocaleString('en-US') : '')
+      + (signed.signed_with_staff?' · witnessed by '+escHtml(signed.signed_with_staff):'')+'</div></div>';
+  }
+  return h+'</div>';
+}
+
+/* ── signing ───────────────────────────────────────────────────────────────*/
+let AGR = null;   // { lineIdx, doc, tpl, strokes }
+
+function agrOpenSign(lineIdx){
+  const l = posSale.lines[lineIdx];
+  if(!l || l.kind!=='mem'){ toast('That line is not a membership'); return; }
+  const res = agrResolve(l);
+  if(res.reason){ agrShowBlocked(res.reason); return; }
+  const tpl = res.template, c = l.calc||{}, ov = l.override;
+  const student = MEMBERS.find(x=>x.id===l.studentId);
+  // PARTICIPANT vs BUYER. The participant is the line's student — who trains,
+  // and who the membership and this agreement belong to. The buyer is whoever
+  // is paying. They are the same person when an adult enrols themselves, and
+  // different whenever a parent enrols a child, which is the case that has to
+  // get the signature right.
+  const buyer = posSale.memberId ? MEMBERS.find(x=>x.id===posSale.memberId) : null;
+  const buyerIsOther = !!(buyer && student && buyer.id !== student.id);
+  const isMinor = !!(student && student.age > 0 && student.age < 18);
+  // student_guardians holds an email + label and no name, so a guardian NAME
+  // can only come from a real contact record — which the buyer has when they
+  // are the parent doing the enrolling.
+  const guardian = (isMinor || buyerIsOther) && buyer ? (buyer.first+' '+buyer.last).trim() : '';
+  const down = (ov && ov.downCents!=null) ? ov.downCents : c.finalDownCents;
+  const rec  = ov ? ov.recurringCents : c.finalRecurringCents;
+  const saleDate = posSale.date || attYMD();
+
+  const ctx = {
+    program: l.program || c.program || '',
+    planCode: c.planCode || '', planName: c.planName || c.planCode || '',
+    participant: student ? (student.first+' '+student.last) : '',
+    dob: student && student.dob ? fmtDate(student.dob) : '',
+    guardian: guardian,
+    today: fmtDate(saleDate),
+    start: fmtDate(saleDate),
+    sessionStart: fmtDate(saleDate),
+    sessionEnd: (function(){ const pl=planByCode(c.planCode); return (pl&&pl.duration_weeks)?fmtDate(addWeeksYMD(saleDate, pl.duration_weeks)):''; })(),
+    downCents: down, recurringCents: rec, pifCents: (c.billingFrequency==='one_time'? rec : null),
+    agreedPaymentDate: '', initials: '',
+    // Who is who, and the raw values the write-back needs. dobYMD stays ISO;
+    // the `dob` above is only the printed MM-DD-YYYY form.
+    isMinor: isMinor, buyerIsOther: buyerIsOther,
+    participantId: l.studentId || null,
+    participantName: student ? (student.first+' '+student.last) : '',
+    dobYMD: (student && student.dob) ? String(student.dob).slice(0,10) : '',
+    dobWasOnFile: !!(student && student.dob),
+    buyerId: buyer ? buyer.id : null,
+    buyerName: buyer ? (buyer.first+' '+buyer.last).trim() : '',
+    buyerEmail: buyer ? (buyer.email||'') : '',
+    guardianOnFile: !!(student && student.guardians && student.guardians.length),
+    catalogRows: PLAN_ROWS.filter(p=>p.program===(l.program||c.program) && p.sellable!==false)
+                          .sort((a,b)=>(a.display_order||0)-(b.display_order||0))
+  };
+  AGR = { lineIdx: lineIdx, tpl: tpl, ctx: ctx, doc: agrBuildDoc(tpl, ctx) };
+  agrRenderSheet();
+}
+
+function agrShowBlockedFor(i){
+  const l = posSale.lines[i]; if(!l) return;
+  const r = agrResolve(l);
+  agrShowBlocked(r.reason || 'This one can be signed — reopen the invoice.');
+}
+function agrShowBlocked(reason){
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head"><div><h3>No agreement for this one</h3></div>'
+    + '<button class="close" onclick="closeSheet()">×</button></div>'
+    + '<div class="sheet-body"><div class="ck-hint" style="color:var(--warn);text-align:left">'+escHtml(reason)+'</div>'
+    + '<div class="proto-note">The sale can still go through — the membership just records as unsigned, and it shows that way on the profile until a document exists.</div>'
+    + '<button class="opt-btn" onclick="closeSheet()"><span class="oi">✓</span>Understood</button></div>';
+  openSheet();
+}
+
+function agrRenderSheet(){
+  const d = AGR.doc, needInitials = d.fees.type!=='session';
+  let h = '<div class="grab"></div>'
+    + '<div class="sheet-head"><div><h3>'+escHtml(d.title)+'</h3>'
+    + '<div class="sub">Read it, then sign below. Amounts come from this sale.</div></div>'
+    + '<button class="close" onclick="closeSheet()">×</button></div>'
+    + '<div class="sheet-body">'
+    // Who this agreement is actually about. The buyer paying is not
+    // necessarily the person training, and the wrong name on a contract is
+    // not something you notice after it is signed.
+    + '<div class="agr-who">'
+    + '<div class="agr-whorow"><span class="agr-wholbl">Agreement for</span>'
+    + '<span class="agr-whoval">'+escHtml(AGR.ctx.participantName||'— no member attached —')
+    + (AGR.ctx.isMinor?' <span class="agr-minor">minor</span>':'')+'</span></div>'
+    + (AGR.ctx.buyerIsOther
+        ? '<div class="agr-whorow"><span class="agr-wholbl">Paid by</span><span class="agr-whoval">'+escHtml(AGR.ctx.buyerName)+'</span></div>'
+        : '')
+    + (AGR.ctx.isMinor ? '<div class="agr-whonote">A parent or guardian signs for a minor.</div>' : '')
+    + '</div>'
+    + '<div class="agr-scroll">'+agrDocHtml(d, null)+'</div>'
+    + '<div class="agr-form">';
+  // Date of birth and guardian are printed ON the contract, so they are
+  // captured here and written back to the student's record — enter once.
+  h += '<div class="agr-frow"><label>Date of birth'+(AGR.ctx.dobWasOnFile?'':' <span class="agr-save">saves to profile</span>')+'</label>'
+    + '<input id="agrDob" type="date" class="im-field" value="'+escAttr(AGR.ctx.dobYMD||'')+'" onchange="agrField(\'dobYMD\',this.value)"></div>';
+  h += '<div class="agr-frow"><label>Parent / guardian'+((AGR.ctx.isMinor && !AGR.ctx.guardianOnFile)?' <span class="agr-save">saves to profile</span>':'')+'</label>'
+    + '<input id="agrGuardian" class="im-field" placeholder="'+(AGR.ctx.isMinor?'required for a minor':'leave blank if 18+')+'" value="'+escAttr(AGR.ctx.guardian||'')+'" oninput="agrField(\'guardian\',this.value)"></div>';
+  h += '<div class="agr-frow"><label>Agreed payment date</label>'
+    + '<input id="agrPayDate" class="im-field" placeholder="e.g. the 1st of each month" value="'+escAttr(AGR.ctx.agreedPaymentDate||'')+'" oninput="agrField(\'agreedPaymentDate\',this.value)"></div>';
+  if(needInitials) h += '<div class="agr-frow"><label>Participant initials</label>'
+    + '<input id="agrInitials" class="im-field" maxlength="6" value="'+escAttr(AGR.ctx.initials||'')+'" oninput="agrField(\'initials\',this.value)"></div>';
+  // For a minor the signer is the adult, never the child. Where no guardian
+  // is known the field is left EMPTY rather than pre-filled with the child's
+  // name — a wrong default here gets signed without anyone reading it.
+  h += '<div class="agr-frow"><label>Printed name of signer</label>'
+    + '<input id="agrSigner" class="im-field" value="'+escAttr(AGR.ctx.isMinor ? (AGR.ctx.guardian||'') : (AGR.ctx.guardian||AGR.ctx.participant||''))+'"></div>';
+  h += '<div class="agr-frow"><label>Relationship to Participant</label>'
+    + '<input id="agrRel" class="im-field" placeholder="Self, Parent, Guardian…" value="'+escAttr((AGR.ctx.isMinor||AGR.ctx.buyerIsOther)?'Parent':'Self')+'"></div>';
+  h += '<div class="agr-siglbl">Signature <button class="pm-link" onclick="agrSigClear()">clear</button></div>'
+    + '<canvas id="agrPad" class="agr-pad"></canvas>'
+    + '<div class="agr-actions">'
+    + '<button class="tbtn" style="background:var(--ink)" onclick="closeSheet()">Cancel</button>'
+    + '<button class="tbtn" id="agrSaveBtn" onclick="agrAccept()">Sign &amp; attach</button>'
+    + '</div>'
+    + '<div class="proto-note">Signing attaches the agreement to this membership. Nothing is charged until you take payment on the next screen.</div>'
+    + '</div></div>';
+  $("#sheet").innerHTML = h;
+  $("#sheet").classList.add("sheet-lg");
+  openSheet();
+  agrSigInit();
+}
+
+/* Live-edit a field that appears inside the document body, so what they sign
+ * is what they read. */
+function agrField(key, val){
+  AGR.ctx[key] = val;
+  // The date input is ISO; the document prints MM-DD-YYYY. Keep both, and
+  // never hand a bare date string to new Date() (it shifts under UTC).
+  if(key==='dobYMD') AGR.ctx.dob = val ? fmtDate(val) : '';
+  AGR.doc = agrBuildDoc(AGR.tpl, AGR.ctx);
+  const box = document.querySelector('.agr-scroll');
+  if(box){ const top = box.scrollTop; box.innerHTML = agrDocHtml(AGR.doc, null); box.scrollTop = top; }
+}
+
+/* Signature pad. Pointer events cover mouse, pen and touch in one path. */
+function agrSigInit(){
+  const cv = document.getElementById('agrPad'); if(!cv) return;
+  const ratio = window.devicePixelRatio||1;
+  const rect = cv.getBoundingClientRect();
+  cv.width = Math.round(rect.width*ratio); cv.height = Math.round(rect.height*ratio);
+  const ctx = cv.getContext('2d');
+  ctx.scale(ratio, ratio); ctx.lineWidth = 2; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#111';
+  let drawing=false, dirty=false;
+  const pos = e=>{ const r=cv.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; };
+  cv.addEventListener('pointerdown', e=>{ drawing=true; dirty=true; cv.setPointerCapture(e.pointerId);
+    const [x,y]=pos(e); ctx.beginPath(); ctx.moveTo(x,y); e.preventDefault(); });
+  cv.addEventListener('pointermove', e=>{ if(!drawing) return; const [x,y]=pos(e); ctx.lineTo(x,y); ctx.stroke(); e.preventDefault(); });
+  cv.addEventListener('pointerup',   e=>{ drawing=false; });
+  cv.addEventListener('pointerleave',e=>{ drawing=false; });
+  cv.__dirty = ()=>dirty; cv.__reset = ()=>{ ctx.clearRect(0,0,cv.width,cv.height); dirty=false; };
+}
+function agrSigClear(){ const cv=document.getElementById('agrPad'); if(cv&&cv.__reset) cv.__reset(); }
+
+async function agrAccept(){
+  const cv = document.getElementById('agrPad');
+  const signer = ((document.getElementById('agrSigner')||{}).value||'').trim();
+  const rel    = ((document.getElementById('agrRel')||{}).value||'').trim();
+  const guard  = ((document.getElementById('agrGuardian')||{}).value||'').trim();
+  if(!signer){ toast(AGR.ctx.isMinor ? 'Enter the parent or guardian signing for '+(AGR.ctx.participantName||'this student') : 'Enter the printed name of whoever is signing'); return; }
+  // A minor's contract with no guardian named is the exact document you cannot
+  // rely on later, so it is a hard stop rather than a warning.
+  if(AGR.ctx.isMinor && !guard){ toast('Name the parent or guardian — '+(AGR.ctx.participantName||'this student')+' is under 18'); return; }
+  if(!cv || !cv.__dirty || !cv.__dirty()){ toast('Signature is empty — sign in the box'); return; }
+  const line = posSale.lines[AGR.lineIdx];
+  if(!line){ toast('That line is gone — re-add it and sign again'); closeSheet(); return; }
+  AGR.ctx.guardian = guard;
+  AGR.doc = agrBuildDoc(AGR.tpl, AGR.ctx);   // whatever was just typed is what gets frozen
+  await agrSaveBackToProfile(AGR.ctx);
+  line.__agreement = {
+    template_key: AGR.doc.key, template_version: AGR.doc.version, document_title: AGR.doc.title,
+    program: AGR.doc.program, plan_code: AGR.doc.planCode,
+    body_json: AGR.doc, body_text: agrDocText(AGR.doc),
+    down_cents: AGR.ctx.downCents||0, recurring_cents: AGR.ctx.recurringCents||0,
+    pif_cents: AGR.ctx.pifCents||null, agreed_payment_date: AGR.ctx.agreedPaymentDate||null,
+    signer_name: signer, signer_relationship: rel||null, signer_initials: AGR.ctx.initials||null,
+    signature_png: cv.toDataURL('image/png'),
+    signed_at: new Date().toISOString(),
+    signed_with_staff: posSale.staff || myStaffName(),
+    user_agent: navigator.userAgent.slice(0,300)
+  };
+  AGR = null; closeSheet(); renderPOS();
+  toast('Agreement signed — attached to this membership');
+}
+
+/* Detail typed on a contract is real roster data — save it once, here, so the
+ * next agreement for this student already knows it. Everything in this
+ * function is best-effort: a failed write-back must never cost the signature,
+ * so problems are reported and the signing continues. */
+async function agrSaveBackToProfile(ctx){
+  if(!ctx.participantId) return;
+  const student = MEMBERS.find(x=>x.id===ctx.participantId);
+
+  // Date of birth -> the contact record.
+  if(ctx.dobYMD && (!student || String(student.dob||'').slice(0,10) !== ctx.dobYMD)){
+    const r = await sb.from('contacts').update({ dob: ctx.dobYMD }).eq('id', ctx.participantId);
+    if(r.error){ console.error('dob write-back', r.error); toast('Date of birth did not save to the profile'); }
+    else if(student){
+      student.dob = ctx.dobYMD;
+      student.age = Math.floor((Date.now() - new Date(ctx.dobYMD+'T00:00:00')) / 3.15576e10);
+    }
+  }
+
+  // The adult who signed for a minor is that child's guardian — which is the
+  // same relationship the parent portal runs on. Link them by email if the
+  // buyer is a real contact and no guardian is on file yet.
+  if(ctx.isMinor && !ctx.guardianOnFile && ctx.buyerId && ctx.buyerEmail){
+    const r = await sb.from('student_guardians')
+      .insert({ student_id: ctx.participantId, email: ctx.buyerEmail, label: 'Guardian' });
+    // 23505 = already linked, which is a success as far as this is concerned.
+    if(r.error && String(r.error.code)!=='23505'){
+      console.error('guardian link', r.error);
+      toast('Guardian was not linked to the profile — add it from their record');
+    } else if(student){
+      student.guardians = (student.guardians||[]).concat([[ctx.buyerEmail, 'Guardian']]);
+    }
+  }
+}
+
+/* Unsigned membership lines, for the tender gate. */
+function agrUnsignedLines(){
+  return posSale.lines.map((l,i)=>({l:l,i:i}))
+    .filter(x=>x.l.kind==='mem' && !x.l.__agreement && !x.l.__agreementWaived);
+}
+/* The gate. Returns true if tender may proceed. Signing is the default path;
+ * "sign later" exists because Race sometimes has to move, but it records the
+ * gap loudly instead of pretending the membership is papered. */
+function agrGate(then){
+  const pending = agrUnsignedLines();
+  if(!pending.length) return true;
+  const first = pending[0];
+  const res = agrResolve(first.l);
+  const who = posStudentName(first.l.studentId) || 'this member';
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head"><div><h3>Agreement not signed</h3>'
+    + '<div class="sub">'+escHtml(first.l.label||'Membership')+' · '+escHtml(who)+'</div></div>'
+    + '<button class="close" onclick="closeSheet()">×</button></div>'
+    + '<div class="sheet-body">'
+    + (res.reason
+        ? '<div class="ck-hint" style="color:var(--warn);text-align:left">'+escHtml(res.reason)+'</div>'
+        : '<div class="proto-note" style="text-align:left">The agreement carries the payment authorization, so it is signed before the card is charged.</div>')
+    + (res.reason ? '' : '<button class="opt-btn" onclick="closeSheet();agrOpenSign('+first.i+')"><span class="oi">✍</span><div style="flex:1"><div style="font-weight:700">Sign it now</div><div style="font-size:12.5px;color:var(--muted)">Hand them the screen</div></div></button>')
+    + '<button class="opt-btn danger" onclick="agrWaive('+first.i+')"><span class="oi">⚠</span><div style="flex:1"><div style="font-weight:700">Continue without signing</div><div style="font-size:12.5px;color:var(--muted)">Membership records as unsigned and shows that way on the profile</div></div></button>'
+    + '</div>';
+  openSheet();
+  return false;
+}
+function agrWaive(i){
+  const l = posSale.lines[i]; if(l) l.__agreementWaived = true;
+  closeSheet(); renderPOS();
+  const still = agrUnsignedLines();
+  if(still.length){ agrGate(); return; }
+  toast('Recorded as unsigned — finish the agreement from their profile');
+}
+
 /* ─── Phase A2 staging ───────────────────────────────────────────────────────
  * When true, tender sends INTENT to the pos-sale Edge Function, which
  * re-derives every price server-side from the catalog + household and does
@@ -2355,6 +2797,9 @@ async function posPayOpen(opts){
   if(opts.mode==='sale'){
     const t = posTotals();
     if(!posSale.lines.length){ toast('Add something to the invoice first'); return; }
+    // The agreement contains the authorization to charge, so it is signed
+    // before any money is collected.
+    if(!agrGate()) return;
     // feeOriginal is what a card method restores to after a cash removal.
     PAY = { mode:'sale', saleId:null, totalCents:t.cents.totalCents, balanceCents:t.cents.totalCents,
             who: posBuyerName(), reopen:null, method:'Card', tendered:'',
@@ -2642,6 +3087,14 @@ async function posTender(method){
     return;
   }
 
+  // Every tender funnels through here (including the server path below), so
+  // this is the one place the agreement gate cannot be walked around. It sits
+  // AFTER the attach check because an agreement cannot be written without
+  // knowing who the participant is. Paid sales normally clear this back at
+  // posPayOpen — before card details are entered — and arrive already signed
+  // or knowingly waived.
+  if(!agrGate()) return;
+
   // A2: hand the whole sale to the server once the pos-sale function is live.
   if(POS_SERVER_SALES){ await posTenderServer(method); return; }
 
@@ -2715,6 +3168,21 @@ async function posTender(method){
         continue;
       }
       (ins.data||[]).forEach((row,i)=>{ if(lines[i]) lines[i].membershipId = row.id; });
+
+      // Signed agreements, now that there is a membership row to hang them on.
+      // The document was frozen at signing time; nothing is re-rendered here.
+      const agrRows = lines.filter(l=>l.__agreement && l.membershipId).map(l=>Object.assign({}, l.__agreement, {
+        membership_id: l.membershipId, contact_id: studentId, sale_id: saleRecorded ? saleId : null
+      }));
+      if(agrRows.length){
+        const ar = await sb.from('membership_agreements').insert(agrRows);
+        if(ar.error){
+          console.error('agreement insert', ar.error);
+          problems.push('The signed agreement for '+who+' did NOT save: '+(ar.error.message||ar.error)+' — have them sign again from their profile.');
+        } else badges.push('Agreement signed · '+who);
+      }
+      const unsigned = lines.filter(l=>!l.__agreement).length;
+      if(unsigned) problems.push(who+' has '+(unsigned>1?unsigned+' memberships':'a membership')+' with NO signed agreement — capture it from their profile.');
       if(student){
         lines.forEach(l=>{
           const c=l.calc, ov=l.override;
@@ -4198,6 +4666,17 @@ async function loadProfileMemberships(contactId){
   if(error){ console.error('profile memberships', error); box.innerHTML='<div class="card pad" style="color:var(--muted);font-size:14px">Could not load memberships.</div>'; return; }
   const rows = data||[];
   if(!rows.length){ box.innerHTML='<div class="card pad" style="color:var(--muted);font-size:14px">No membership yet.</div>'; return; }
+  // Which of these are papered. One query for the card, not one per row.
+  let agrBy = {};
+  if(rows.length){
+    const { data:ags, error:aErr } = await sb.from('membership_agreements')
+      .select('id,membership_id,signer_name,signed_at,document_title')
+      .in('membership_id', rows.map(r=>r.id))
+      .eq('status','signed');
+    if(aErr) console.error('agreements load', aErr);
+    else (ags||[]).forEach(a=>{ if(!agrBy[a.membership_id]) agrBy[a.membership_id]=a; });
+  }
+  PROF_AGR = agrBy;
   let h = '<div class="card">';
   rows.forEach(ms=>{
     const plan = (typeof planByCode==='function' && planByCode(ms.plan_code)) || null;
@@ -4215,10 +4694,63 @@ async function loadProfileMemberships(contactId){
       + '<div class="mem-pay"><span class="due">'+escHtml(sched)+(ms.started_on?' · since '+escHtml(fmtDate(ms.started_on)):'')+'</span></div>'
       + '<div class="mem-foot">'
       + (ms.sale_id ? '<button class="vc" onclick="showInvoice(\''+ms.sale_id+'\',\'profile\')">View invoice</button>' : '<span></span>')
-      + '<span></span></div></div>';
+      + (agrBy[ms.id]
+          ? '<button class="vc" onclick="agrView(\''+agrBy[ms.id].id+'\')">View agreement</button>'
+          : '<button class="vc" style="color:var(--warn)" onclick="agrMissing(\''+escAttr(ms.program||'')+'\')">⚠ No agreement</button>')
+      + '</div></div>';
   });
   h += '</div>';
   box.innerHTML = h;
+}
+let PROF_AGR = {};
+
+/* Read a stored agreement back. The document is re-rendered from the frozen
+ * body_json — never from the current template — so it always shows exactly
+ * what was signed, even after the templates are revised. */
+async function agrView(agreementId){
+  const { data, error } = await sb.from('membership_agreements').select('*').eq('id', agreementId).single();
+  if(error||!data){ toast('Could not open that agreement'); return; }
+  AGR_VIEW = data;
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head"><div><h3>'+escHtml(data.document_title||'Membership agreement')+'</h3>'
+    + '<div class="sub">Signed '+escHtml(fmtDate(String(data.signed_at).slice(0,10)))+' by '+escHtml(data.signer_name||'')+'</div></div>'
+    + '<button class="close" onclick="closeSheet()">×</button></div>'
+    + '<div class="sheet-body"><div class="agr-scroll" style="max-height:60vh">'
+    + agrDocHtml(data.body_json, data)
+    + '</div><div class="agr-actions"><button class="tbtn" style="background:var(--ink)" onclick="closeSheet()">Close</button>'
+    + '<button class="tbtn" onclick="agrPrint()">Print / PDF</button></div>'
+    + '<div class="proto-note">Template '+escHtml(data.template_key||'')+' v'+escHtml(data.template_version||'')+'. This is the document as signed — later template revisions do not change it.</div>'
+    + '</div>';
+  $("#sheet").classList.add("sheet-lg");
+  openSheet();
+}
+let AGR_VIEW = null;
+
+function agrPrint(){
+  if(!AGR_VIEW) return;
+  const w = window.open('', '_blank', 'width=850,height=1000');
+  if(!w){ toast('Allow pop-ups to print the agreement'); return; }
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'
+    + escHtml(AGR_VIEW.document_title||'Membership Agreement')+'</title><style>'
+    + 'body{margin:0;padding:34px 44px;background:#fff}'
+    + '.agr-doc{font-family:"Times New Roman",Times,serif;color:#111;font-size:12.5px;line-height:1.5}'
+    + '.agr-hd{text-align:center;margin-bottom:14px}.agr-ent{font-weight:700;font-size:13.5px}.agr-dba{font-size:12px;color:#333}'
+    + '.agr-title{font-weight:700;font-size:17px;margin-top:9px;padding-bottom:6px;border-bottom:1px solid #111}'
+    + '.agr-fields{width:100%;border-collapse:collapse;margin:12px 0 4px}.agr-fields td{padding:3px 0;vertical-align:bottom}'
+    + '.agr-fl{white-space:nowrap;padding-right:10px;color:#333}.agr-fv{border-bottom:1px solid #111;width:100%;font-weight:700}'
+    + '.agr-h{font-weight:700;font-size:13.5px;margin:15px 0 5px}.agr-p{margin:0 0 9px;text-align:justify}.agr-sel{font-weight:700}'
+    + '.agr-fees{width:100%;border-collapse:collapse;margin:6px 0 10px;font-size:12px}.agr-fees td{border:1px solid #999;padding:5px 8px}'
+    + '.agr-fees tr.on td{background:#FEF9C3;font-weight:700}.agr-ol{white-space:nowrap}.agr-ot{width:100%}'
+    + '.agr-signed{margin-top:16px;padding-top:10px;border-top:1px solid #111}.agr-sig{display:block;max-width:280px;max-height:90px}'
+    + '.agr-sigmeta{font-size:11.5px;color:#333;margin-top:4px}.agr-blank{display:inline-block;min-height:1em}'
+    + '@media print{body{padding:0}}'
+    + '</style></head><body>'+agrDocHtml(AGR_VIEW.body_json, AGR_VIEW)+'</body></html>');
+  w.document.close();
+  setTimeout(()=>{ try{ w.focus(); w.print(); }catch(e){} }, 250);
+}
+
+function agrMissing(program){
+  toast('No signed agreement on file'+(program?' for '+program:'')+' — sell or re-ring the membership to capture one');
 }
 
 /* The profile's Account card: real invoices for sales where this contact is
@@ -4300,7 +4832,7 @@ function memActions(i){
     + '<button class="close" onclick="closeSheet()">×</button></div>'
     + '<div class="sheet-body">'
     + '<button class="opt-btn" onclick="openMemEdit('+i+')"><span class="oi">✎</span>Edit plan &amp; payments</button>'
-    + '<button class="opt-btn" onclick="closeSheet();toast(\'No signed agreement is on file — agreement capture comes with the payments build\')"><span class="oi">▤</span>Agreement: none on file</button>'
+    + '<button class="opt-btn" onclick="memAgreement('+i+')"><span class="oi">▤</span>'+(ms.agreementId?'View signed agreement':'Agreement: none on file')+'</button>'
     + (ms.status==="active"
         ? '<button class="opt-btn" onclick="setMemStatus('+i+',\'paused\')"><span class="oi">❙❙</span>Pause membership</button>'
         : ms.status==="paused"
@@ -4308,6 +4840,15 @@ function memActions(i){
     + (ms.status!=="cancelled" ? '<button class="opt-btn danger" onclick="setMemStatus('+i+',\'cancelled\')"><span class="oi">✕</span>Cancel membership</button>' : '')
     + '</div>';
   openSheet();
+}
+/* The in-memory membership list on `currentMember` is the session-local view
+ * (it predates the real table), so it has no agreement id of its own — fall
+ * back to telling the truth rather than guessing. */
+function memAgreement(i){
+  const ms = currentMember.memberships[i];
+  if(ms && ms.agreementId){ closeSheet(); agrView(ms.agreementId); return; }
+  closeSheet();
+  agrMissing(ms ? ms.program : '');
 }
 function setMemStatus(i, status){
   currentMember.memberships[i].status = status;

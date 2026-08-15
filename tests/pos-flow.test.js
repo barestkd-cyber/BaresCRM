@@ -35,6 +35,7 @@ const assert = require('assert');
 const CRM = path.join(__dirname, '..') + path.sep;
 const html = fs.readFileSync(CRM + 'index.html', 'utf8');
 const P = require(CRM + 'pricing.js');
+const A = require(CRM + 'agreements.js');
 
 // A '/' opens a regex literal (not division) only in an "expression expected"
 // position — after (,=:[!&|?;{ or 'return'. escAttr's /"/g would otherwise
@@ -102,7 +103,7 @@ function liftVar(name) {
 }
 
 const FNS = [
-  'attYMD',
+  'attYMD', 'fmtDate',
   'planByCode', 'householdOf', 'pricingContext', 'loadCatalog', 'loadHouseholds',
   'posBlank', 'posStaffList', 'myStaffName', 'posBuyerName',
   'posLineDisc', 'posLineNet', 'posLineTaxable', 'posTotals',
@@ -117,6 +118,10 @@ const FNS = [
   'posAddMembership', 'posPickProgram', 'posAddMemLine',
   'posAttachSheet', 'posAttachSearch', 'posPickStudentForLine', 'posRequoteLine', 'posSetBuyer',
   'posTkdTrackFor', 'posMemRosterPrograms',
+  // agreement capture — renderPOS/posPayOpen/posTender all reach into these
+  'agrResolve', 'agrBuildDoc', 'agrDocText', 'agrDocHtml', 'agrUnsignedLines',
+  'agrGate', 'agrWaive', 'agrShowBlocked', 'agrShowBlockedFor', 'agrOpenSign', 'agrRenderSheet',
+  'agrSigInit', 'agrSigClear', 'agrAccept', 'agrField', 'agrSaveBackToProfile',
   'posTender', 'posBuildSaleIntent',
   'posEditMemLine', 'posSaveMemLine',
   'posOpenMembershipFor',
@@ -134,6 +139,14 @@ function ensureEl(id) {
       id, value: '', checked: false, style: {}, _html: '', textContent: '', disabled: false,
       insertAdjacentHTML(pos, html){ this.innerHTML = (pos==='afterbegin') ? (html + this._html) : (this._html + html); },
       remove(){ delete registry[this.id]; },
+      // Enough <canvas> for the signature pad to initialise and be drawn on.
+      // Handlers are kept so a test can fire a real pointerdown rather than
+      // reaching past the code and setting a flag.
+      getBoundingClientRect(){ return { left: 0, top: 0, width: 300, height: 150 }; },
+      getContext(){ return { scale(){}, beginPath(){}, moveTo(){}, lineTo(){}, stroke(){}, clearRect(){} }; },
+      toDataURL(){ return 'data:image/png;base64,TESTSIGNATURE'; },
+      addEventListener(type, fn){ (this.__on = this.__on || {})[type] = fn; },
+      setPointerCapture(){},
       classList: {
         set: new Set(),
         add(c) { this.set.add(c); },
@@ -185,6 +198,10 @@ function qb(table, opts) {
       SB_CALLS.push({ table, op: 'insert', rows });
       return qb(table, { lastOp: 'insert', err: SB_INSERT_ERROR[table] || null, resultRow: SB_INSERT_RESULT[table] || null });
     },
+    update(patch) {
+      SB_CALLS.push({ table, op: 'update', patch });
+      return qb(table, { lastOp: 'insert', err: null, resultRow: null });  // resolves like any write
+    },
     single() {
       return Promise.resolve(opts.err ? { data: null, error: opts.err } : { data: opts.resultRow, error: null });
     },
@@ -226,6 +243,7 @@ const PLAN_ROWS = [
 const TOASTS = [];
 const sandbox = {
   BTKDPricing: P,
+  BTKDAgreements: A,
   PLAN_ROWS,
   PRICE_SETTINGS: { household_specialty_discount_cents: 1000, weekly_household_discount_cents: 0 },
   MB_PROGRAM_CARDS: [
@@ -236,8 +254,11 @@ const sandbox = {
   HH_ROWS: [], HH_LINKS: [], HH_LOADED: true, CATALOG_LOADED: true,
   PRODUCTS: [], PACKETS: [], EVENTS: [],
   MEMBERS: [
-    { id: 'kidA', first: 'Jamie', last: 'Lee', age: 9, role: '', segment: 'Active', rank: '', memberships: [] },
-    { id: 'kidB', first: 'Sam', last: 'Lee', age: 11, role: '', segment: 'Active', rank: '', memberships: [] }
+    { id: 'kidA', first: 'Jamie', last: 'Lee', age: 9, role: '', segment: 'Active', rank: '', memberships: [], guardians: [] },
+    { id: 'kidB', first: 'Sam', last: 'Lee', age: 11, role: '', segment: 'Active', rank: '', memberships: [], guardians: [] },
+    // The paying parent. Buyer and participant are different people whenever a
+    // parent enrols a child, which is the case the agreement has to get right.
+    { id: 'parentP', first: 'Pat', last: 'Lee', age: 41, email: 'pat@example.com', role: '', segment: 'Active', rank: '', memberships: [], guardians: [] }
   ],
   document: documentShim,
   console,
@@ -252,7 +273,10 @@ const sandbox = {
   // A recorded tender lands on the invoice view; the view itself is
   // DB-rendering chrome, so the sim only records that we navigated there.
   showInvoice: (id, from) => { sandboxNav.push({ id, from }); },
-  window: { open: () => null },
+  // ONE window only — a second `window:` key in this literal silently wins and
+  // would leave agrResolve believing the templates never loaded.
+  window: { open: () => null, BTKDAgreements: A, devicePixelRatio: 1 },
+  navigator: { userAgent: 'test-agent/1.0' },   // stamped onto signed agreements
 };
 const sandboxNav = [];
 sandbox.sandboxNav = sandboxNav;
@@ -411,6 +435,10 @@ await test('7 a completed sale writes snapshots + enrollments per STUDENT, not p
 
   SB_CALLS.length = 0;
   SB_SELECT['enrollments'] = [];
+  // Since 2026-08-15 a membership cannot tender unsigned. This test is about
+  // where the snapshot lands, not about papering, so take the documented
+  // "continue without signing" path explicitly.
+  sandbox.posSale.lines[i].__agreementWaived = true;
   const res = await call("posTender('Cash')");
   const memInsert = SB_CALLS.find(c => c.table === 'memberships' && c.op === 'insert');
   assert.ok(memInsert, 'must write a membership snapshot');
@@ -633,6 +661,96 @@ await test('14 admin fee follows the METHOD: off for cash, back on for card', as
   await call("posPayTab('Card')");
   assert.strictEqual(sandbox.posSale.adminFeeCents, 0,
     'a manual fee is never auto-restored — the operator is in charge');
+});
+
+await test('15 a membership cannot tender unsigned; a signed one files its agreement', async () => {
+  // The agreement carries the authorization to charge, so an unsigned
+  // membership must not reach the ledger at all.
+  sandbox.posSale = sandbox.posBlank();
+  sandbox.posSale.memberId = 'parentP';   // the parent is paying
+  SB_SELECT['memberships'] = [];
+  SB_SELECT['enrollments'] = [];
+  await call('posAddMembership(null)');
+  run("posPickProgram('Cubs')");
+  run("posAddMemLine('cubs_option_a')");
+  const i = sandbox.posSale.lines.length - 1;
+  await call('posPickStudentForLine(' + i + ", 'kidA', true)");   // ...for the child
+
+  SB_CALLS.length = 0;
+  await call("posTender('Cash')");
+  assert.ok(!SB_CALLS.some(c => c.table === 'pos_sales' && c.op === 'insert'),
+    'an unsigned membership reached the ledger');
+  assert.ok(!SB_CALLS.some(c => c.table === 'memberships' && c.op === 'insert'),
+    'an unsigned membership was committed');
+
+  // Now sign it through the REAL flow — open the sheet, fill the fields, draw
+  // on the pad, accept — rather than planting a fake __agreement. This is the
+  // path a parent actually takes at the desk.
+  await call('agrOpenSign(' + i + ')');
+  const doc = ensureEl('sheet')._html;
+  assert.ok(/CUBS MEMBERSHIP AGREEMENT/.test(doc), 'the Cubs document did not render');
+  assert.ok(/electronic debit \(ACH\)/.test(doc), 'the payment authorization is missing');
+  assert.ok(/twelve \(12\) months/.test(doc), 'Cubs did not render as a twelve-month agreement');
+
+  // The document is about the CHILD, and the sheet has to say so — the parent
+  // is only paying and signing.
+  assert.ok(/Agreement for/.test(doc), 'the sheet never says who the agreement is for');
+  assert.ok(/Jamie Lee/.test(doc), 'the participant is not named on the sheet');
+  assert.ok(/agr-minor/.test(doc), 'a 9-year-old was not flagged as a minor');
+  assert.ok(/Paid by/.test(doc) && /Pat Lee/.test(doc), 'the paying parent is not shown');
+  // Signer defaults to the parent, never the child.
+  assert.strictEqual(ensureEl('agrSigner').value, 'Pat Lee', 'signer did not default to the parent');
+  assert.strictEqual(ensureEl('agrGuardian').value, 'Pat Lee', 'guardian did not default to the parent');
+  assert.strictEqual(ensureEl('agrRel').value, 'Parent', 'relationship did not default to Parent');
+
+  // A minor with no guardian named must not be signable.
+  ensureEl('agrGuardian').value = '';
+  const pad0 = ensureEl('agrPad');
+  pad0.__on.pointerdown({ clientX: 10, clientY: 10, pointerId: 1, preventDefault(){} });
+  await call('agrAccept()');
+  assert.ok(!sandbox.posSale.lines[i].__agreement, "a minor's agreement was signed with no guardian named");
+  ensureEl('agrGuardian').value = 'Pat Lee';
+
+  ensureEl('agrDob').value = '2016-04-02';
+  run("agrField('dobYMD', '2016-04-02')");
+  ensureEl('agrPayDate').value = 'the 1st of each month';
+  run("agrField('agreedPaymentDate', 'the 1st of each month')");
+  // A real stroke on the pad, through the handler agrSigInit registered.
+  const pad = ensureEl('agrPad');
+  assert.ok(pad.__on && pad.__on.pointerdown, 'the signature pad never bound its handlers');
+  pad.__on.pointerdown({ clientX: 20, clientY: 40, pointerId: 1, preventDefault(){} });
+
+  SB_CALLS.length = 0;
+  SB_INSERT_RESULT['memberships'] = { id: 'mem-1' };
+  await call('agrAccept()');
+  assert.ok(sandbox.posSale.lines[i].__agreement, 'signing did not attach the agreement to the line');
+
+  // Detail typed on the contract is saved back, so it is entered once.
+  const dobUpd = SB_CALLS.find(c => c.table === 'contacts' && c.op === 'update');
+  assert.ok(dobUpd, 'date of birth was not written back to the contact');
+  assert.strictEqual(dobUpd.patch.dob, '2016-04-02', 'the wrong date of birth was saved');
+  const gLink = SB_CALLS.find(c => c.table === 'student_guardians' && c.op === 'insert');
+  assert.ok(gLink, 'the signing parent was not linked as a guardian');
+  assert.strictEqual(gLink.rows.student_id, 'kidA', 'guardian linked to the wrong student');
+  assert.strictEqual(gLink.rows.email, 'pat@example.com', 'guardian linked with the wrong email');
+
+  await call("posTender('Cash')");
+  const agr = SB_CALLS.find(c => c.table === 'membership_agreements' && c.op === 'insert');
+  assert.ok(agr, 'a signed agreement was not filed');
+  const row = agr.rows[0];
+  assert.strictEqual(row.membership_id, 'mem-1', 'agreement not tied to the membership row');
+  assert.strictEqual(row.contact_id, 'kidA', 'agreement filed against the wrong person');
+  assert.strictEqual(row.template_key, 'cubs', 'the wrong document was filed');
+  assert.strictEqual(row.signer_name, 'Pat Lee');
+  assert.strictEqual(row.signer_relationship, 'Parent');
+  assert.strictEqual(row.agreed_payment_date, 'the 1st of each month');
+  assert.ok(/^data:image\/png/.test(row.signature_png), 'no signature image was captured');
+  // The stored text must be the whole executed document, not a summary.
+  assert.ok(/Smith County, Texas/.test(row.body_text), 'the waiver is missing from the stored document');
+  assert.ok(/Jamie Lee/.test(row.body_text), 'the participant is missing from the stored document');
+  assert.ok(row.body_text.length > 8000, 'the stored document looks truncated');
+  assert.ok(row.body_json && row.body_json.title === 'Cubs Membership Agreement',
+    'the frozen render was not stored');
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
