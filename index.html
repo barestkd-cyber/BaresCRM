@@ -581,6 +581,11 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .iv-total{background:var(--ink);color:#fff;display:flex;justify-content:space-between;align-items:center;padding:15px 16px;border-radius:12px;margin:12px 16px 14px}
 .iv-total .lbl{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#9AA1AC}
 .iv-total .amt{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:25px}
+.iv-total.paid{background:#18A974}
+.iv-total.paid .lbl{color:#D8F3E6}
+.iv-stamp{display:inline-block;border:2.5px solid #18A974;color:#18A974;border-radius:7px;padding:2px 13px;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;letter-spacing:3px;transform:rotate(-6deg)}
+.iv-stamp.due{border-color:#c8102e;color:#c8102e}
+.iv-stamp.closed{border-color:#6A727E;color:#6A727E}
 .iv-foot{background:var(--surface);color:var(--muted);font-size:12px;text-align:center;padding:9px;border-top:1px solid var(--line)}
 .iv-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
 @media(min-width:700px){.iv-actions{grid-template-columns:repeat(6,1fr)}}
@@ -2891,6 +2896,11 @@ const POS_PRINT_CSS = [
   '.iv-total{background:#15171C;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:15px 16px;border-radius:12px;margin:12px 16px 14px;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
   '.iv-total .lbl{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#9AA1AC}',
   '.iv-total .amt{font-weight:700;font-size:25px}',
+  '.iv-total.paid{background:#18A974;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+  '.iv-total.paid .lbl{color:#D8F3E6}',
+  '.iv-stamp{display:inline-block;border:2.5px solid #18A974;color:#18A974;border-radius:7px;padding:2px 13px;font-weight:700;font-size:16px;letter-spacing:3px;transform:rotate(-6deg)}',
+  '.iv-stamp.due{border-color:#c8102e;color:#c8102e}',
+  '.iv-stamp.closed{border-color:#6A727E;color:#6A727E}',
   '.iv-foot{background:#EEF1F4;color:#6A727E;font-size:12px;text-align:center;padding:9px;border-top:1px solid #E2E6EB;line-height:1.6;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
   '.iv-payhd{display:flex;align-items:center;gap:9px;padding:14px 16px 8px;font-weight:700;font-size:13px;letter-spacing:1.5px}',
   '.iv-payhd svg{width:17px;height:17px}',
@@ -2917,8 +2927,6 @@ async function posPrintSaleFromDb(saleId){
   w.document.write('<!DOCTYPE html><html><head><title>'+(o.s.status==='paid'?'Receipt ':'Invoice ')+o.s.id.slice(0,8).toUpperCase()+'</title>'
     + '<style>'+POS_PRINT_CSS+'</style></head><body><div class="iv-wrap">'
     + buildInvoiceCard(o, true)
-    + buildPaymentsCard(o)
-    + (o.s.status==='paid' && o.paidNet>=o.s.total_cents ? '<div class="stampwrap"><span class="stamp paid">PAID</span></div>' : '')
     + '</div></body></html>');
   w.document.close(); w.focus(); w.print();
 }
@@ -3021,7 +3029,7 @@ function buildInvoiceCard(o, forPrint){
     + '</div></div>';
   h += '<div class="iv-div"></div>';
   h += '<div class="iv-daterow"><span class="dt">'+IV_ICO.cal+'<span>'+escHtml(fmtDate(s.sale_date))+' · '+escHtml(new Date(s.created_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}))+'</span></span>'
-    + '<span>'+invStatusChip(s.status)+(o.refunded?' <span style="font-size:11px;color:var(--muted)">refunded '+money(o.refunded/100)+'</span>':'')+'</span></div>';
+    + '<span>'+ivStamp(s.status)+(o.refunded?' <span style="font-size:11px;color:var(--muted)">refunded '+money(o.refunded/100)+'</span>':'')+'</span></div>';
   h += '<div class="iv-div"></div>';
   h += '<div class="iv-cols">'
     + '<div class="iv-col"><div class="iv-k">Sold to</div><div class="iv-v">'
@@ -3052,9 +3060,27 @@ function buildInvoiceCard(o, forPrint){
     + (s.admin_fee_cents ? trow('Admin fee', s.admin_fee_cents) : '')
     + trow('Sales tax', s.tax_cents)
     + '</div>';
-  h += '<div class="iv-total"><span class="lbl">'+(s.status==='paid'?'Total paid':s.status==='closed'?'Closed · balance waived':'Balance due')+'</span>'
-    + '<span class="amt num">'+money((s.status==='paid'?s.total_cents:o.balance)/100)+'</span></div>';
-  if(s.status!=='paid' && o.paidNet>0) h += '<div style="padding:0 16px 10px;font-size:12px;color:var(--muted)">'+money(o.paidNet/100)+' of '+money(s.total_cents/100)+' paid'+(s.status==='closed'?' before this invoice was closed':' so far')+'</div>';
+  // Black bar is always what the invoice CAME TO. What actually arrived gets
+  // its own green bar under the payments — two different facts, two bars.
+  h += '<div class="iv-total"><span class="lbl">'+(s.status==='closed'?'Closed · balance waived':'Total due')+'</span>'
+    + '<span class="amt num">'+money(s.total_cents/100)+'</span></div>';
+
+  // Payments belong to the invoice, not a floating card below it (owner
+  // redesign 2026-08-15).
+  if(o.pays.length){
+    h += '<div class="iv-payhd">'+IV_ICO.card+'<span>PAYMENTS</span></div>';
+    h += '<table class="inv-tbl"><thead><tr><th>Date</th><th>Type</th><th class="iv-d">Note</th><th class="r">Amount</th></tr></thead><tbody>';
+    o.pays.forEach(p=>{
+      h += '<tr><td>'+escHtml(fmtDate(String(p.occurred_at).slice(0,10)))+'</td>'
+        + '<td style="text-transform:capitalize">'+escHtml(p.kind)+(p.note?'<div class="iv-m">'+escHtml(p.note)+'</div>':'')+'</td>'
+        + '<td class="iv-d" style="color:var(--muted);font-size:12.5px">'+escHtml(p.note||'')+'</td>'
+        + '<td class="r num"'+(p.amount_cents<0?' style="color:#c8102e"':'')+'>'+(p.amount_cents<0?'−':'')+money(Math.abs(p.amount_cents)/100)+'</td></tr>';
+    });
+    h += '</tbody></table>';
+    h += '<div class="iv-total paid"><span class="lbl">Total paid</span>'
+      + '<span class="amt num">'+money(o.paidNet/100)+'</span></div>';
+    if(o.balance>0 && s.status!=='closed') h += '<div style="padding:0 16px 12px;font-size:12.5px;font-weight:700;color:#c8102e">Still owed: '+money(o.balance/100)+'</div>';
+  }
   h += '<div class="iv-foot">Invoice #'+escHtml(s.id.slice(0,8).toUpperCase())
     + (forPrint ? '<br>'+escHtml(b.dba ? (LEGAL_ENTITY+' · DBA '+b.name) : LEGAL_ENTITY)+' · Thank you!' : '')
     + '</div>';
@@ -3062,22 +3088,13 @@ function buildInvoiceCard(o, forPrint){
   return h;
 }
 
-/* Payments card — only rendered when payments exist (the PAYMENT line inside
- * the invoice card answers the empty case; owner call 2026-08-15). */
-function buildPaymentsCard(o){
-  if(!o.pays.length) return '';
-  let h = '<div class="iv-card"><div class="iv-payhd">'+IV_ICO.wallet+'<span>PAYMENTS</span></div>';
-  h += '<table class="inv-tbl"><thead><tr><th>Date</th><th>Type</th><th class="iv-d">Note</th><th class="r">Amount</th></tr></thead><tbody>';
-  o.pays.forEach(p=>{
-    h += '<tr><td>'+escHtml(new Date(p.occurred_at).toLocaleDateString('en-US'))+'</td>'
-      + '<td style="text-transform:capitalize">'+escHtml(p.kind)+(p.note?'<div class="iv-m">'+escHtml(p.note)+'</div>':'')+'</td>'
-      + '<td class="iv-d" style="color:var(--muted);font-size:12.5px">'+escHtml(p.note||'')+'</td>'
-      + '<td class="r num"'+(p.amount_cents<0?' style="color:#c8102e"':'')+'>'+(p.amount_cents<0?'−':'')+money(Math.abs(p.amount_cents)/100)+'</td></tr>';
-  });
-  h += '</tbody></table>'
-    + '<div style="display:flex;justify-content:space-between;padding:10px 16px;border-top:1.5px solid var(--ink)"><b style="font-size:12px;letter-spacing:1px;text-transform:uppercase">Total paid</b><b class="num">'+money(o.paidNet/100)+'</b></div>';
-  h += '</div>';
-  return h;
+/* Status stamp for the date row — replaces the old chip (owner redesign
+   2026-08-15). Payments now render inside buildInvoiceCard, so the separate
+   payments card is gone. */
+function ivStamp(st){
+  const cls = st==='paid' ? '' : st==='closed' ? ' closed' : ' due';
+  const txt = st==='paid' ? 'PAID' : st==='closed' ? 'CLOSED' : st==='unpaid' ? 'UNPAID' : String(st||'').toUpperCase();
+  return '<span class="iv-stamp'+cls+'">'+escHtml(txt)+'</span>';
 }
 
 /* Copy the invoice's public view link (receipt-view + view_token). */
@@ -3129,12 +3146,7 @@ async function showInvoice(saleId, from){
   if(s.status==='unpaid' && paidNet===0 && pays.length===0) h += '<button class="iv-abtn danger" onclick="posDeleteInvoiceSheet(\''+s.id+'\')">'+IV_ICO.trash+'<span>Delete</span></button>';
   h += '</div>';
 
-  h += buildPaymentsCard(o);
-
-  if(s.status==='paid' && paidNet>=s.total_cents){
-    h += '<div style="margin:18px 2px"><div style="font-size:13px;font-weight:600;margin-bottom:8px">This invoice is marked paid in full.</div>'
-      + '<span style="display:inline-block;border:3px solid #18A974;color:#18A974;border-radius:6px;padding:3px 18px;font-family:\'Space Grotesk\',sans-serif;font-weight:700;font-size:22px;letter-spacing:4px;transform:rotate(-7deg)">PAID</span></div>';
-  }
+  // (payments and the PAID stamp now live inside the card itself)
   if(s.receipt_sent_at) h += '<div class="ck-hint" style="margin-top:12px">✉ '+(s.status==='paid'?'Receipt':'Invoice')+' emailed to '+escHtml(s.receipt_email||'')+' · '+escHtml(new Date(s.receipt_sent_at).toLocaleString('en-US'))+'</div>';
   if(s.notes) h += '<div class="ck-hint" style="margin-top:12px">'+escHtml(s.notes)+'</div>';
   h += '</div></div>';

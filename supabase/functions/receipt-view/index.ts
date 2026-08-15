@@ -96,6 +96,11 @@ const CSS = [
   ".iv-total{background:#15171C;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:15px 16px;border-radius:12px;margin:12px 16px 14px}",
   ".iv-total .lbl{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#9AA1AC}",
   ".iv-total .amt{font-weight:700;font-size:25px}",
+  ".iv-total.paid{background:#18A974}",
+  ".iv-total.paid .lbl{color:#D8F3E6}",
+  ".iv-stamp{display:inline-block;border:2.5px solid #18A974;color:#18A974;border-radius:7px;padding:2px 13px;font-weight:700;font-size:16px;letter-spacing:3px;transform:rotate(-6deg)}",
+  ".iv-stamp.due{border-color:#c8102e;color:#c8102e}",
+  ".iv-stamp.closed{border-color:#6A727E;color:#6A727E}",
   ".iv-foot{background:#EEF1F4;color:#6A727E;font-size:12px;text-align:center;padding:9px;border-top:1px solid #E2E6EB;line-height:1.6}",
   ".iv-payhd{display:flex;align-items:center;gap:9px;padding:14px 16px 8px;font-weight:700;font-size:13px;letter-spacing:1.5px}",
   ".iv-payhd svg{width:17px;height:17px}",
@@ -103,7 +108,7 @@ const CSS = [
   ".stamp{display:inline-block;border:3px solid;border-radius:6px;padding:3px 18px;font-weight:700;font-size:22px;letter-spacing:4px;transform:rotate(-7deg)}",
   ".stamp.paid{color:#1e9e54}",
   ".lg-light{display:none}",
-  "@media print{.iv-logo{background:#fff;border:1px solid #E2E6EB}.lg-dark{display:none}.lg-light{display:block}.iv-total,.iv-foot{-webkit-print-color-adjust:exact;print-color-adjust:exact}}",
+  "@media print{.iv-logo{background:#fff;border:1px solid #E2E6EB}.lg-dark{display:none}.lg-light{display:block}.iv-total,.iv-total.paid,.iv-foot{-webkit-print-color-adjust:exact;print-color-adjust:exact}}",
 ].join("");
 
 const ICO = {
@@ -162,9 +167,8 @@ Deno.serve(async (req) => {
     const staffName = staffRes.data?.name || s.staff_email || "—";
     const shortId = String(s.id).slice(0, 8).toUpperCase();
 
-    const chipStyle = paid
-      ? "background:#E4F5EE;color:#18A974" : s.status === "unpaid"
-      ? "background:#FDEBEC;color:#c8102e" : "background:#EDEFF2;color:#6A727E";
+    const stampCls = paid ? "" : closed ? " closed" : " due";
+    const stampTxt = paid ? "PAID" : closed ? "CLOSED" : s.status === "unpaid" ? "UNPAID" : String(s.status).toUpperCase();
 
     const logoCircle = brand.logoDark && brand.logo
       ? '<div class="iv-logo"><img class="lg-dark" src="' + brand.logoDark + '" alt=""><img class="lg-light" src="' + brand.logo + '" alt=""></div>'
@@ -182,15 +186,18 @@ Deno.serve(async (req) => {
     const trow = (k: string, v: number, neg = false) =>
       '<div class="trow' + (neg ? " m" : "") + '"><span>' + k + "</span><span>" + (neg ? "−" : "") + money(v) + "</span></div>";
 
+    // Payments render INSIDE the invoice card (owner redesign 2026-08-15),
+    // with their own green total bar mirroring the black one above.
     const payCard = pays.length
-      ? '<div class="iv-card"><div class="iv-payhd">' + ICO.wallet + "<span>PAYMENTS</span></div>" +
+      ? '<div class="iv-payhd">' + ICO.wallet + "<span>PAYMENTS</span></div>" +
         '<table class="inv-tbl"><thead><tr><th>Date</th><th>Type</th><th class="r">Amount</th></tr></thead><tbody>' +
         pays.map((p) =>
-          "<tr><td>" + esc(new Date(p.occurred_at).toLocaleDateString("en-US")) + "</td>" +
+          "<tr><td>" + esc(fmtDate(String(p.occurred_at).slice(0, 10))) + "</td>" +
           '<td style="text-transform:capitalize">' + esc(p.kind) + (p.note ? '<div style="font-size:11px;color:#6A727E">' + esc(p.note) + "</div>" : "") + "</td>" +
           '<td class="r"' + (p.amount_cents < 0 ? ' style="color:#c8102e"' : "") + ">" + (p.amount_cents < 0 ? "−" : "") + money(Math.abs(p.amount_cents)) + "</td></tr>").join("") +
         "</tbody></table>" +
-        '<div style="display:flex;justify-content:space-between;padding:10px 16px;border-top:1.5px solid #15171C"><b style="font-size:12px;letter-spacing:1px;text-transform:uppercase">Total paid</b><b>' + money(paidNet) + "</b></div></div>"
+        '<div class="iv-total paid"><span class="lbl">Total paid</span><span class="amt">' + money(paidNet) + "</span></div>" +
+        (balance > 0 && !closed ? '<div style="padding:0 16px 12px;font-size:12.5px;font-weight:700;color:#c8102e">Still owed: ' + money(balance) + "</div>" : "")
       : "";
 
     const body = '<div class="iv-wrap"><div class="iv-card">' +
@@ -201,7 +208,7 @@ Deno.serve(async (req) => {
       "</div></div>" +
       '<div class="iv-div"></div>' +
       '<div class="iv-daterow"><span class="dt">' + ICO.cal + "<span>" + fmtDate(s.sale_date) + "</span></span>" +
-      '<span><span class="chip" style="' + chipStyle + '">' + esc(s.status) + "</span>" +
+      '<span><span class="iv-stamp' + stampCls + '">' + esc(stampTxt) + "</span>" +
       (refunded ? ' <span style="font-size:11px;color:#6A727E">refunded ' + money(refunded) + "</span>" : "") + "</span></div>" +
       '<div class="iv-div"></div>' +
       '<div class="iv-cols">' +
@@ -218,12 +225,10 @@ Deno.serve(async (req) => {
       (s.admin_fee_cents ? trow("Admin fee", s.admin_fee_cents) : "") +
       trow("Sales tax", s.tax_cents) +
       "</div>" +
-      '<div class="iv-total"><span class="lbl">' + (paid ? "Total paid" : closed ? "Closed · balance waived" : "Balance due") + '</span><span class="amt">' + money(paid ? s.total_cents : balance) + "</span></div>" +
-      (!paid && !closed && paidNet > 0 ? '<div style="padding:0 16px 10px;font-size:12px;color:#6A727E">' + money(paidNet) + " of " + money(s.total_cents) + " paid so far</div>" : "") +
+      '<div class="iv-total"><span class="lbl">' + (closed ? "Closed · balance waived" : "Total due") + '</span><span class="amt">' + money(s.total_cents) + "</span></div>" +
+      payCard +
       '<div class="iv-foot">Invoice #' + shortId + "<br>" + esc(brand.dba ? LEGAL_ENTITY + " · DBA " + brand.name : LEGAL_ENTITY) + " · Thank you!</div>" +
       "</div>" +
-      payCard +
-      (paid && paidNet >= s.total_cents ? '<div class="stampwrap"><span class="stamp paid">PAID</span></div>' : "") +
       "</div>";
 
     // Fragment mode: the customer-facing page at www.barestkd.fit/invoice/
