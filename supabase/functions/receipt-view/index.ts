@@ -75,7 +75,8 @@ const CSS = [
   ".iv-line{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#6A727E;margin-top:4px}",
   ".iv-line svg{width:14px;height:14px;flex-shrink:0}",
   ".iv-div{border-top:1px solid #E2E6EB;margin:0 16px}",
-  ".iv-daterow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px}",
+  ".iv-daterow{display:flex;align-items:center;justify-content:space-between;gap:10px 12px;padding:12px 16px;flex-wrap:wrap}",
+  ".iv-daterow>span:last-child{margin-left:auto}",
   ".iv-daterow .dt{display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:600}",
   ".iv-daterow .dt svg{width:16px;height:16px;color:#6A727E}",
   ".chip{font-size:11px;font-weight:700;padding:2px 9px;border-radius:9px;text-transform:capitalize}",
@@ -108,6 +109,9 @@ const CSS = [
   ".iv-stamp{display:inline-block;border:2.5px solid #18A974;color:#18A974;border-radius:7px;padding:2px 13px;font-weight:700;font-size:16px;letter-spacing:3px;transform:rotate(-6deg)}",
   ".iv-stamp.due{border-color:#c8102e;color:#c8102e}",
   ".iv-stamp.closed{border-color:#6A727E;color:#6A727E}",
+  ".iv-stamp.part{border-color:#C98A1A;color:#C98A1A;font-size:12px;letter-spacing:1.5px}",
+  ".iv-stampwrap{display:inline-flex;flex-direction:column;align-items:flex-end;gap:5px}",
+  ".iv-stampsub{font-size:10.5px;color:#6A727E;letter-spacing:0;font-weight:600;white-space:nowrap}",
   ".iv-foot{background:#EEF1F4;color:#6A727E;font-size:12px;text-align:center;padding:9px;border-top:1px solid #E2E6EB;line-height:1.6}",
   ".iv-payhd{display:flex;align-items:center;gap:9px;padding:14px 16px 8px;font-weight:700;font-size:13px;letter-spacing:1.5px}",
   ".iv-payhd svg{width:17px;height:17px}",
@@ -174,8 +178,10 @@ Deno.serve(async (req) => {
     const staffName = staffRes.data?.name || s.staff_email || "—";
     const shortId = String(s.id).slice(0, 8).toUpperCase();
 
-    const stampCls = paid ? "" : closed ? " closed" : " due";
-    const stampTxt = paid ? "PAID" : closed ? "CLOSED" : s.status === "unpaid" ? "UNPAID" : String(s.status).toUpperCase();
+    // A partially-paid invoice reads differently from an untouched one.
+    const partial = !paid && !closed && paidNet > 0;
+    const stampCls = paid ? "" : closed ? " closed" : partial ? " part" : " due";
+    const stampTxt = paid ? "PAID" : closed ? "CLOSED" : partial ? "PAYMENT APPLIED" : s.status === "unpaid" ? "UNPAID" : String(s.status).toUpperCase();
 
     const logoCircle = brand.logoDark && brand.logo
       ? '<div class="iv-logo"><img class="lg-dark" src="' + brand.logoDark + '" alt=""><img class="lg-light" src="' + brand.logo + '" alt=""></div>'
@@ -218,7 +224,9 @@ Deno.serve(async (req) => {
       "</div></div>" +
       '<div class="iv-div"></div>' +
       '<div class="iv-daterow"><span class="dt">' + ICO.cal + "<span>" + fmtDate(s.sale_date) + "</span></span>" +
-      '<span><span class="iv-stamp' + stampCls + '">' + esc(stampTxt) + "</span>" +
+      '<span>' + (partial
+        ? '<span class="iv-stampwrap"><span class="iv-stamp part">PAYMENT APPLIED</span><span class="iv-stampsub">' + money(balance) + ' balance remains</span></span>'
+        : '<span class="iv-stamp' + stampCls + '">' + esc(stampTxt) + "</span>") +
       (refunded ? ' <span style="font-size:11px;color:#6A727E">refunded ' + money(refunded) + "</span>" : "") + "</span></div>" +
       '<div class="iv-div"></div>' +
       '<div class="iv-cols">' +
