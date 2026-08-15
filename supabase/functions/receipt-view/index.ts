@@ -86,14 +86,14 @@ const CSS = [
   ".iv-v{font-weight:600;font-size:14.5px}",
   "table.inv-tbl{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}",
   ".inv-tbl th{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:#6A727E;text-align:left;padding:6px 8px;border-bottom:1px solid #E2E6EB}",
-  ".inv-tbl td{padding:9px 5px;border-bottom:none;vertical-align:top;word-break:break-word}",
+  ".inv-tbl th,.inv-tbl td{padding:9px 4px;border-bottom:none;vertical-align:top;white-space:nowrap}",
+  ".inv-tbl th.c-item,.inv-tbl td.c-item{white-space:normal;word-break:break-word}",
   "table.inv-tbl{table-layout:fixed}",
   ".inv-tbl thead tr,.inv-tbl tbody tr{border-bottom:1px solid #EEF1F4}",
   ".inv-tbl tbody tr:last-child{border-bottom:none}",
-  ".inv-tbl th.c-qty{width:26px}",
-  ".inv-tbl th.c-price,.inv-tbl th.c-disc{width:58px}",
-  ".inv-tbl th.c-tax{width:52px}",
-  "@media(min-width:640px){.inv-tbl th,.inv-tbl td{padding:10px 8px}.inv-tbl th.c-price,.inv-tbl th.c-disc,.inv-tbl th.c-tax{width:72px}}",
+  ".inv-tbl th.c-qty{width:34px}",
+  ".inv-tbl th.c-price,.inv-tbl th.c-disc,.inv-tbl th.c-tax{width:58px}",
+  "@media(min-width:640px){.inv-tbl th,.inv-tbl td{padding:10px 8px}.inv-tbl th.c-qty{width:44px}.inv-tbl th.c-price,.inv-tbl th.c-disc,.inv-tbl th.c-tax{width:78px}}",
   ".inv-tbl th:first-child,.inv-tbl td:first-child{padding-left:16px}",
   ".inv-tbl th:last-child,.inv-tbl td:last-child{padding-right:16px}",
   ".inv-tbl .r{text-align:right;white-space:nowrap}",
@@ -183,10 +183,13 @@ Deno.serve(async (req) => {
       ? '<div class="iv-logo light"><img src="' + brand.logo + '" alt=""></div>'
       : '<div class="iv-logo"><span class="ini">G</span></div>';
 
+    // Disc only earns a column when something is actually discounted —
+    // otherwise it is a column of dashes eating width on a phone.
+    const anyDisc = lines.some((l, i) => (l.discount_cents || 0) + discAlloc[i] > 0);
     const rows = lines.map((l, i) =>
-      '<tr><td class="qty">' + (l.qty ?? 1) + "</td><td>" + esc(l.label) + "</td>" +
+      '<tr><td class="qty">' + (l.qty ?? 1) + '</td><td class="c-item">' + esc(l.label) + "</td>" +
       '<td class="r">' + money(l.unit_cents) + "</td>" +
-      '<td class="r">' + ((l.discount_cents || discAlloc[i]) ? "−" + money((l.discount_cents || 0) + discAlloc[i]) : "—") + "</td>" +
+      (anyDisc ? '<td class="r">' + ((l.discount_cents || discAlloc[i]) ? "−" + money((l.discount_cents || 0) + discAlloc[i]) : "—") + "</td>" : "") +
       '<td class="r">' + (taxAlloc[i] ? money(taxAlloc[i]) : "—") + "</td>" +
       '<td class="r">' + money(l.line_total_cents - discAlloc[i] + taxAlloc[i]) + "</td></tr>").join("");
 
@@ -224,7 +227,9 @@ Deno.serve(async (req) => {
       "</div>" +
       '<div class="iv-div"></div>' +
       '<div style="padding:12px 16px 4px"><div class="iv-k">' + (paid ? "Paid by" : "Payment") + '</div><div class="iv-v" style="text-transform:capitalize">' + esc(s.tender_method || (closed ? "Closed — no balance due" : "Not Yet Received")) + "</div></div>" +
-      '<table class="inv-tbl"><thead><tr><th class="c-qty">Qty</th><th>Item</th><th class="r c-price">Price</th><th class="r c-disc">Disc</th><th class="r c-tax">Tax</th><th class="r">Total</th></tr></thead><tbody>' +
+      '<table class="inv-tbl"><thead><tr><th class="c-qty">Qty</th><th class="c-item">Item</th><th class="r c-price">Price</th>' +
+      (anyDisc ? '<th class="r c-disc">Disc</th>' : "") +
+      '<th class="r c-tax">Tax</th><th class="r">Total</th></tr></thead><tbody>' +
       rows + "</tbody></table>" +
       '<div style="padding:8px 16px 2px">' +
       trow("Subtotal", s.subtotal_cents) +

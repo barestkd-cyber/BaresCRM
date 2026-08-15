@@ -647,26 +647,28 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
    150px of a ~340px card, which pushed TAX off the screen edge. Tight padding
    here, and the row rule lives on the ROW so it is one clean line instead of
    six cell borders that can look ragged when a cell wraps. */
-.iv-card .inv-tbl{font-size:12.5px;table-layout:fixed}
-.iv-card .inv-tbl th,.iv-card .inv-tbl td{padding:9px 5px;border-bottom:none;cursor:default;word-break:break-word}
+/* Items table. Phone-first: only the ITEM cell may wrap — headers and money
+   never do (too-tight columns previously stacked "QTY" as Q/T/Y and split
+   "$60.00" into "$60.0" + "0"). The row rule lives on the ROW so it draws as
+   one clean line however the item wraps. */
+.iv-card .inv-tbl{font-size:12px;table-layout:fixed}
+.iv-card .inv-tbl th,.iv-card .inv-tbl td{padding:9px 4px;border-bottom:none;cursor:default;white-space:nowrap}
 .iv-card .inv-tbl th:first-child,.iv-card .inv-tbl td:first-child{padding-left:16px}
 .iv-card .inv-tbl th:last-child,.iv-card .inv-tbl td:last-child{padding-right:16px}
-.iv-card .inv-tbl thead tr{border-bottom:1px solid var(--line)}
-.iv-card .inv-tbl tbody tr{border-bottom:1px solid var(--line)}
+.iv-card .inv-tbl thead tr,.iv-card .inv-tbl tbody tr{border-bottom:1px solid var(--line)}
 .iv-card .inv-tbl tbody tr:last-child{border-bottom:none}
 .iv-card .inv-tbl tbody tr:hover td{background:transparent}
 .iv-card .inv-tbl td{vertical-align:top}
 .iv-card .inv-tbl td.qty{color:var(--muted)}
-/* Column widths: the money columns get exactly what they need, Item takes the
-   rest and wraps. Fixed layout stops a long product name from shoving the
-   numbers off-screen. */
-.iv-card .inv-tbl th.c-qty{width:26px}
-.iv-card .inv-tbl th.c-price,.iv-card .inv-tbl th.c-disc{width:58px}
-.iv-card .inv-tbl th.c-tax{width:52px}
+/* Item is the only flexible column, and the only one allowed to wrap. */
+.iv-card .inv-tbl th.c-item,.iv-card .inv-tbl td.c-item{white-space:normal;word-break:break-word}
+.iv-card .inv-tbl th.c-qty{width:34px}
+.iv-card .inv-tbl th.c-price,.iv-card .inv-tbl th.c-disc,.iv-card .inv-tbl th.c-tax{width:58px}
 @media(min-width:700px){
   .iv-card .inv-tbl{font-size:13px}
   .iv-card .inv-tbl th,.iv-card .inv-tbl td{padding:10px 8px}
-  .iv-card .inv-tbl th.c-price,.iv-card .inv-tbl th.c-disc,.iv-card .inv-tbl th.c-tax{width:72px}
+  .iv-card .inv-tbl th.c-qty{width:44px}
+  .iv-card .inv-tbl th.c-price,.iv-card .inv-tbl th.c-disc,.iv-card .inv-tbl th.c-tax{width:78px}
 }
 .iv-d{display:none}
 .iv-m{font-size:11px;color:var(--muted)}
@@ -3061,13 +3063,18 @@ function buildInvoiceCard(o, forPrint){
     + '</div>';
   h += '<div class="iv-div"></div>';
   h += '<div style="padding:12px 16px 4px"><div class="iv-k">'+(s.status==='paid'?'Paid by':'Payment')+'</div><div class="iv-v" style="text-transform:capitalize">'+escHtml(s.tender_method||'Not Yet Received')+'</div></div>';
-  h += '<table class="inv-tbl" style="margin-top:8px"><thead><tr><th class="c-qty">Qty</th><th>Item</th><th class="r c-price">Price</th><th class="r c-disc">Disc</th><th class="r c-tax">Tax</th><th class="r iv-d">Total</th></tr></thead><tbody>';
+  // Disc is dead weight on most invoices — a column of dashes. Only give it
+  // a column when something is actually discounted.
+  const anyDisc = o.lines.some((l,i)=>(l.discount_cents||0)+o.discAlloc[i] > 0);
+  h += '<table class="inv-tbl" style="margin-top:8px"><thead><tr><th class="c-qty">Qty</th><th class="c-item">Item</th><th class="r c-price">Price</th>'
+    +(anyDisc?'<th class="r c-disc">Disc</th>':'')
+    +'<th class="r c-tax">Tax</th><th class="r iv-d">Total</th></tr></thead><tbody>';
   o.lines.forEach((l,i)=>{
     const st = l.student_contact_id ? posBuyerLabel(l.student_contact_id) : null;
-    h += '<tr><td class="qty">'+(l.qty||1)+'</td><td>'+escHtml(l.label)
+    h += '<tr><td class="qty">'+(l.qty||1)+'</td><td class="c-item">'+escHtml(l.label)
       + (st?'<div style="font-size:12px;color:var(--muted)">For '+escHtml(st)+'</div>':'')
       + '</td><td class="r num">'+money(l.unit_cents/100)+'</td>'
-      + '<td class="r num">'+((l.discount_cents||o.discAlloc[i])?('−'+money(((l.discount_cents||0)+o.discAlloc[i])/100)):'—')+'</td>'
+      + (anyDisc ? '<td class="r num">'+((l.discount_cents||o.discAlloc[i])?('−'+money(((l.discount_cents||0)+o.discAlloc[i])/100)):'—')+'</td>' : '')
       + '<td class="r num">'+(o.taxAlloc[i]?money(o.taxAlloc[i]/100):'—')+'</td>'
       + '<td class="r num iv-d">'+money((l.line_total_cents - o.discAlloc[i] + o.taxAlloc[i])/100)+'</td></tr>';
   });
