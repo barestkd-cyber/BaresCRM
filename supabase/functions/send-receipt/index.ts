@@ -148,13 +148,22 @@ Deno.serve(async (req) => {
     // wraps the same card the function renders (fragment mode).
     const viewUrl = `https://www.barestkd.fit/invoice/?t=${token}`;
 
+    // Staff-editable bits. The intro line and an optional personal message are
+    // the ONLY parts the caller controls — every figure, the link, the brand
+    // and the legal footer are still derived here from the ledger. Both are
+    // escaped, so a typo can never inject markup into a customer's inbox.
+    const defaultIntro = `Here's your ${paid ? "receipt" : "invoice"} from ${brand.name}.`;
+    const intro = esc(String(body.intro ?? "").trim().slice(0, 300) || defaultIntro);
+    const note = String(body.note ?? "").trim().slice(0, 1200);
+
     // ── short email: state + total + one big button ────────────────────────
     const html =
       `<div style="font-family:Arial,Helvetica,sans-serif;color:#111;max-width:440px;margin:0 auto;padding:20px 14px;text-align:center">
         ${brand.logo
           ? `<img src="${brand.logo}" alt="${esc(brand.name)}" style="max-width:220px;max-height:86px;margin-bottom:10px">`
           : `<h1 style="font-size:18px;margin:0 0 10px">${esc(brand.name)}</h1>`}
-        <p style="font-size:14.5px;margin:6px 0 2px">Here's your ${paid ? "receipt" : "invoice"} from ${esc(brand.name)}.</p>
+        <p style="font-size:14.5px;margin:6px 0 2px">${intro}</p>
+        ${note ? `<p style="font-size:14px;line-height:1.6;margin:12px auto 2px;max-width:380px;text-align:left;white-space:pre-wrap">${esc(note)}</p>` : ""}
         <p style="font-size:22px;font-weight:bold;margin:10px 0 2px">${money(s.total_cents)}</p>
         <p style="font-size:13px;margin:0 0 16px;${paid ? "color:#1e9e54" : closed ? "color:#6A727E" : "color:#c8102e"};font-weight:bold">
           ${paid ? "PAID — thank you!" : closed ? "Closed — no balance due" : `Balance due: ${money(balance)}`}</p>
@@ -177,6 +186,15 @@ Deno.serve(async (req) => {
       : closed
       ? `Invoice ${shortId} from ${brand.name} — closed`
       : `Invoice from ${brand.name} — ${money(balance)} due`;
+
+    // Preview: hand back exactly what would be sent, send nothing, touch
+    // nothing. The CRM shows this before the staff member commits.
+    if (body.preview === true) {
+      return json({
+        ok: true, preview: true, to, subject, html,
+        default_intro: defaultIntro,
+      }, 200, cors);
+    }
 
     const resendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",

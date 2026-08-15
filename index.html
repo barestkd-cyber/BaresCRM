@@ -3178,10 +3178,54 @@ function posEmailReceiptSheet(saleId){
       +'</div>'
       +(prefill?'' : '<div class="ck-hint" style="margin-top:8px">No email on file for this buyer — enter one. (Buyer profiles should carry an email.)</div>')
       +'<button class="addopt" style="margin-top:8px" onclick="posEmailAddRecipient()">＋ Add another email</button>'
+      +'<label class="ed-lbl">Opening line</label>'
+      +'<input id="er-intro" class="ed-in" oninput="posEmailPreview(\''+saleId+'\')" placeholder="Loading…">'
+      +'<label class="ed-lbl">Personal message <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>'
+      +'<textarea id="er-note" class="ed-in" rows="3" oninput="posEmailPreview(\''+saleId+'\')" placeholder="Anything you want to say — thanks for coming in, see you Tuesday…"></textarea>'
+      +'<div class="ed-lbl" style="margin-top:14px">Preview · exactly what they get</div>'
+      +'<div id="er-preview" style="border:1px solid var(--line);border-radius:11px;overflow:hidden;background:#fff">'
+      +'<div class="inv-empty" style="padding:22px">Building preview…</div></div>'
       +'<button class="tbtn" style="width:100%;margin-top:14px" id="er-send" onclick="posEmailReceiptSend(\''+saleId+'\')">Send</button>'
       +'</div>';
     openSheet();
+    posEmailPreview(saleId, true);
   });
+}
+
+/* Live preview of the real email. The server renders it — same code path that
+   sends — so what Race approves is literally what leaves the building. Only
+   the opening line and the personal message are editable; every figure, the
+   link, the brand and the legal footer stay server-derived. Debounced so
+   typing doesn't hammer the function. */
+let ER_PREVIEW_T = null;
+function posEmailPreview(saleId, immediate){
+  clearTimeout(ER_PREVIEW_T);
+  ER_PREVIEW_T = setTimeout(async function(){
+    const box = document.getElementById('er-preview'); if(!box) return;
+    const introEl = document.getElementById('er-intro');
+    const noteEl  = document.getElementById('er-note');
+    try{
+      const { data, error } = await sb.functions.invoke('send-receipt', {
+        body: { sale_id: saleId, preview: true,
+                intro: introEl ? introEl.value : '', note: noteEl ? noteEl.value : '' }
+      });
+      if(error) throw new Error(error.message||String(error));
+      if(!data || !data.ok) throw new Error((data&&data.error)||'preview failed');
+      // First paint: show the default opening line so it can be edited, not guessed at.
+      if(introEl && !introEl.value && data.default_intro){
+        introEl.value = data.default_intro; introEl.placeholder = data.default_intro;
+      }
+      const f = document.createElement('iframe');
+      f.setAttribute('sandbox','');           // preview only: no scripts, no navigation
+      f.style.cssText = 'width:100%;border:0;display:block;height:420px;background:#fff';
+      box.innerHTML = ''; box.appendChild(f);
+      f.srcdoc = '<!DOCTYPE html><meta charset="utf-8"><div style="font-size:11px;color:#888;font-family:Arial;padding:8px 10px;border-bottom:1px solid #eee">Subject: '
+        + escHtml(data.subject||'') + '</div>' + (data.html||'');
+    }catch(e){
+      console.error('preview failed', e);
+      box.innerHTML = '<div class="inv-empty" style="padding:18px">Couldn\'t build the preview — you can still send.</div>';
+    }
+  }, immediate ? 0 : 350);
 }
 function posEmailAddRecipient(){
   const list = document.getElementById('er-list'); if(!list) return;
@@ -3200,7 +3244,12 @@ async function posEmailReceiptSend(saleId){
   const btn = document.getElementById('er-send');
   btn.disabled = true; btn.textContent = 'Sending…';
   try{
-    const { data, error } = await sb.functions.invoke('send-receipt', { body: { sale_id: saleId, to: to } });
+    const introEl = document.getElementById('er-intro');
+    const noteEl  = document.getElementById('er-note');
+    const { data, error } = await sb.functions.invoke('send-receipt', {
+      body: { sale_id: saleId, to: to,
+              intro: introEl ? introEl.value : '', note: noteEl ? noteEl.value : '' }
+    });
     if(error) throw new Error(error.message||String(error));
     if(!data || !data.ok) throw new Error((data&&data.error)||'send failed');
     toast('Sent to '+to.join(', '));
