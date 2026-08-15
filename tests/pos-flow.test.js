@@ -111,7 +111,7 @@ const FNS = [
   'posQuote', 'posMemDueCents', 'posMemLineDueCents', 'posMemRecurringNote', 'posProgramBuckets',
   'posSuggestedAdminFeeCents', 'posSaveAmount',
   'posPayOpen', 'posPayTab', 'posPayRender', 'posPayChange', 'posPayQuick',
-  'posPayFeePrompt', 'posPayFeeAnswer', 'posPayAskClose', 'posPaySubmit', 'posPayClose',
+  'posPayFeePrompt', 'posPayFeeAnswer', 'posPayAskClose', 'posPayRestoreFee', 'posPaySubmit', 'posPayClose',
   'posAutoReceipt',
   'pmNowParts', 'pmOccurredAt',
   'posAddMembership', 'posPickProgram', 'posAddMemLine',
@@ -579,6 +579,44 @@ await test('13 a paid sale emails its receipt automatically; an unpaid one does 
   assert.ok(RECEIPTS[0].sale_id, 'the receipt is addressed by sale id');
   assert.strictEqual(RECEIPTS[0].to, undefined,
     'the client never picks the recipient — the server reads the buyer on file');
+});
+
+await test('14 admin fee follows the METHOD: off for cash, back on for card', async () => {
+  sandbox.PRICE_SETTINGS.admin_fee_bps = 290;
+  sandbox.PRICE_SETTINGS.admin_fee_flat_cents = 30;
+  sandbox.posSale = sandbox.posBlank();
+  sandbox.posSale.memberId = 'kidA';
+  sandbox.posSale.lines.push({ kind: 'prod', label: 'Sparring gear package', amount: 242.50, qty: 1, taxable: true });
+  run('renderPOS()');
+  const fee = Math.floor(24250 * 290 / 10000 + 0.5) + 30;   // 733
+  assert.strictEqual(sandbox.posSale.adminFeeCents, fee, 'card-priced by default');
+
+  await call("posPayOpen({mode:'sale'})");
+  assert.strictEqual(run('PAY.feeOriginal'), fee, 'the modal remembers what to restore to');
+
+  // Cash: drop it, and it must STAY dropped through re-renders.
+  await call("posPayTab('Cash')");
+  await call('posPayFeeAnswer(true)');
+  assert.strictEqual(sandbox.posSale.adminFeeCents, 0, 'cash drops the fee');
+  assert.strictEqual(sandbox.posSale.adminFeeSuppressed, true);
+  run('renderPOS()');
+  assert.strictEqual(sandbox.posSale.adminFeeCents, 0,
+    'a re-render must not silently put it back while cash is selected');
+
+  // Back to Card: it returns on its own. This is the bug Race reported.
+  await call("posPayTab('Card')");
+  assert.strictEqual(sandbox.posSale.adminFeeCents, fee, 'card restores the fee');
+  assert.strictEqual(sandbox.posSale.adminFeeSuppressed, false);
+  assert.strictEqual(run('PAY.feeCents'), fee);
+
+  // An explicitly typed fee outranks all of it.
+  ensureEl('edAmt').value = '1.00';
+  run("posSaveAmount('fee')");
+  await call("posPayTab('Cash')");
+  await call('posPayFeeAnswer(true)');
+  await call("posPayTab('Card')");
+  assert.strictEqual(sandbox.posSale.adminFeeCents, 0,
+    'a manual fee is never auto-restored — the operator is in charge');
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');

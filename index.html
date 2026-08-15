@@ -651,8 +651,16 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
    never do (too-tight columns previously stacked "QTY" as Q/T/Y and split
    "$60.00" into "$60.0" + "0"). The row rule lives on the ROW so it draws as
    one clean line however the item wraps. */
-.iv-card .inv-tbl{font-size:12px;table-layout:fixed}
-.iv-card .inv-tbl th,.iv-card .inv-tbl td{padding:9px 4px;border-bottom:none;cursor:default;white-space:nowrap}
+/* Columns size themselves to their content instead of me guessing pixels —
+   width:1% + nowrap is the shrink-to-fit idiom, and ITEM (width:auto) soaks
+   up whatever is left. Fixed pixel widths kept coming up a few px short and
+   spilling headers into their neighbour ("QTYITEM", "$242.50$20.01"). */
+.iv-card .inv-tbl{font-size:12px;table-layout:auto}
+.iv-card .inv-tbl th.c-qty,.iv-card .inv-tbl th.c-price,
+.iv-card .inv-tbl th.c-disc,.iv-card .inv-tbl th.c-tax,
+.iv-card .inv-tbl th.iv-d{width:1%;white-space:nowrap}
+.iv-card .inv-tbl th.c-item{width:auto}
+.iv-card .inv-tbl th,.iv-card .inv-tbl td{padding:9px 7px;border-bottom:none;cursor:default;white-space:nowrap}
 .iv-card .inv-tbl th:first-child,.iv-card .inv-tbl td:first-child{padding-left:16px}
 .iv-card .inv-tbl th:last-child,.iv-card .inv-tbl td:last-child{padding-right:16px}
 .iv-card .inv-tbl thead tr,.iv-card .inv-tbl tbody tr{border-bottom:1px solid var(--line)}
@@ -662,15 +670,9 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .iv-card .inv-tbl td.qty{color:var(--muted)}
 /* Item is the only flexible column, and the only one allowed to wrap. */
 .iv-card .inv-tbl th.c-item,.iv-card .inv-tbl td.c-item{white-space:normal;word-break:break-word}
-/* 16px card gutter + the "QTY" header itself + right padding. Anything less
-   and the header bleeds into ITEM ("QTYITEM"). */
-.iv-card .inv-tbl th.c-qty{width:52px}
-.iv-card .inv-tbl th.c-price,.iv-card .inv-tbl th.c-disc,.iv-card .inv-tbl th.c-tax{width:58px}
 @media(min-width:700px){
   .iv-card .inv-tbl{font-size:13px}
-  .iv-card .inv-tbl th,.iv-card .inv-tbl td{padding:10px 8px}
-  .iv-card .inv-tbl th.c-qty{width:56px}
-  .iv-card .inv-tbl th.c-price,.iv-card .inv-tbl th.c-disc,.iv-card .inv-tbl th.c-tax{width:78px}
+  .iv-card .inv-tbl th,.iv-card .inv-tbl td{padding:10px 9px}
 }
 .iv-d{display:none}
 .iv-m{font-size:11px;color:var(--muted)}
@@ -1870,7 +1872,10 @@ const RECEIPT_BRANDS = [
 ];
 function posBrand(key){ return RECEIPT_BRANDS.find(b=>b.key===key) || RECEIPT_BRANDS[0]; }
 
-function posBlank(){ return {memberId:null, lines:[], discountCents:0, adminFeeCents:0, adminFeeManual:false, taxRate:0.0825, brand:'btkd', notes:'', date:attYMD(), staff:''}; }
+/* adminFeeManual  = a human typed an exact fee; never auto-touch it again.
+   adminFeeSuppressed = dropped because THIS payment is cash/check; a card
+   method puts it straight back. Two different intents, two flags. */
+function posBlank(){ return {memberId:null, lines:[], discountCents:0, adminFeeCents:0, adminFeeManual:false, adminFeeSuppressed:false, taxRate:0.0825, brand:'btkd', notes:'', date:attYMD(), staff:''}; }
 let posSale = posBlank();
 
 /* ─── staff directory ────────────────────────────────────────────────────────
@@ -1908,7 +1913,7 @@ function renderPOS(){
   // built — card-inclusive pricing is the quoted price. Cash/Check offer to
   // remove it at tender. Manual edits via the ＋ Admin fee sheet stop the
   // auto-tracking for that invoice.
-  if(!posSale.adminFeeManual && CATALOG_LOADED) posSale.adminFeeCents = posSuggestedAdminFeeCents();
+  if(!posSale.adminFeeManual && !posSale.adminFeeSuppressed && CATALOG_LOADED) posSale.adminFeeCents = posSuggestedAdminFeeCents();
   const s=posSale, t=posTotals();
   let html='<div class="bld"><div class="bld-hd" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px"><div><h2>Point of sale</h2><p>Search a buyer or item on the left, build the invoice on the right.</p></div><button class="pb-change" style="flex-shrink:0" onclick="TX_FILTER=\'all\';posTransactions()">Transactions</button></div>';
   html+='<div class="pos-grid">';
@@ -2346,12 +2351,14 @@ async function posPayOpen(opts){
   if(opts.mode==='sale'){
     const t = posTotals();
     if(!posSale.lines.length){ toast('Add something to the invoice first'); return; }
+    // feeOriginal is what a card method restores to after a cash removal.
     PAY = { mode:'sale', saleId:null, totalCents:t.cents.totalCents, balanceCents:t.cents.totalCents,
-            who: posBuyerName(), reopen:null, method:'Card', tendered:'', feeCents: posSale.adminFeeCents||0 };
+            who: posBuyerName(), reopen:null, method:'Card', tendered:'',
+            feeCents: posSale.adminFeeCents||0, feeOriginal: posSale.adminFeeCents||0 };
   } else {
     PAY = { mode:'invoice', saleId:opts.saleId, totalCents:opts.totalCents||opts.balanceCents,
             balanceCents:opts.balanceCents, who:opts.who||'', reopen:opts.reopen||null,
-            method:'Card', tendered:'', feeCents:opts.feeCents||0 };
+            method:'Card', tendered:'', feeCents:opts.feeCents||0, feeOriginal:opts.feeCents||0 };
   }
   const n = pmNowParts();
   PAY.date = n.date; PAY.time = n.time;
@@ -2360,19 +2367,53 @@ async function posPayOpen(opts){
   openSheet();
 }
 
-function posPayTab(method){
+async function posPayTab(method){
   // Keep what the operator already typed across a tab switch.
   const a=document.getElementById('pmAmt'); if(a) PAY.amount=a.value;
   const d=document.getElementById('pmDate'); if(d) PAY.date=d.value;
   const tm=document.getElementById('pmTime'); if(tm) PAY.time=tm.value;
   PAY.method = method;
+
+  // The fee belongs to the METHOD, not to the invoice (owner rule
+  // 2026-08-15: "I'm never going to charge a card without that fee").
+  // Dropping it for cash is a property of choosing cash — come back to a
+  // card method and it returns on its own. A staff member who typed an
+  // explicit amount in ＋ Admin fee still wins over all of this.
+  const cardish = (method==='Card' || method==='Terminal');
+  if(cardish && !posSale.adminFeeManual && PAY.feeOriginal>0 && PAY.feeCents===0){
+    await posPayRestoreFee();
+  }
+
   posPayRender();
-  // Paper money doesn't carry the card-processing fee — ask right here, the
-  // moment the method is chosen (mockup behaviour).
-  if((method==='Cash'||method==='Check') && PAY.feeCents>0 && !PAY.feeAsked){
-    PAY.feeAsked = true;
+  // Paper money doesn't carry the card-processing fee — ask the moment the
+  // method is chosen. Asked once per method, so answering "No" doesn't nag.
+  PAY.feeAnswered = PAY.feeAnswered || {};
+  if((method==='Cash'||method==='Check') && PAY.feeCents>0 && !PAY.feeAnswered[method]){
+    PAY.feeAnswered[method] = true;
     posPayFeePrompt(method);
   }
+}
+
+/* Put the admin fee back when a card method is reselected. Sale mode
+   re-derives it; an existing unpaid invoice gets it written back. */
+async function posPayRestoreFee(){
+  if(PAY.mode==='sale'){
+    posSale.adminFeeSuppressed = false;
+    posSale.adminFeeCents = posSuggestedAdminFeeCents();
+    renderPOS();
+    const t = posTotals();
+    PAY.totalCents = t.cents.totalCents; PAY.balanceCents = t.cents.totalCents;
+    PAY.feeCents = posSale.adminFeeCents;
+  } else {
+    const fee = PAY.feeOriginal;
+    const upd = await sb.from('pos_sales')
+      .update({ admin_fee_cents: fee, total_cents: PAY.totalCents + fee })
+      .eq('id', PAY.saleId).eq('status','unpaid').select('id');
+    if(upd.error || !upd.data || !upd.data.length) return; // leave it off rather than guess
+    PAY.totalCents += fee; PAY.balanceCents += fee; PAY.feeCents = fee;
+  }
+  PAY.amount = dollarsFromCents(PAY.balanceCents);
+  toast('Admin fee applies to card payments');
 }
 
 function posPayFeePrompt(method){
@@ -2395,7 +2436,9 @@ async function posPayFeeAnswer(remove){
   posPayAskClose();
   if(!remove) return;
   if(PAY.mode==='sale'){
-    posSale.adminFeeCents = 0; posSale.adminFeeManual = true;
+    // NOT adminFeeManual — that flag means "a human typed an exact amount".
+    // Suppressed instead: method-driven, so a card method restores it.
+    posSale.adminFeeCents = 0; posSale.adminFeeSuppressed = true;
     renderPOS();
     const t = posTotals();
     PAY.totalCents = t.cents.totalCents; PAY.balanceCents = t.cents.totalCents;
