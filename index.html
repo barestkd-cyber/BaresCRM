@@ -662,12 +662,14 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .iv-card .inv-tbl td.qty{color:var(--muted)}
 /* Item is the only flexible column, and the only one allowed to wrap. */
 .iv-card .inv-tbl th.c-item,.iv-card .inv-tbl td.c-item{white-space:normal;word-break:break-word}
-.iv-card .inv-tbl th.c-qty{width:34px}
+/* 16px card gutter + the "QTY" header itself + right padding. Anything less
+   and the header bleeds into ITEM ("QTYITEM"). */
+.iv-card .inv-tbl th.c-qty{width:52px}
 .iv-card .inv-tbl th.c-price,.iv-card .inv-tbl th.c-disc,.iv-card .inv-tbl th.c-tax{width:58px}
 @media(min-width:700px){
   .iv-card .inv-tbl{font-size:13px}
   .iv-card .inv-tbl th,.iv-card .inv-tbl td{padding:10px 8px}
-  .iv-card .inv-tbl th.c-qty{width:44px}
+  .iv-card .inv-tbl th.c-qty{width:56px}
   .iv-card .inv-tbl th.c-price,.iv-card .inv-tbl th.c-disc,.iv-card .inv-tbl th.c-tax{width:78px}
 }
 .iv-d{display:none}
