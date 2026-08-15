@@ -643,11 +643,31 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .pm-ask .no{background:var(--card);border:1.5px solid var(--line);color:var(--text)}
 .pm-ask .yes{background:var(--ink);border:1.5px solid var(--ink);color:#fff}
 
-.iv-card .inv-tbl{font-size:13px}
+/* Items table. Phone-first: the base .inv-tbl 15px cell padding alone ate
+   150px of a ~340px card, which pushed TAX off the screen edge. Tight padding
+   here, and the row rule lives on the ROW so it is one clean line instead of
+   six cell borders that can look ragged when a cell wraps. */
+.iv-card .inv-tbl{font-size:12.5px;table-layout:fixed}
+.iv-card .inv-tbl th,.iv-card .inv-tbl td{padding:9px 5px;border-bottom:none;cursor:default;word-break:break-word}
 .iv-card .inv-tbl th:first-child,.iv-card .inv-tbl td:first-child{padding-left:16px}
 .iv-card .inv-tbl th:last-child,.iv-card .inv-tbl td:last-child{padding-right:16px}
-.iv-card .inv-tbl td{vertical-align:middle;padding-top:10px;padding-bottom:10px}
+.iv-card .inv-tbl thead tr{border-bottom:1px solid var(--line)}
+.iv-card .inv-tbl tbody tr{border-bottom:1px solid var(--line)}
+.iv-card .inv-tbl tbody tr:last-child{border-bottom:none}
+.iv-card .inv-tbl tbody tr:hover td{background:transparent}
+.iv-card .inv-tbl td{vertical-align:top}
 .iv-card .inv-tbl td.qty{color:var(--muted)}
+/* Column widths: the money columns get exactly what they need, Item takes the
+   rest and wraps. Fixed layout stops a long product name from shoving the
+   numbers off-screen. */
+.iv-card .inv-tbl th.c-qty{width:26px}
+.iv-card .inv-tbl th.c-price,.iv-card .inv-tbl th.c-disc{width:58px}
+.iv-card .inv-tbl th.c-tax{width:52px}
+@media(min-width:700px){
+  .iv-card .inv-tbl{font-size:13px}
+  .iv-card .inv-tbl th,.iv-card .inv-tbl td{padding:10px 8px}
+  .iv-card .inv-tbl th.c-price,.iv-card .inv-tbl th.c-disc,.iv-card .inv-tbl th.c-tax{width:72px}
+}
 .iv-d{display:none}
 .iv-m{font-size:11px;color:var(--muted)}
 @media(min-width:700px){.iv-d{display:table-cell}.iv-m{display:none}}
@@ -3041,7 +3061,7 @@ function buildInvoiceCard(o, forPrint){
     + '</div>';
   h += '<div class="iv-div"></div>';
   h += '<div style="padding:12px 16px 4px"><div class="iv-k">'+(s.status==='paid'?'Paid by':'Payment')+'</div><div class="iv-v" style="text-transform:capitalize">'+escHtml(s.tender_method||'Not Yet Received')+'</div></div>';
-  h += '<table class="inv-tbl" style="margin-top:8px"><thead><tr><th style="width:40px">Qty</th><th>Item</th><th class="r">Price</th><th class="r">Disc</th><th class="r">Tax</th><th class="r iv-d">Total</th></tr></thead><tbody>';
+  h += '<table class="inv-tbl" style="margin-top:8px"><thead><tr><th class="c-qty">Qty</th><th>Item</th><th class="r c-price">Price</th><th class="r c-disc">Disc</th><th class="r c-tax">Tax</th><th class="r iv-d">Total</th></tr></thead><tbody>';
   o.lines.forEach((l,i)=>{
     const st = l.student_contact_id ? posBuyerLabel(l.student_contact_id) : null;
     h += '<tr><td class="qty">'+(l.qty||1)+'</td><td>'+escHtml(l.label)
