@@ -190,7 +190,7 @@ Deno.serve(async (req) => {
     // A one-tap 'put this on my calendar'. Only ever a link we built
     // ourselves, and only https, so a bad row cannot inject a destination.
     const calUrl = String(s.calendar_url ?? "").trim();
-    const calOk = /^https://calendar.google.com//.test(calUrl) && calUrl.length < 2000;
+    const calOk = calUrl.startsWith("https://calendar.google.com/") && calUrl.length < 2000;
 
     // ── short email: state + total + one big button ────────────────────────
     const html =
