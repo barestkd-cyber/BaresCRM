@@ -4,12 +4,12 @@
 // Emails a SHORT branded receipt/invoice notification with a "View receipt"
 // button linking to the live view-only page (receipt-view, addressed by the
 // sale's view_token). The email deliberately carries only the total and
-// paid/due state — the link is the receipt.
+// paid/due state - the link is the receipt.
 //
 // HARD RULES:
 //   1. STAFF-ONLY. Deployed WITH JWT verification (no --no-verify-jwt), and
 //      additionally checks is_staff() with the caller's own token.
-//   2. The client sends ONLY { sale_id, to: [emails] } — the ledger row is
+//   2. The client sends ONLY { sale_id, to: [emails] } - the ledger row is
 //      the source of everything rendered. Max 3 recipients.
 //   3. Brand identity follows the sale's brand; the legal line names the LLC.
 //   4. Send via Resend (project secret RESEND_API_KEY); from-address stays on
@@ -28,7 +28,7 @@ const ALLOWED_ORIGINS = ["https://crm.barestkd.fit"];
 const REPLY_TO = "race@barestkd.fit";
 const LEGAL_ENTITY = "Grizzly Martial Arts & Fitness LLC";
 
-// Brand catalog — keep aligned with RECEIPT_BRANDS in BaresCRM/index.html.
+// Brand catalog - keep aligned with RECEIPT_BRANDS in BaresCRM/index.html.
 const BRANDS: Record<string, { name: string; dba: boolean; logo: string | null }> = {
   btkd: { name: "Bares Taekwondo Fitness", dba: true, logo: "https://barestkd.fit/assets/img/logo.png" },
   gbs: { name: "Grizzly Business Systems", dba: true, logo: "https://crm.barestkd.fit/gbs-logo.png" },
@@ -110,14 +110,14 @@ Deno.serve(async (req) => {
     // ── load the sale; make sure it has a view token ────────────────────────
     const admin = createClient(url, serviceKey);
     const saleRes = await admin.from("pos_sales")
-      .select("id,status,brand,total_cents,sale_date,view_token,buyer_contact_id,stripe_email")
+      .select("id,status,brand,total_cents,sale_date,view_token,buyer_contact_id,stripe_email,customer_note,calendar_url,notes")
       .eq("id", saleId).single();
     if (saleRes.error || !saleRes.data) return json({ error: "Sale not found" }, 404, cors);
     const s = saleRes.data;
 
     if (!to.length) {
       // Resolution order, most-specific first:
-      //   1. the address the payer typed at Stripe checkout — they just chose
+      //   1. the address the payer typed at Stripe checkout - they just chose
       //      it and are expecting the receipt there, and for a WALK-IN it is
       //      the only address that exists;
       //   2. the buyer's address on file.
@@ -135,12 +135,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Automatic post-payment sends BCC the owner: an online payment taken
-    // while nobody is at the desk used to notify no one. BCC rather than a
-    // second To — the customer should not see an internal address.
+    // Automatic post-payment sends also notify the owner, because a payment
+    // taken while nobody is at the desk used to reach no one. This is a
+    // SEPARATE email rather than a BCC of the customer's: Race needs the
+    // things he has to act on (who, contact details, what to print), and the
+    // customer must never see internal notes.
     const notifyOwner = body.notify_owner === true;
-    const ownerBcc = (Deno.env.get("OWNER_NOTIFY_EMAIL") ?? REPLY_TO).trim().toLowerCase();
-    const bcc = (notifyOwner && EMAIL_RE.test(ownerBcc) && !to.includes(ownerBcc)) ? [ownerBcc] : [];
+    const ownerAddr = (Deno.env.get("OWNER_NOTIFY_EMAIL") ?? REPLY_TO).trim().toLowerCase();
+    const bcc: string[] = [];
 
     let token = s.view_token as string | null;
     if (!token) {
@@ -163,12 +165,12 @@ Deno.serve(async (req) => {
     const brand = BRANDS[s.brand as string] ?? BRANDS.btkd;
     const legalLine = brand.dba ? `${LEGAL_ENTITY} · DBA ${brand.name}` : LEGAL_ENTITY;
     const shortId = saleId.slice(0, 8).toUpperCase();
-    // Customers get our own domain, never a supabase.co URL — that page
+    // Customers get our own domain, never a supabase.co URL - that page
     // wraps the same card the function renders (fragment mode).
     const viewUrl = `https://www.barestkd.fit/invoice/?t=${token}`;
 
     // Staff-editable bits. The intro line and an optional personal message are
-    // the ONLY parts the caller controls — every figure, the link, the brand
+    // the ONLY parts the caller controls - every figure, the link, the brand
     // and the legal footer are still derived here from the ledger. Both are
     // escaped, so a typo can never inject markup into a customer's inbox.
     // Wording follows the state. "Here is your invoice" reads wrong right
@@ -178,10 +180,17 @@ Deno.serve(async (req) => {
     const defaultIntro = paid
       ? `Here's your receipt from ${brand.name}.`
       : partlyPaid
-      ? `Thanks — we received ${money(paidNet)}. Here's your updated invoice from ${brand.name}.`
+      ? `Thanks - we received ${money(paidNet)}. Here's your updated invoice from ${brand.name}.`
       : `Here's your invoice from ${brand.name}.`;
     const intro = esc(String(body.intro ?? "").trim().slice(0, 300) || defaultIntro);
     const note = String(body.note ?? "").trim().slice(0, 1200);
+    // What they actually bought, in words: class dates, times, what to bring.
+    // Written by whatever made the sale; never Race's internal `notes`.
+    const custNote = String(s.customer_note ?? "").trim().slice(0, 1200);
+    // A one-tap 'put this on my calendar'. Only ever a link we built
+    // ourselves, and only https, so a bad row cannot inject a destination.
+    const calUrl = String(s.calendar_url ?? "").trim();
+    const calOk = /^https://calendar.google.com//.test(calUrl) && calUrl.length < 2000;
 
     // ── short email: state + total + one big button ────────────────────────
     const html =
@@ -191,9 +200,21 @@ Deno.serve(async (req) => {
           : `<h1 style="font-size:18px;margin:0 0 10px">${esc(brand.name)}</h1>`}
         <p style="font-size:14.5px;margin:6px 0 2px">${intro}</p>
         ${note ? `<p style="font-size:14px;line-height:1.6;margin:12px auto 2px;max-width:380px;text-align:left;white-space:pre-wrap">${esc(note)}</p>` : ""}
+        ${custNote
+          ? `<div style="text-align:left;max-width:380px;margin:14px auto 4px;padding:13px 15px;border-radius:10px;background:#F4F6F8;border-left:4px solid #15171C">
+               <p style="font-size:14px;line-height:1.65;margin:0;white-space:pre-wrap">${esc(custNote)}</p>
+             </div>`
+          : ""}
+        ${calOk
+          ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:2px auto 12px">
+               <tr><td bgcolor="#F4F6F8" style="border-radius:8px;border:1px solid #D9DEE3">
+                 <a href="${calUrl}" style="display:inline-block;padding:11px 20px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:#15171C;text-decoration:none">
+                   Add these classes to Google Calendar</a>
+               </td></tr></table>`
+          : ""}
         <p style="font-size:22px;font-weight:bold;margin:10px 0 2px">${money(s.total_cents)}</p>
         <p style="font-size:13px;margin:0 0 16px;${paid ? "color:#1e9e54" : closed ? "color:#6A727E" : "color:#c8102e"};font-weight:bold">
-          ${paid ? "PAID — thank you!" : closed ? "Closed — no balance due" : `Balance due: ${money(balance)}`}</p>
+          ${paid ? "PAID - thank you!" : closed ? "Closed - no balance due" : `Balance due: ${money(balance)}`}</p>
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:4px auto 0">
           <tr><td bgcolor="#15171C" style="border-radius:8px">
             <a href="${viewUrl}" style="display:inline-block;padding:15px 38px;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:8px">
@@ -209,12 +230,12 @@ Deno.serve(async (req) => {
       </div>`;
 
     const subject = paid
-      ? `Your receipt from ${brand.name} — ${money(s.total_cents)}`
+      ? `Your receipt from ${brand.name} - ${money(s.total_cents)}`
       : closed
-      ? `Invoice ${shortId} from ${brand.name} — closed`
+      ? `Invoice ${shortId} from ${brand.name} - closed`
       : partlyPaid
-      ? `Payment received — ${money(balance)} still due · ${brand.name}`
-      : `Invoice from ${brand.name} — ${money(balance)} due`;
+      ? `Payment received - ${money(balance)} still due · ${brand.name}`
+      : `Invoice from ${brand.name} - ${money(balance)} due`;
 
     // Preview: hand back exactly what would be sent, send nothing, touch
     // nothing. The CRM shows this before the staff member commits.
@@ -241,6 +262,47 @@ Deno.serve(async (req) => {
       const detail = await resendRes.text().catch(() => "");
       console.error("resend failed", resendRes.status, detail);
       return json({ error: "Email send failed (" + resendRes.status + ")" }, 502, cors);
+    }
+
+    // ── the owner's own copy: what he has to do something about ───────────
+    // Fire-and-forget. The customer's receipt has already gone; a failure to
+    // notify Race must never turn a delivered receipt into an error.
+    if (notifyOwner && paid && EMAIL_RE.test(ownerAddr)) {
+      const buyerName = await (async () => {
+        if (!s.buyer_contact_id) return "Walk-in";
+        const c = await admin.from("contacts")
+          .select("first_name,last_name,email,phone,dob").eq("id", s.buyer_contact_id).maybeSingle();
+        if (!c.data) return "Unknown";
+        const nm = [c.data.first_name, c.data.last_name].filter(Boolean).join(" ");
+        const bits = [c.data.email, c.data.phone].filter(Boolean).join(" · ");
+        const dob = c.data.dob ? "DOB " + fmtDate(String(c.data.dob)) : "";
+        return [nm, dob, bits].filter(Boolean).join("<br>");
+      })();
+      const internal = String(s.notes ?? "").trim();
+      const ownerHtml =
+        `<div style="font-family:Arial,Helvetica,sans-serif;color:#111;max-width:460px;margin:0 auto;padding:18px 14px">
+          <p style="font-size:12px;letter-spacing:.08em;color:#777;margin:0 0 4px">PAYMENT RECEIVED</p>
+          <p style="font-size:26px;font-weight:bold;margin:0 0 14px">${money(s.total_cents)}</p>
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="font-size:14px;line-height:1.6">
+            <tr><td style="color:#777;padding-right:12px;vertical-align:top">Who</td><td>${buyerName}</td></tr>
+            <tr><td style="color:#777;padding-right:12px;vertical-align:top">Receipt to</td><td>${esc(to.join(", "))}</td></tr>
+            ${internal ? `<tr><td style="color:#777;padding-right:12px;vertical-align:top">Details</td><td style="white-space:pre-wrap">${esc(internal)}</td></tr>` : ""}
+            <tr><td style="color:#777;padding-right:12px;vertical-align:top">Invoice</td><td>${shortId} · ${fmtDate(s.sale_date)}</td></tr>
+          </table>
+          <p style="margin:18px 0 0"><a href="${viewUrl}" style="font-size:14px;font-weight:bold;color:#15171C">Open the invoice &rarr;</a></p>
+        </div>`;
+      fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: `${brand.name} <receipts@barestkd.fit>`,
+          to: [ownerAddr],
+          reply_to: to[0] || REPLY_TO,   // replying goes to the customer
+          subject: `Paid: ${money(s.total_cents)} · ${String(buyerName).replace(/<br>.*/s, "")}`,
+          html: ownerHtml,
+        }),
+      }).then((r) => { if (!r.ok) console.error("owner notify failed", r.status); })
+        .catch((e) => console.error("owner notify threw", e));
     }
 
     // ── stamp the sale so the CRM shows it went out ────────────────────────
