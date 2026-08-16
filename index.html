@@ -335,6 +335,13 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .dcard .dc-desc{color:var(--muted);font-size:12.5px;margin-top:2px}
 .dcard .dc-go{color:#2563EB;font-size:12.5px;font-weight:600;margin-top:10px;display:inline-block}
 
+ /* ---------- keyed card entry in the payment modal ---------- */
+.pm-cardbox{border:2px solid var(--line);border-radius:10px;padding:13px 12px;background:#fff;margin-top:4px;min-height:48px}
+.pm-cardbox.StripeElement--focus{border-color:var(--ink)}
+.pm-cardload{color:var(--muted);font-size:13.5px}
+.pm-carderr{display:none;color:var(--accent);font-size:13px;margin-top:7px;font-weight:600}
+.pm-testnote{margin-top:8px;font-size:12.5px;color:var(--muted);background:var(--surface);border-radius:8px;padding:8px 10px}
+
 /* ---------- checkout-email notice on an invoice ---------- */
 .iv-emailbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;padding:10px 13px;border-radius:12px;background:#EFF6FF;border:1px solid #BFDBFE;color:#1E3A8A;font-size:13.5px}
 .iv-emailbar.warn{background:#FFF7ED;border-color:#FED7AA;color:#7C2D12}
@@ -2761,8 +2768,15 @@ async function posTenderServer(method){
  * the pre-fee pre-tax base (close to exact; a gross-up formula nets exact to
  * the penny — flip if ever wanted). Editable/zeroable per invoice.
  */
-function posSuggestedAdminFeeCents(){
-  const bps = PRICE_SETTINGS.admin_fee_bps||0, flat = PRICE_SETTINGS.admin_fee_flat_cents||0;
+/* The pass-through fee follows the RAIL, because Stripe's own pricing does.
+ * A card tapped on a reader is card-present (cheaper for us); a card keyed at
+ * the desk or paid online is card-not-present. `method` defaults to whatever
+ * the payment modal currently has selected. */
+function posSuggestedAdminFeeCents(method){
+  const m = method || (PAY && PAY.method) || 'Card';
+  const terminal = m === 'Terminal';
+  const bps = (terminal ? PRICE_SETTINGS.admin_fee_terminal_bps : PRICE_SETTINGS.admin_fee_bps) || 0;
+  const flat = (terminal ? PRICE_SETTINGS.admin_fee_terminal_flat_cents : PRICE_SETTINGS.admin_fee_flat_cents) || 0;
   if(!bps && !flat) return 0;
   const sub = posSale.lines.reduce((a,l)=>a+Math.round(posLineNet(l)*100),0);
   const base = sub - (posSale.discountCents||0);
@@ -2854,7 +2868,7 @@ async function posPayTab(method){
 async function posPayRestoreFee(){
   if(PAY.mode==='sale'){
     posSale.adminFeeSuppressed = false;
-    posSale.adminFeeCents = posSuggestedAdminFeeCents();
+    posSale.adminFeeCents = posSuggestedAdminFeeCents(PAY.method);
     renderPOS();
     const t = posTotals();
     PAY.totalCents = t.cents.totalCents; PAY.balanceCents = t.cents.totalCents;
@@ -2949,10 +2963,10 @@ function posPayRender(){
     + '<button class="close" onclick="posPayClose()">×</button></div>'
     + '<div class="sheet-body" id="pmBody">'
     + '<div class="pm-tabs">'
-      + tab('Card','Credit Card',IV_ICO.card)
+      + tab('Card','Card',IV_ICO.card)
       + tab('Cash','Cash',IV_ICO.cash)
       + tab('Check','Check',IV_ICO.check)
-      + tab('Terminal','CC Terminal',IV_ICO.nfc)
+      + tab('Terminal','Reader',IV_ICO.nfc)
     + '</div>'
     + '<div class="pm-total"><span class="ic">'+IV_ICO.doc+'</span>'
     + '<div><div class="tt">Invoice total</div><div class="ts">Total amount due</div></div>'
@@ -2975,10 +2989,10 @@ function posPayRender(){
     return;
   }
 
-  const secTitle = M==='Cash' ? 'Pay with Cash' : M==='Check' ? 'Pay with Check' : 'Pay with Credit Card';
+  const secTitle = M==='Cash' ? 'Pay with Cash' : M==='Check' ? 'Pay with Check' : 'Pay with Card';
   const secSub = M==='Cash' ? 'Record a cash payment here.'
               : M==='Check' ? 'Record a check payment here.'
-              : 'Record a card payment run on the terminal.';
+              : 'Enter the card and charge it here.';
   h += '<div class="pm-sec">'+secTitle+'</div><div class="pm-sub">'+secSub+'</div>';
 
   h += '<div class="pm-row"><div><label class="ed-lbl">Date received</label>'
@@ -3004,7 +3018,12 @@ function posPayRender(){
     h += '<label class="ed-lbl">Name on check</label><input id="pmCheckName" class="ed-in" placeholder="Name as written">'
       + '<label class="ed-lbl">Check number</label><input id="pmCheckNo" class="ed-in" inputmode="numeric" placeholder="e.g. 1042">';
   } else {
-    h += '<div class="ck-hint" style="margin-top:11px">Nothing is charged from here yet — this records a card payment you already ran on the terminal. Stripe checkout replaces this step.</div>';
+    // Real card entry. The number is typed into Stripe's own iframe, never
+    // into this page, so no card data touches the CRM or the database.
+    h += '<label class="ed-lbl">Card details</label>'
+      + '<div id="pmCardBox" class="pm-cardbox"><div class="pm-cardload">Loading secure card field…</div></div>'
+      + '<div id="pmCardErr" class="pm-carderr"></div>'
+      + '<div class="ck-hint" style="margin-top:9px">Charged through Stripe when you press Pay Now. The card is saved to their profile so you can charge it again later.</div>';
   }
 
   h += '<div id="pmRemaining"></div>'
@@ -3012,6 +3031,97 @@ function posPayRender(){
     + '</div>';
   $("#sheet").innerHTML = h;
   posPayChange();
+  if(M==='Card') pmCardMount();
+}
+
+/* ── Stripe Elements: the card field in the payment modal ──────────────────
+ * Loaded on demand so the CRM does not pull Stripe.js on every page view.
+ * The publishable key comes from the server rather than being hardcoded, so
+ * test and live follow whatever the Supabase secrets say and there is no key
+ * to forget to change on go-live. */
+let PM_STRIPE = null, PM_CARD = null, PM_ELEMENTS = null;
+function pmCardErr(msg){
+  const el = document.getElementById('pmCardErr'); if(!el) return;
+  el.textContent = msg || '';
+  el.style.display = msg ? 'block' : 'none';
+}
+async function pmLoadStripeJs(){
+  if(window.Stripe) return true;
+  return new Promise(res=>{
+    const s = document.createElement('script');
+    s.src = 'https://js.stripe.com/v3/';
+    s.onload = ()=>res(true); s.onerror = ()=>res(false);
+    document.head.appendChild(s);
+  });
+}
+async function pmCardMount(){
+  const box = document.getElementById('pmCardBox'); if(!box) return;
+  try{
+    if(!await pmLoadStripeJs()) throw new Error('Could not reach Stripe.');
+    if(!PM_STRIPE){
+      const r = await sb.functions.invoke('pos-charge', { body:{ action:'config' } });
+      const key = r && r.data && r.data.publishable_key;
+      if(!key) throw new Error((r && r.error && r.error.message) || 'Card payments are not configured yet.');
+      PM_STRIPE = window.Stripe(key);
+      PM_LIVE = !!r.data.live;
+    }
+    PM_ELEMENTS = PM_STRIPE.elements();
+    PM_CARD = PM_ELEMENTS.create('card', {
+      hidePostalCode: false,
+      style: { base: { fontSize:'16px', color:'#15171C', '::placeholder':{ color:'#9AA4AF' } } }
+    });
+    box.innerHTML = '';
+    PM_CARD.mount(box);
+    PM_CARD.on('change', e=>pmCardErr(e.error ? e.error.message : ''));
+    if(!PM_LIVE){
+      const n = document.createElement('div');
+      n.className = 'pm-testnote';
+      n.textContent = 'Stripe is in TEST mode. Use 4242 4242 4242 4242 — a real card will be declined.';
+      box.parentNode.insertBefore(n, box.nextSibling);
+    }
+  }catch(e){
+    box.innerHTML = '<div class="pm-cardload" style="color:var(--warn)">'
+      + escHtml((e && e.message) || 'Could not load the card field.') + '</div>';
+  }
+}
+let PM_LIVE = false;
+
+/* Run the card. Three steps, and the server owns two of them:
+ *   1. ask pos-charge for a PaymentIntent (it derives the amount from the
+ *      ledger, so a tampered browser cannot charge a different number);
+ *   2. confirm it here with the card the customer just handed over;
+ *   3. ask pos-charge to FINALIZE, which re-reads the intent from Stripe and
+ *      only then writes the payment row. The webhook does the same thing as a
+ *      backstop and both dedupe, so a closed laptop cannot lose the payment. */
+async function pmChargeCard(saleId, amountCents){
+  try{
+    const mk = await sb.functions.invoke('pos-charge', { body:{ action:'intent', sale_id:saleId } });
+    if(mk.error || !mk.data || !mk.data.client_secret){
+      return { ok:false, error:(mk.data&&mk.data.error) || (mk.error&&mk.error.message) || 'Could not start the charge.' };
+    }
+    // Stripe charges the whole balance; a partial card payment is not offered
+    // (the intent was built from the ledger balance, not the typed amount).
+    if(amountCents !== mk.data.amount_cents){
+      return { ok:false, error:'Card payments must be for the full '+money(mk.data.amount_cents/100)+' balance.' };
+    }
+    const res = await PM_STRIPE.confirmCardPayment(mk.data.client_secret, {
+      payment_method: { card: PM_CARD }
+    });
+    if(res.error) return { ok:false, error:res.error.message || 'The card was declined.' };
+    if(!res.paymentIntent || res.paymentIntent.status !== 'succeeded'){
+      return { ok:false, error:'The payment did not complete.' };
+    }
+    const fin = await sb.functions.invoke('pos-charge', {
+      body:{ action:'finalize', sale_id:saleId, payment_intent_id:res.paymentIntent.id }
+    });
+    if(fin.error || !fin.data || !fin.data.ok){
+      // The money DID move; the ledger write is what failed. Say so plainly.
+      return { ok:false, error:'The card was charged but the invoice did not update. Check Stripe before charging again.' };
+    }
+    return { ok:true, amount_cents: fin.data.amount_cents };
+  }catch(e){
+    return { ok:false, error:(e&&e.message)||'Card charge failed.' };
+  }
 }
 
 function posPayClose(){
@@ -3047,6 +3157,29 @@ async function posPaySubmit(){
   if(partial) note += ' (partial)';
 
   const btn=document.getElementById('pmPay'); if(btn){ btn.disabled=true; btn.textContent='Recording…'; }
+
+  // ── a card typed at the desk: actually charge it, before anything is
+  // recorded. Only on an EXISTING invoice; a brand-new sale is written first
+  // (posTender) and then charged from its invoice, so there is always a sale
+  // id for Stripe's metadata to point at.
+  if(method==='Card' && PAY.mode!=='sale'){
+    if(!PM_CARD){ toast('The card field did not load — reload and try again'); if(btn){btn.disabled=false;posPayChange();} return; }
+    if(btn) btn.textContent='Charging card…';
+    const charged = await pmChargeCard(PAY.saleId, amt);
+    if(!charged.ok){
+      pmCardErr(charged.error || 'The card was declined.');
+      toast(charged.error || 'The card was declined.');
+      if(btn){ btn.disabled=false; posPayChange(); }
+      return;
+    }
+    // pos-charge already wrote pos_payments and flipped the invoice to paid.
+    const sid = PAY.saleId, ro = PAY.reopen;
+    PAY = null; PM_CARD = null; closeSheet();
+    toast('Card approved. '+money(charged.amount_cents/100)+' paid');
+    posAutoReceipt(sid);
+    if(ro==='profile' && currentMember) renderProfile(); else showInvoice(sid, ro||'pos');
+    return;
+  }
 
   if(PAY.mode==='sale'){
     PAY_DETAIL = { amountCents:amt, note:note, occurredAt:occurredAt, changeCents:changeCents };

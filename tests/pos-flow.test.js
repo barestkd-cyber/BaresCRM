@@ -114,6 +114,8 @@ const FNS = [
   'posPayOpen', 'posPayTab', 'posPayRender', 'posPayChange', 'posPayEffectiveCents', 'posPayQuick',
   'posPayFeePrompt', 'posPayFeeAnswer', 'posPayAskClose', 'posPayRestoreFee', 'posPaySubmit', 'posPayClose',
   'posAutoReceipt',
+  // keyed-card entry: lifted so posPayRender's mount call resolves
+  'pmCardMount', 'pmCardErr', 'pmLoadStripeJs', 'pmChargeCard',
   'pmNowParts', 'pmOccurredAt',
   'posAddMembership', 'posPickProgram', 'posAddMemLine',
   'posAttachSheet', 'posAttachSearch', 'posPickStudentForLine', 'posRequoteLine', 'posSetBuyer',

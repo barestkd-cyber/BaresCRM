@@ -2,19 +2,19 @@
 // Supabase Edge Function: stripe-webhook
 // ---------------------------------------------------------------------------
 // The ONLY thing that marks a Stripe-paid invoice paid. Public and
-// unauthenticated by design — the Stripe signature is the entire gate.
+// unauthenticated by design - the Stripe signature is the entire gate.
 //
 // HARD RULES:
 //   1. Deploy --no-verify-jwt (Stripe cannot send a Supabase JWT).
 //   2. Read the RAW body first and verify the signature against it. Any
 //      reserialization breaks verification.
-//   3. Signature check is manual (Web Crypto HMAC-SHA256) — no SDK, so no
+//   3. Signature check is manual (Web Crypto HMAC-SHA256) - no SDK, so no
 //      Deno-compat surprises. Scheme per Stripe docs: signed_payload is
 //      "<t>.<raw body>", key is the whsec_ secret, compare hex constant-time,
 //      accept only v1 schemes (downgrade protection), honour a 5-minute
 //      tolerance, and accept ANY of the v1 signatures (secret rotation sends
 //      one per active secret).
-//   4. Dedupe on event id via payment_events — Stripe retries, and may send
+//   4. Dedupe on event id via payment_events - Stripe retries, and may send
 //      the same event twice. Insert-first; a unique violation means "seen".
 //   5. Money is never lost: if a payment arrives for an invoice that is
 //      somehow already paid, the payment row is STILL recorded (it shows as
@@ -78,7 +78,7 @@ async function verifyStripeSignature(raw: string, header: string, secret: string
  *  successful payment into a retried webhook.
  *
  *  `notify_owner` BCCs the owner so a payment that lands while nobody is at
- *  the desk still reaches a human — previously an online payment by a walk-in
+ *  the desk still reaches a human - previously an online payment by a walk-in
  *  notified nobody at all. */
 async function sendReceipt(saleId: string): Promise<void> {
   try {
@@ -91,7 +91,7 @@ async function sendReceipt(saleId: string): Promise<void> {
         "Content-Type": "application/json",
         "Origin": "https://crm.barestkd.fit",
       },
-      // No `to`: send-receipt resolves the recipient itself — the address the
+      // No `to`: send-receipt resolves the recipient itself - the address the
       // payer used at checkout, else the buyer on file.
       body: JSON.stringify({ sale_id: saleId, notify_owner: true }),
     });
@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
     return new Response("not configured", { status: 500 });
   }
 
-  // RAW body first — this exact string is what was signed.
+  // RAW body first - this exact string is what was signed.
   const raw = await req.text();
   const sigHeader = req.headers.get("Stripe-Signature") ?? "";
   if (!(await verifyStripeSignature(raw, sigHeader, secret))) {
@@ -208,8 +208,39 @@ Deno.serve(async (req) => {
         await admin.from("pos_payments").insert({
           sale_id: saleId, kind: "ach_return", amount_cents: 0,
           method: "ach", stripe_object_id: obj.id, stripe_event_id: event.id,
-          note: "Bank payment failed — invoice still owes its balance",
+          note: "Bank payment failed - invoice still owes its balance",
         });
+      }
+    } else if (event.type === "payment_intent.succeeded") {
+      // A card keyed at the front desk (pos-charge). The CRM already calls
+      // pos-charge's finalize, which writes the same row synchronously so the
+      // desk gets an instant answer; this is the backstop for a browser that
+      // closed mid-confirm. Both dedupe on stripe_object_id, so whichever
+      // arrives second does nothing.
+      const saleId = obj.metadata?.sale_id;
+      const amount = Number(obj.amount_received ?? 0);
+      if (saleId && amount > 0) {
+        const seen = await admin.from("pos_payments")
+          .select("id").eq("sale_id", saleId).eq("stripe_object_id", obj.id).maybeSingle();
+        if (!seen.data) {
+          await admin.from("pos_payments").insert({
+            sale_id: saleId, kind: "charge", amount_cents: amount,
+            method: "card", stripe_object_id: obj.id, stripe_event_id: event.id,
+            note: "Card payment (keyed at the desk)",
+          });
+        }
+        const sale = await admin.from("pos_sales").select("total_cents,status").eq("id", saleId).single();
+        if (!sale.error && sale.data && sale.data.status !== "paid") {
+          const pays = await admin.from("pos_payments").select("amount_cents").eq("sale_id", saleId);
+          const net = (pays.data ?? []).reduce((a, p) => a + p.amount_cents, 0);
+          if (net >= sale.data.total_cents) {
+            const upd = await admin.from("pos_sales").update({
+              status: "paid", tender_method: "card",
+              confirmed_at: new Date().toISOString(), stripe_payment_intent: obj.id,
+            }).eq("id", saleId);
+            if (!upd.error) await sendReceipt(saleId);
+          }
+        }
       }
     } else if (event.type === "charge.refunded") {
       // Record refunds issued from the Stripe dashboard so the CRM ledger and
