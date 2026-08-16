@@ -68,11 +68,13 @@ delete from public.membership_agreements a using _doomed d where a.sale_id = d.i
 delete from public.enrollments  e using _doomed d where e.sale_id = d.id;
 delete from public.memberships  m using _doomed d where m.sale_id = d.id;
 
--- Money rows, then the webhook dedupe log, then the invoices themselves.
+-- Money rows, then the invoices themselves.
 delete from public.pos_payments    p using _doomed d where p.sale_id = d.id;
 delete from public.pos_sale_lines  l using _doomed d where l.sale_id = d.id;
-delete from public.payment_events  v using _doomed d where v.sale_id = d.id;
 delete from public.pos_sales       s using _doomed d where s.id      = d.id;
+-- The webhook dedupe log has no sale link — it is all test events until the
+-- live endpoint exists, so it empties wholesale.
+delete from public.payment_events;
 
 -- Confirm the ledger is empty (or holds only what you expect) BEFORE commit.
 select count(*) as sales_remaining from public.pos_sales;
