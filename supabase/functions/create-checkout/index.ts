@@ -11,7 +11,7 @@
 //   2. The client sends ONLY the token. The amount is ALWAYS re-derived here
 //      from the ledger (total − payments). A browser can never name its price.
 //   3. Refuses anything that is not currently unpaid with a positive balance.
-//   4. No card data ever touches us — Stripe's hosted page collects it. That
+//   4. No card data ever touches us - Stripe's hosted page collects it. That
 //      is what keeps BaresTKD out of PCI scope.
 //   5. No SDK: plain fetch to the Stripe REST API, form-encoded.
 //
@@ -70,8 +70,23 @@ Deno.serve(async (req) => {
     if (saleRes.error || !saleRes.data) return json({ error: "Invoice not found" }, 404, h);
     const s = saleRes.data;
 
+    // ── INLINE CARD MODE ────────────────────────────────────────────────────
+    // The invoice page now collects the card in a Stripe Elements field
+    // instead of bouncing to a hosted page. Two extra actions serve it:
+    //   config   -> the publishable key, so nothing is hardcoded in the page
+    //   intent   -> a PaymentIntent for the ledger balance
+    //   finalize -> verify with Stripe, then record the money
+    // The hosted-session path below stays as a fallback and for anything that
+    // still links to it.
+    const action = String(body.action ?? "").trim();
+    if (action === "config") {
+      const pk = Deno.env.get("STRIPE_PUBLISHABLE_KEY");
+      if (!pk) return json({ error: "Card payments are not configured yet." }, 503, h);
+      return json({ publishable_key: pk }, 200, h);
+    }
+
     if (s.status === "paid") return json({ error: "This invoice is already paid." }, 409, h);
-    if (s.status === "closed") return json({ error: "This invoice is closed — nothing is owed." }, 409, h);
+    if (s.status === "closed") return json({ error: "This invoice is closed - nothing is owed." }, 409, h);
     if (s.status !== "unpaid") return json({ error: "This invoice can't be paid online right now." }, 409, h);
 
     // Balance is OUR number, from OUR ledger. Never the client's.
@@ -92,6 +107,78 @@ Deno.serve(async (req) => {
     const brandName = BRAND_NAMES[s.brand as string] ?? BRAND_NAMES.btkd;
     const shortId = String(s.id).slice(0, 8).toUpperCase();
 
+    // Inline card: hand back an intent for the page to confirm, or verify one
+    // that already cleared. Same balance, same guards as the hosted path.
+    if (action === "intent" || action === "finalize") {
+      const stripeApi = async (path: string, f?: URLSearchParams, method = "POST") => {
+        const r = await fetch("https://api.stripe.com/v1/" + path, {
+          method,
+          headers: { "Authorization": "Bearer " + stripeKey, "Content-Type": "application/x-www-form-urlencoded" },
+          body: method === "POST" ? (f ?? new URLSearchParams()) : undefined,
+        });
+        const b = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(b?.error?.message || ("Stripe " + r.status));
+        return b;
+      };
+
+      if (action === "intent") {
+        const f = new URLSearchParams();
+        f.set("amount", String(balance));
+        f.set("currency", "usd");
+        f.set("payment_method_types[]", "card");
+        f.set("description", `${brandName} - Invoice ${shortId}`);
+        f.set("metadata[sale_id]", s.id);
+        f.set("metadata[source]", "invoice-page");
+        if (email) f.set("receipt_email", email);
+        const pi = await stripeApi("payment_intents", f);
+        await admin.from("pos_sales").update({ stripe_payment_intent: pi.id }).eq("id", s.id);
+        return json({ client_secret: pi.client_secret, payment_intent_id: pi.id, amount_cents: balance }, 200, h);
+      }
+
+      const piId = String(body.payment_intent_id ?? "");
+      if (!piId.startsWith("pi_")) return json({ error: "Bad payment reference." }, 400, h);
+      const pi = await stripeApi("payment_intents/" + encodeURIComponent(piId), undefined, "GET");
+      if (pi.status !== "succeeded") return json({ error: "That payment did not complete." }, 409, h);
+      if (String(pi.metadata?.sale_id ?? "") !== s.id) return json({ error: "That payment is for a different invoice." }, 409, h);
+      const amt = Number(pi.amount_received ?? pi.amount ?? 0);
+      if (amt <= 0) return json({ error: "No amount on that payment." }, 409, h);
+
+      const seen = await admin.from("pos_payments")
+        .select("id").eq("sale_id", s.id).eq("stripe_object_id", pi.id).maybeSingle();
+      if (!seen.data) {
+        const ins = await admin.from("pos_payments").insert({
+          sale_id: s.id, kind: "charge", amount_cents: amt, method: "card",
+          stripe_object_id: pi.id, note: "Card payment (invoice page)",
+        });
+        if (ins.error) throw ins.error;
+      }
+      const pays2 = await admin.from("pos_payments").select("amount_cents").eq("sale_id", s.id);
+      const net = (pays2.data ?? []).reduce((a: number, p: { amount_cents: number }) => a + p.amount_cents, 0);
+      let nowPaid = false;
+      if (net >= s.total_cents && s.status !== "paid") {
+        const upd = await admin.from("pos_sales").update({
+          status: "paid", tender_method: "card",
+          confirmed_at: new Date().toISOString(), stripe_payment_intent: pi.id,
+        }).eq("id", s.id);
+        if (!upd.error) {
+          nowPaid = true;
+          // Receipt, exactly as the webhook would have sent it.
+          try {
+            await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-receipt`, {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                "Content-Type": "application/json",
+                "Origin": "https://crm.barestkd.fit",
+              },
+              body: JSON.stringify({ sale_id: s.id, notify_owner: true }),
+            });
+          } catch (e) { console.error("receipt after inline pay", e); }
+        }
+      }
+      return json({ ok: true, paid: nowPaid, amount_cents: amt }, 200, h);
+    }
+
     const form = new URLSearchParams();
     form.set("mode", "payment");
     form.set("client_reference_id", s.id);
@@ -101,7 +188,7 @@ Deno.serve(async (req) => {
     form.set("line_items[0][quantity]", "1");
     form.set("line_items[0][price_data][currency]", "usd");
     form.set("line_items[0][price_data][unit_amount]", String(balance));
-    form.set("line_items[0][price_data][product_data][name]", `${brandName} — Invoice ${shortId}`);
+    form.set("line_items[0][price_data][product_data][name]", `${brandName} - Invoice ${shortId}`);
     form.set("line_items[0][price_data][product_data][description]", `Invoice dated ${s.sale_date}`);
     form.set("metadata[sale_id]", s.id);
     form.set("metadata[short_id]", shortId);
