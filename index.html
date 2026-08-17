@@ -961,9 +961,11 @@ let MEMBERS = [];
 async function loadMembers(){
   const { data: rows, error } = await sb.from('contacts').select('*').order('last_name');
   if(error){ console.error('loadMembers contacts error', error); return; }
-  const { data: gl } = await sb.from('student_guardians').select('student_id,email,label');
+  // name included: both funnels store it now, and "Pat Lee" reads better on a
+  // profile than a bare email address.
+  const { data: gl } = await sb.from('student_guardians').select('student_id,email,label,name');
   const guardiansById = {};
-  (gl||[]).forEach(g=>{ (guardiansById[g.student_id] = guardiansById[g.student_id] || []).push([g.email, g.label || 'Guardian']); });
+  (gl||[]).forEach(g=>{ (guardiansById[g.student_id] = guardiansById[g.student_id] || []).push([g.email || '', g.label || 'Guardian', g.name || '']); });
 
   const COLORS = ['White','Yellow','Orange','Green','Purple','Blue','Brown','Red','Black'];
   const deriveBelt = r => { if(!r) return ''; return COLORS.find(c => r.includes(c)) || ''; };
@@ -984,9 +986,12 @@ async function loadMembers(){
     dob: c.dob || '',       // printed on the membership agreement
     gender: c.gender || '',
     guardians: guardiansById[c.id] || [],
-    phones: [],
+    // These were hardcoded [] for weeks, so the profile showed no phone or
+    // email for anyone even though both columns were loaded. Map the truth.
+    phones: c.phone ? [["Mobile", c.phone]] : [],
     email: c.email || '',   // real contact email (receipt prefill)
-    emails: [],
+    emails: c.email ? [c.email] : [],
+    stripeCustomer: c.stripe_customer_id || '',
     address: c.address || '',
     app: !!c.uses_app,
     phase: c.program || '',
@@ -4844,23 +4849,36 @@ function renderProfile(){
     + '<span class="pseg" style="background:'+segBg+';color:'+segCol+'">'+m.segment+(m.phase?" · "+m.phase:"")+'</span>'
     + '</div></div>';
 
-  // quick actions
+  // quick actions. Ring up and Edit are real; Message stays an honest stub
+  // until the Communications tab exists (queue 24).
   html += '<div class="qactions">'
-    + '<button class="qa primary" onclick="toast(\'Opens POS with '+m.first+' attached\')">＄ Ring up</button>'
+    + '<button class="qa primary" onclick="posRingUpFor(\''+m.id+'\')">＄ Ring up</button>'
     + '<button class="qa" onclick="posOpenMembershipFor(\''+m.id+'\')">＋ Membership</button>'
-    + '<button class="qa" onclick="toast(\'Opens message to '+m.first+'\')">✉ Message</button>'
-    + '<button class="qa" onclick="toast(\'Edit details for '+m.first+'\')">✎ Edit</button>'
+    + '<button class="qa" onclick="toast(\'Messaging arrives with the Communications tab\')">✉ Message</button>'
+    + '<button class="qa" onclick="openEditContact()">✎ Edit</button>'
     + '</div>';
 
   // two-column body wrapper on PC, single column on mobile
   html += '<div class="psections">';
 
-  // contact (first - often the first thing you reach for)
-  html += '<div class="sec"><div class="sec-h">Contact</div><div class="card pad">';
-  if(m.guardians.length) html += kv("Guardians", m.guardians.map(g=>g[0]+" ("+g[1]+")").join("<br>"));
-  m.phones.forEach(p=> html += kv(p[0], p[1]));
-  if(m.emails.length) html += kv("Email", m.emails.join("<br>"));
-  if(m.address) html += kv("Address", m.address);
+  // contact (first - often the first thing you reach for). Phone and email
+  // are tap-to-act links: on the tablet "call them" should be one touch.
+  html += '<div class="sec"><div class="sec-h">Contact <span style="float:right;color:var(--accent);cursor:pointer;font-size:12px" onclick="openEditContact()">✎ Edit</span></div><div class="card pad">';
+  let anyContact = false;
+  m.phones.forEach(p=>{ anyContact=true; html += kv(escHtml(p[0]), '<a href="tel:'+escAttr(p[1])+'" style="color:inherit">'+escHtml(p[1])+'</a>'); });
+  if(m.email){ anyContact=true; html += kv("Email", '<a href="mailto:'+escAttr(m.email)+'" style="color:inherit">'+escHtml(m.email)+'</a>'); }
+  if(m.dob){ anyContact=true; html += kv("Born", escHtml(fmtDate(String(m.dob).slice(0,10)))+(m.age?' · age '+m.age:'')); }
+  if(m.guardians.length){
+    anyContact = true;
+    // [email, label, name] - show the person, not just their inbox.
+    html += kv("Guardians", m.guardians.map(g=>{
+      const nm = g[2] ? '<b>'+escHtml(g[2])+'</b> · ' : '';
+      const em = g[0] ? '<a href="mailto:'+escAttr(g[0])+'" style="color:inherit">'+escHtml(g[0])+'</a>' : '';
+      return nm + em + (g[1] && !g[2] ? ' ('+escHtml(g[1])+')' : '');
+    }).join("<br>"));
+  }
+  if(m.address){ anyContact=true; html += kv("Address", escHtml(m.address)); }
+  if(!anyContact) html += '<div style="color:var(--muted);font-size:13.5px">Nothing on file yet. Tap Edit and add a phone and email.</div>';
   html += '</div></div>';
 
   // training & gear (martial-arts-native)
@@ -4879,12 +4897,11 @@ function renderProfile(){
     + '<button class="prof-att-tg" data-w="20wk" onclick="profAttSetWindow(\'20wk\')" style="font-size:11px;font-weight:700;padding:4px 9px;border-radius:7px;border:1.5px solid var(--line);background:#fff;color:var(--muted);cursor:pointer;">20 weeks</button>'
     + '</span></div><div class="card pad" id="prof-att">Loading…</div></div>';
 
-  // notes
-  html += '<div class="sec"><div class="sec-h">Notes <span style="color:var(--accent);cursor:pointer" onclick="toast(\'Add a note\')">＋ Add</span></div><div class="card">';
-  if(m.notes.length){
-    m.notes.forEach(n=> html += '<div class="note"><div class="nt">'+n[1]+'</div><div class="nd">'+n[0]+'</div></div>');
-  } else { html += '<div class="note-empty">No notes yet.</div>'; }
-  html += '</div></div>';
+  // class rosters - the enrollments truth, never shown on the profile before.
+  html += '<div class="sec"><div class="sec-h">Class rosters</div><div class="card pad" id="prof-rosters" style="color:var(--muted);font-size:13.5px">Loading…</div></div>';
+
+  // notes - real rows from contact_notes, newest first
+  html += '<div class="sec"><div class="sec-h">Notes <span style="float:right;color:var(--accent);cursor:pointer;font-size:12px" onclick="openAddNote()">＋ Add</span></div><div class="card" id="prof-notes"><div class="note-empty">Loading…</div></div></div>';
 
   // account - live from the sales ledger (pos_sales), filled async
   html += '<div class="sec"><div class="sec-h">Account</div><div class="card" id="prof-ledger"><div class="inv-empty" style="padding:16px">Loading…</div></div></div>';
@@ -4913,6 +4930,115 @@ function renderProfile(){
   loadProfileHousehold(m.id);
   loadProfileLedger(m.id);
   loadProfileMemberships(m.id);
+  loadProfileRosters(m.id);
+  loadProfileNotes(m.id);
+}
+
+/* ── ring up: start a sale for this person, one tap ───────────────────────*/
+function posRingUpFor(id){
+  const m = MEMBERS.find(x=>x.id===id); if(!m) return;
+  posSale.memberId = id;
+  showSection('pos');
+  renderPOS();
+  toast('Sale started for '+m.first+' '+m.last);
+}
+
+/* ── edit contact: the fields the front desk actually corrects ────────────
+ * Writes contacts, then patches the in-memory row so the profile repaints
+ * without a full reload. Rank stays out: the testing app owns it. */
+function openEditContact(){
+  const m = currentMember; if(!m) return;
+  const f = (label, id, val, type, ph) =>
+    '<label class="ed-lbl">'+label+'</label><input id="'+id+'" class="ed-in" type="'+(type||'text')+'" value="'+escAttr(val||'')+'"'+(ph?' placeholder="'+escAttr(ph)+'"':'')+'>';
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head"><div><h3>Edit details</h3><div class="sub">'+escHtml(m.first+' '+m.last)+'</div></div>'
+    + '<button class="close" onclick="closeSheet()">×</button></div>'
+    + '<div class="sheet-body">'
+    + '<div class="pm-row"><div>'+f('First name','ecFirst',m.first)+'</div><div>'+f('Last name','ecLast',m.last)+'</div></div>'
+    + f('Email','ecEmail',m.email,'email')
+    + f('Phone','ecPhone',(m.phones[0]&&m.phones[0][1])||'','tel')
+    + f('Date of birth','ecDob',String(m.dob||'').slice(0,10),'date')
+    + f('Address','ecAddr',m.address)
+    + '<div class="pm-row"><div>'+f('Belt size','ecBelt',m.beltSize,'text','e.g. 2')+'</div><div>'+f('Kick size','ecKick',m.kickSize,'text','e.g. child S')+'</div></div>'
+    + '<button class="tbtn" style="width:100%;margin-top:14px" onclick="saveEditContact()">Save</button>'
+    + '</div>';
+  openSheet();
+}
+async function saveEditContact(){
+  const m = currentMember; if(!m) return;
+  const v = id => ((document.getElementById(id)||{}).value||'').trim();
+  const first = v('ecFirst'), last = v('ecLast');
+  if(!first){ toast('First name is required'); return; }
+  const email = v('ecEmail').toLowerCase(), phone = v('ecPhone'), dob = v('ecDob');
+  const addr = v('ecAddr'), belt = v('ecBelt'), kick = v('ecKick');
+  const upd = {
+    first_name: first, last_name: last,
+    email: email || null, phone: phone || null, dob: dob || null,
+    address: addr || null, belt_size: belt || null, kick_size: kick || null
+  };
+  const r = await sb.from('contacts').update(upd).eq('id', m.id);
+  if(r.error){ toast('Could not save: '+(r.error.message||r.error)); return; }
+  // Patch the in-memory row the same way loadMembers maps it.
+  m.first = first; m.last = last; m.email = email; m.address = addr;
+  m.beltSize = belt; m.kickSize = kick; m.dob = dob;
+  m.phones = phone ? [["Mobile", phone]] : [];
+  m.emails = email ? [email] : [];
+  m.age = dob ? Math.floor((Date.now() - new Date(dob)) / 3.15576e10) : 0;
+  closeSheet(); renderProfile(); toast('Saved');
+}
+
+/* ── class rosters: where this student actually stands in class ───────────*/
+async function loadProfileRosters(contactId){
+  const box = document.getElementById('prof-rosters'); if(!box) return;
+  const { data, error } = await sb.from('enrollments')
+    .select('program,status').eq('student_id', contactId);
+  if(error){ box.textContent = 'Could not load rosters.'; return; }
+  const rows = data||[];
+  if(!rows.length){ box.textContent = 'Not on any class roster yet. A membership adds them automatically.'; return; }
+  box.innerHTML = rows.map(r=>{
+    const on = (r.status||'active')==='active';
+    return '<span class="pseg" style="margin:0 6px 6px 0;background:'+(on?'#E4F5EE':'#EDEFF2')+';color:'+(on?'#18A974':'#9AA1AC')+'">'
+      + escHtml(r.program||'?')+(on?'':' · '+escHtml(r.status))+'</span>';
+  }).join('');
+}
+
+/* ── notes: real rows, author and date on every one ───────────────────────*/
+async function loadProfileNotes(contactId){
+  const box = document.getElementById('prof-notes'); if(!box) return;
+  const { data, error } = await sb.from('contact_notes')
+    .select('id,body,created_by,created_at')
+    .eq('contact_id', contactId)
+    .order('created_at', { ascending:false }).limit(50);
+  if(error){ console.error('notes load', error); box.innerHTML = '<div class="note-empty">Could not load notes.</div>'; return; }
+  const rows = data||[];
+  if(!rows.length){ box.innerHTML = '<div class="note-empty">No notes yet.</div>'; return; }
+  box.innerHTML = rows.map(n=>{
+    const when = n.created_at ? fmtDate(String(n.created_at).slice(0,10)) : '';
+    const who = n.created_by ? String(n.created_by).split('@')[0] : '';
+    return '<div class="note"><div class="nt">'+escHtml(n.body)+'</div>'
+      + '<div class="nd">'+escHtml(when)+(who?' · '+escHtml(who):'')+'</div></div>';
+  }).join('');
+}
+function openAddNote(){
+  const m = currentMember; if(!m) return;
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head"><div><h3>Add a note</h3><div class="sub">'+escHtml(m.first+' '+m.last)+'</div></div>'
+    + '<button class="close" onclick="closeSheet()">×</button></div>'
+    + '<div class="sheet-body">'
+    + '<textarea id="noteBody" class="ed-in" rows="4" style="width:100%;resize:vertical" placeholder="e.g. Grandma picks up on Wednesdays"></textarea>'
+    + '<button class="tbtn" style="width:100%;margin-top:14px" onclick="saveContactNote()">Save note</button>'
+    + '</div>';
+  openSheet();
+  const t = document.getElementById('noteBody'); if(t) t.focus();
+}
+async function saveContactNote(){
+  const m = currentMember; if(!m) return;
+  const body = ((document.getElementById('noteBody')||{}).value||'').trim();
+  if(!body){ toast('Write the note first'); return; }
+  const by = (typeof CURRENT_STAFF_EMAIL!=='undefined' && CURRENT_STAFF_EMAIL) || 'staff';
+  const r = await sb.from('contact_notes').insert({ contact_id: m.id, body: body, created_by: by });
+  if(r.error){ toast('Could not save the note: '+(r.error.message||r.error)); return; }
+  closeSheet(); loadProfileNotes(m.id); toast('Note saved');
 }
 
 /* The profile's Memberships card, live from the real `memberships` table -
@@ -5030,6 +5156,11 @@ async function loadProfileLedger(contactId){
   const rows = data||[];
   const owed = rows.filter(r=>r.status==='unpaid').reduce((a,r)=>a+r.total_cents,0);
   let h = '<div class="bal"><span class="bl">Balance owed</span><span class="bv num"'+(owed?' style="color:#c8102e"':'')+'>'+money(owed/100)+'</span></div>';
+  // Card on file: saved to their Stripe customer at any card payment. Staff
+  // charge it; the customer never manages it (owner's locked model).
+  if(currentMember && currentMember.id===contactId && currentMember.stripeCustomer){
+    h += '<div class="bal"><span class="bl">Card on file</span><span class="bv" style="color:#18A974;font-weight:700">Saved · Stripe</span></div>';
+  }
   if(rows.length){
     rows.slice(0,5).forEach(r=>{
       h += '<div class="inv" style="cursor:pointer" onclick="showInvoice(\''+r.id+'\',\'profile\')"><div class="id">'+escHtml(r.id.slice(0,8).toUpperCase())+'<small>'+escHtml(fmtDate(r.sale_date))+(r.tender_method?' · '+escHtml(r.tender_method):'')+'</small></div>'
