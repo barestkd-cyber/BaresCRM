@@ -798,7 +798,7 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
     <div style="font-size:0.72rem;color:#888;text-align:center;letter-spacing:2px;text-transform:uppercase;margin-bottom:24px;font-family:system-ui,sans-serif;">Office CRM</div>
     <!-- Explains an unexpected sign-out instead of leaving staff wondering. -->
     <div id="crm-idle-note" style="display:none;background:#1d2029;border:1px solid #2f3340;border-radius:8px;padding:11px 13px;margin-bottom:18px;color:#b9bec9;font-size:0.78rem;line-height:1.55;font-family:system-ui,sans-serif;">
-      You were signed out after 30 minutes of inactivity. Sign back in to continue.
+      You were signed out after 2 hours of inactivity. Sign back in to continue.
     </div>
     <div style="margin-bottom:12px;">
       <label style="display:block;font-size:0.65rem;letter-spacing:1.5px;text-transform:uppercase;color:#888;margin-bottom:6px;font-family:system-ui,sans-serif;">Email</label>
@@ -3142,7 +3142,7 @@ async function pmChargeCard(saleId, amountCents){
  * real interaction signs out; a minute before that, a bar offers to stay.
  * Activity is shared across tabs and the other barestkd.fit apps, so working
  * in one keeps the others alive. */
-const CRM_IDLE_MINUTES = 30;
+const CRM_IDLE_MINUTES = 120;
 function crmStartIdleLogout(){
   if(!window.BTKD || !BTKD.idleLogout) return;   // older shared auth.js
   BTKD.idleLogout({
