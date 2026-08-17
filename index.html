@@ -342,6 +342,78 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .pm-carderr{display:none;color:var(--accent);font-size:13px;margin-top:7px;font-weight:600}
 .pm-testnote{margin-top:8px;font-size:12.5px;color:var(--muted);background:var(--surface);border-radius:8px;padding:8px 10px}
 
+/* ---------- profile redesign (2026-08-17 mocks): stat strip, belt bar,
+   actions menu, tabs. PC-first; phone keeps stacked cards. ---------- */
+.pstats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 14px 0}
+.pstat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-width:0}
+.pstat .n{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px}
+.pstat .l{font-size:10.5px;color:var(--muted);line-height:1.3;margin-top:2px}
+.pstat.owe .n{color:#18A974}
+.pstat.owe.due .n{color:#c8102e}
+.beltbar{display:flex;gap:3px;margin-top:10px}
+.beltcell{flex:1;max-width:46px;min-width:0}
+.beltseg{height:8px;border-radius:4px;background:#3A3F47}
+.beltseg.on{box-shadow:inset 0 0 0 1px rgba(0,0,0,.18)}
+.beltlbl{display:none;font-size:9.5px;color:#AEB4BD;margin-top:4px;text-align:center;white-space:nowrap}
+.beltcnt{font-size:11.5px;color:#AEB4BD;margin-top:8px;font-weight:700}
+.phead-facts{font-size:12.5px;color:#AEB4BD;margin-top:9px}
+.pact{position:relative;display:inline-block;margin-top:12px}
+.pact-btn{background:none;border:1.5px solid var(--accent);color:var(--accent);font-weight:700;font-size:13.5px;border-radius:9px;padding:8px 16px;cursor:pointer;font-family:inherit}
+.phead .pact-btn{border-color:#fff;color:#fff}
+.pact-menu{display:none;position:absolute;right:0;top:calc(100% + 6px);background:#fff;color:var(--ink);border-radius:12px;box-shadow:0 12px 34px rgba(0,0,0,.22);min-width:256px;padding:6px;z-index:70;text-align:left}
+.pact-menu.open{display:block}
+.pact-it{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border-radius:8px;font-size:14px;font-weight:600;background:none;border:none;text-align:left;cursor:pointer;color:var(--ink);font-family:inherit}
+.pact-it:hover{background:var(--surface)}
+.pact-it.dis{color:var(--muted);cursor:default}
+.pact-it.dis:hover{background:none}
+.pact-chip{font-size:9px;font-weight:800;letter-spacing:.4px;background:#EDEFF2;color:#6A727E;border-radius:5px;padding:2.5px 6px;margin-left:auto}
+.ptabs{display:none}
+.fchip{border:1.5px solid var(--line);background:#fff;color:var(--ink);font-weight:700;font-size:12.5px;border-radius:99px;padding:6px 14px;cursor:pointer;font-family:inherit}
+.fchip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.invx-scroll{overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:12px}
+.invx{width:100%;border-collapse:collapse;min-width:640px}
+.invx th{font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+.invx td{padding:12px;border-bottom:1px solid #F0F2F4;font-size:13.5px;vertical-align:top}
+.invx tr:last-child td{border-bottom:none}
+.invx .sum{color:var(--muted);font-size:12.5px;max-width:260px}
+.stx{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.3px;border-radius:6px;padding:3px 8px;white-space:nowrap}
+.stx.paid{background:#E4F5EE;color:#18A974}
+.stx.part{background:#FBF1DC;color:#C98A1A}
+.stx.unpaid{background:#FBE9E9;color:#c8102e}
+.stx.other{background:#EDEFF2;color:#6A727E}
+.memx{background:#fff;border:1px solid var(--line);border-radius:14px;padding:15px 16px;margin-bottom:12px;display:flex;flex-direction:column;gap:11px}
+.memx-name{font-weight:700;font-size:15.5px}
+.memx-plan{color:var(--muted);font-size:12.5px;margin-top:2px}
+.memx-price .big{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px}
+.memx-price .sub,.memx-terms div{font-size:12.5px;color:var(--muted);margin-top:3px}
+.memx-terms div{margin-top:0;line-height:1.7}
+.memx-agr{background:#F0FAF4;border:1px solid #BFE6D6;border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.6}
+.memx-agr b{color:#18A974}
+.memx-agr.miss{background:#FDF1F1;border-color:#F3C2C2}
+.memx-agr.miss b{color:#c8102e}
+.memx-agr .vc{margin-top:4px}
+.ccg-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13.5px;padding:8px 0;border-bottom:1px solid #F0F2F4}
+.ccg-row:last-child{border-bottom:none}
+.ccg-chip{font-size:10px;font-weight:800;background:#E7F1FB;color:#2563EB;padding:2px 8px;border-radius:6px}
+.ccg-sub{color:var(--muted);font-size:12.5px}
+@media (min-width:900px){
+  .pstats{grid-template-columns:repeat(3,minmax(0,240px));padding:18px 26px 0}
+  .pstat .n{font-size:24px}
+  .pstat .l{font-size:12px}
+  .phead{display:flex;text-align:left;align-items:flex-start;gap:22px;padding:22px 26px;margin:14px 26px 0;border-radius:16px}
+  .phead .pav{margin:0;flex:0 0 auto}
+  .phead-body{flex:1;min-width:0}
+  .phead .pseg{margin-top:0;margin-left:10px;vertical-align:middle}
+  .beltcell{max-width:56px}
+  .beltlbl{display:block}
+  .pact{margin-top:0;flex:0 0 auto}
+  .ptabs{display:flex;gap:2px;margin:16px 26px 0;border-bottom:2px solid var(--line);flex-wrap:wrap}
+  .ptab{padding:12px 15px;font-weight:700;font-size:13.5px;color:var(--muted);border:none;background:none;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-2px;font-family:inherit;display:flex;align-items:center;gap:7px}
+  .ptab.on{color:var(--accent);border-color:var(--accent)}
+  .ptab.dis{color:#B9BEC9;cursor:default}
+  .psections{padding:8px 26px 30px}
+}
+
 /* ---------- idle logout warning ---------- */
 .idle-warn{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:9999;
   background:var(--ink);color:#fff;border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:14px;
@@ -4834,55 +4906,100 @@ function renderProfile(){
   const segBg = m.segment==="Active"?"#E4F5EE":m.segment==="Lead"?"#FBF1DC":m.segment==="Trial"?"#E7F1FB":"#EDEFF2";
   const segCol = m.segment==="Active"?"#18A974":m.segment==="Lead"?"#C98A1A":m.segment==="Trial"?"#2563EB":"#9AA1AC";
   const ring = m.belt ? '<span class="belt-ring" style="border-color:'+beltC+'"></span>' : '';
-  const metaLines = [];
-  if(m.belt) metaLines.push(m.rank + (m.rankDate?" · "+m.rankDate:""));
-  if(m.since) metaLines.push("Member since "+m.since);
-  else if(m.entered) metaLines.push("Lead since "+m.entered);
-  if(m.age) metaLines.push("Age "+m.age);
 
   let html = '<div class="pbar"><button class="back" onclick="backToList()">‹ Members</button></div>';
+
+  // stat strip: momentum and money before anything else (2026-08-17 mocks).
+  // Values fill async; the balance here and the Invoices tab share one
+  // computation so they can never disagree.
+  html += '<div class="pstats">'
+    + '<div class="pstat"><div class="n" id="ps7">–</div><div class="l">Attendance<br>last 7 days</div></div>'
+    + '<div class="pstat"><div class="n" id="ps30">–</div><div class="l">Attendance<br>last 30 days</div></div>'
+    + '<div class="pstat owe" id="psOweBox"><div class="n" id="psOwe">–</div><div class="l" id="psOweL">Balance owed</div></div>'
+    + '</div>';
+
+  // header: identity + rank. Belt bar = position in the nine-belt order.
+  const beltPos = BELT_ORDER.indexOf(m.belt);
+  let beltBar = '';
+  if(beltPos !== -1){
+    beltBar = '<div class="beltbar">'
+      + BELT_ORDER.map((b,i)=>'<div class="beltcell"><div class="beltseg'+(i<=beltPos?' on':'')+'"'
+        + (i<=beltPos?' style="background:'+(BELT[b]||'#C7CCD2')+'"':'')+'></div><div class="beltlbl">'+b+'</div></div>').join('')
+      + '</div>'
+      + '<div class="beltcnt">Belt '+(beltPos+1)+' of '+BELT_ORDER.length+(m.rankDate?' · earned '+escHtml(m.rankDate):'')+'</div>';
+  }
+  const facts = [];
+  if(m.dob) facts.push('Born '+escHtml(fmtDate(String(m.dob).slice(0,10)))+(m.age?' (age '+m.age+')':''));
+  if(m.since) facts.push('Member since '+escHtml(m.since));
+  else if(m.entered) facts.push('Lead since '+escHtml(m.entered));
+
   html += '<div class="phead">'
     + '<div class="pav" style="background:'+beltC+'">'+ring+'<span style="color:'+(m.belt==="White"||m.belt==="Yellow"?"#15171C":"#fff")+'">'+initials(m)+'</span></div>'
     + '<div class="phead-body">'
-    + '<div class="pname">'+m.first+' '+m.last+'</div>'
-    + '<div class="pmeta">'+metaLines.join("<br>")+'</div>'
-    + '<span class="pseg" style="background:'+segBg+';color:'+segCol+'">'+m.segment+(m.phase?" · "+m.phase:"")+'</span>'
-    + '</div></div>';
+    + '<div class="pname">'+escHtml(m.first+' '+m.last)
+    + ' <span class="pseg" style="background:'+segBg+';color:'+segCol+'">'+m.segment+'</span></div>'
+    + '<div class="pmeta">'+escHtml([m.phase, m.rank||''].filter(Boolean).join(' · ')||m.segment)+'</div>'
+    + beltBar
+    + (facts.length?'<div class="phead-facts">'+facts.join(' · ')+'</div>':'')
+    + '</div>'
+    // one Actions menu instead of a button row; every item is real or
+    // honestly disabled. Promote Rank deep-links to the Testing app, which
+    // owns rank; the CRM never writes it.
+    + '<div class="pact"><button class="pact-btn" onclick="profActionsToggle(event)">Actions ▾</button>'
+    + '<div class="pact-menu" id="pactMenu">'
+    + '<button class="pact-it" onclick="posRingUpFor(\''+m.id+'\')">＄ Ring Up <span class="pact-chip">POS</span></button>'
+    + '<button class="pact-it" onclick="posOpenMembershipFor(\''+m.id+'\')">＋ Add Membership</button>'
+    + '<button class="pact-it" onclick="openEditContact()">✎ Edit Contact</button>'
+    + '<button class="pact-it" onclick="profAddAttendance()">▦ Add Attendance</button>'
+    + '<button class="pact-it" onclick="launchApp(\'testing\')">▲ Promote Rank <span class="pact-chip">TESTING APP</span></button>'
+    + '<button class="pact-it dis">✉ Message <span class="pact-chip">COMING SOON</span></button>'
+    + '</div></div>'
+    + '</div>';
 
-  // quick actions. Ring up and Edit are real; Message stays an honest stub
-  // until the Communications tab exists (queue 24).
-  html += '<div class="qactions">'
-    + '<button class="qa primary" onclick="posRingUpFor(\''+m.id+'\')">＄ Ring up</button>'
-    + '<button class="qa" onclick="posOpenMembershipFor(\''+m.id+'\')">＋ Membership</button>'
-    + '<button class="qa" onclick="toast(\'Messaging arrives with the Communications tab\')">✉ Message</button>'
-    + '<button class="qa" onclick="openEditContact()">✎ Edit</button>'
+  // tabs (desktop only; phone shows everything stacked below)
+  const tab = (key,label,dis) => dis
+    ? '<button class="ptab dis">'+label+' <span class="pact-chip">COMING SOON</span></button>'
+    : '<button class="ptab'+(PROF_TAB===key?' on':'')+'" onclick="profSetTab(\''+key+'\')">'+label+'</button>';
+  html += '<div class="ptabs">'
+    + tab('overview','Overview') + tab('invoices','Invoices and Payments')
+    + tab('memberships','Memberships and Agreements') + tab('attendance','Attendance')
+    + tab('notes','Notes') + tab('email','Email History',true) + tab('docs','Documents',true)
     + '</div>';
 
   // two-column body wrapper on PC, single column on mobile
-  html += '<div class="psections">';
+  html += '<div class="psections" id="psections">';
 
   // contact (first - often the first thing you reach for). Phone and email
-  // are tap-to-act links: on the tablet "call them" should be one touch.
-  html += '<div class="sec"><div class="sec-h">Contact <span style="float:right;color:var(--accent);cursor:pointer;font-size:12px" onclick="openEditContact()">✎ Edit</span></div><div class="card pad">';
+  // are tap-to-act links. Born lives in the header only; guardians moved to
+  // Connected Contacts (every fact in exactly one place).
+  html += '<div class="sec" data-ptab="overview"><div class="sec-h">Contact <span style="float:right;color:var(--accent);cursor:pointer;font-size:12px" onclick="openEditContact()">✎ Edit</span></div><div class="card pad">';
   let anyContact = false;
   m.phones.forEach(p=>{ anyContact=true; html += kv(escHtml(p[0]), '<a href="tel:'+escAttr(p[1])+'" style="color:inherit">'+escHtml(p[1])+'</a>'); });
   if(m.email){ anyContact=true; html += kv("Email", '<a href="mailto:'+escAttr(m.email)+'" style="color:inherit">'+escHtml(m.email)+'</a>'); }
-  if(m.dob){ anyContact=true; html += kv("Born", escHtml(fmtDate(String(m.dob).slice(0,10)))+(m.age?' · age '+m.age:'')); }
-  if(m.guardians.length){
-    anyContact = true;
-    // [email, label, name] - show the person, not just their inbox.
-    html += kv("Guardians", m.guardians.map(g=>{
-      const nm = g[2] ? '<b>'+escHtml(g[2])+'</b> · ' : '';
-      const em = g[0] ? '<a href="mailto:'+escAttr(g[0])+'" style="color:inherit">'+escHtml(g[0])+'</a>' : '';
-      return nm + em + (g[1] && !g[2] ? ' ('+escHtml(g[1])+')' : '');
-    }).join("<br>"));
-  }
   if(m.address){ anyContact=true; html += kv("Address", escHtml(m.address)); }
   if(!anyContact) html += '<div style="color:var(--muted);font-size:13.5px">Nothing on file yet. Tap Edit and add a phone and email.</div>';
   html += '</div></div>';
 
+  // connected contacts: guardians (fields on the student, never separate
+  // accounts) plus household members, one card, straight off the mock.
+  html += '<div class="sec" data-ptab="overview"><div class="sec-h">Connected contacts</div><div class="card pad">';
+  if(m.guardians.length){
+    html += '<div class="ccg-sub" style="margin-bottom:2px">Guardians</div>';
+    m.guardians.forEach(g=>{
+      html += '<div class="ccg-row">'
+        + (g[2] ? '<b>'+escHtml(g[2])+'</b>' : '<span style="color:var(--muted)">(no name)</span>')
+        + (g[1] ? '<span class="ccg-chip">'+escHtml(g[1])+'</span>' : '')
+        + (g[0] ? '<a href="mailto:'+escAttr(g[0])+'" class="ccg-sub" style="color:var(--muted)">'+escHtml(g[0])+'</a>' : '')
+        + '</div>';
+    });
+  } else {
+    html += '<div class="ccg-sub">No guardian on file'+(m.age && m.age<18?' - add one at the next signing':'')+'.</div>';
+  }
+  html += '<div class="ccg-sub" style="margin:10px 0 4px">Household</div><div id="prof-hh">Loading…</div>';
+  html += '</div></div>';
+
   // training & gear (martial-arts-native)
-  html += '<div class="sec"><div class="sec-h">Training &amp; gear</div><div class="card pad">';
+  html += '<div class="sec" data-ptab="overview"><div class="sec-h">Training &amp; gear</div><div class="card pad">';
   if(m.belt) html += '<div class="kv"><span class="k">Belt</span><span class="v"><span class="belt-bar" style="background:'+beltC+'"></span>'+m.rank+'</span></div>';
   if(m.beltSize) html += kv("Belt size", m.beltSize);
   if(m.kickSize) html += kv("Kick size", m.kickSize);
@@ -4891,35 +5008,49 @@ function renderProfile(){
   html += '</div></div>';
 
   // attendance (real, from the attendance table)
-  html += '<div class="sec"><div class="sec-h">Attendance'
+  html += '<div class="sec" data-ptab="attendance"><div class="sec-h">Attendance'
     + '<span style="float:right;display:inline-flex;gap:6px;">'
     + '<button class="prof-att-tg" data-w="cycle" onclick="profAttSetWindow(\'cycle\')" style="font-size:11px;font-weight:700;padding:4px 9px;border-radius:7px;border:1.5px solid var(--ink);background:var(--surface);color:var(--ink);cursor:pointer;">This cycle</button>'
     + '<button class="prof-att-tg" data-w="20wk" onclick="profAttSetWindow(\'20wk\')" style="font-size:11px;font-weight:700;padding:4px 9px;border-radius:7px;border:1.5px solid var(--line);background:#fff;color:var(--muted);cursor:pointer;">20 weeks</button>'
     + '</span></div><div class="card pad" id="prof-att">Loading…</div></div>';
 
   // class rosters - the enrollments truth, never shown on the profile before.
-  html += '<div class="sec"><div class="sec-h">Class rosters</div><div class="card pad" id="prof-rosters" style="color:var(--muted);font-size:13.5px">Loading…</div></div>';
+  html += '<div class="sec" data-ptab="overview"><div class="sec-h">Class rosters</div><div class="card pad" id="prof-rosters" style="color:var(--muted);font-size:13.5px">Loading…</div></div>';
 
   // notes - real rows from contact_notes, newest first
-  html += '<div class="sec"><div class="sec-h">Notes <span style="float:right;color:var(--accent);cursor:pointer;font-size:12px" onclick="openAddNote()">＋ Add</span></div><div class="card" id="prof-notes"><div class="note-empty">Loading…</div></div></div>';
+  html += '<div class="sec" data-ptab="notes"><div class="sec-h">Notes <span style="float:right;color:var(--accent);cursor:pointer;font-size:12px" onclick="openAddNote()">＋ Add</span></div><div class="card" id="prof-notes"><div class="note-empty">Loading…</div></div></div>';
 
-  // account - live from the sales ledger (pos_sales), filled async
-  html += '<div class="sec"><div class="sec-h">Account</div><div class="card" id="prof-ledger"><div class="inv-empty" style="padding:16px">Loading…</div></div></div>';
+  // card on file (overview): presence only. Charged by staff, never managed
+  // by the customer (owner's locked model).
+  html += '<div class="sec" data-ptab="overview"><div class="sec-h">Card on file</div><div class="card pad">'
+    + (m.stripeCustomer
+        ? kv('Card', '<span style="color:#18A974;font-weight:700">Saved with Stripe</span>') + '<div class="ccg-sub">Charged by staff only.</div>'
+        : '<div class="ccg-sub">No card on file. A card saves automatically at their next card payment.</div>')
+    + '</div></div>';
+
+  // invoices and payments: the full ledger with DERIVED balances, so a
+  // partial payment reads PAYMENT APPLIED instead of hiding inside "unpaid".
+  html += '<div class="sec" data-ptab="invoices"><div class="sec-h">Invoices and payments</div>'
+    + '<div style="display:flex;gap:8px;margin-bottom:10px" id="invxFilters">'
+    + '<button class="fchip on" data-f="all" onclick="profInvFilter(\'all\')">All</button>'
+    + '<button class="fchip" data-f="paid" onclick="profInvFilter(\'paid\')">Paid</button>'
+    + '<button class="fchip" data-f="unpaid" onclick="profInvFilter(\'unpaid\')">Unpaid</button>'
+    + '</div><div id="prof-invoices"><div class="card pad" style="color:var(--muted);font-size:14px">Loading…</div></div></div>';
 
   // access & role (authorization)
   const _role = m.role || "Student";
-  html += '<div class="sec"><div class="sec-h">Access &amp; role</div><div class="card pad role-row"><div><span class="role-badge '+_role.toLowerCase()+'">'+_role+'</span><div class="role-desc">'+roleDesc(_role)+'</div></div><button class="pb-change" onclick="openRole()">Set access</button></div></div>';
+  html += '<div class="sec" data-ptab="overview"><div class="sec-h">Access &amp; role</div><div class="card pad role-row"><div><span class="role-badge '+_role.toLowerCase()+'">'+_role+'</span><div class="role-desc">'+roleDesc(_role)+'</div></div><button class="pb-change" onclick="openRole()">Set access</button></div></div>';
 
   // household (billing family - filled async by loadProfileHousehold)
   html += '<div class="sec"><div class="sec-h">Household</div><div class="card pad" id="prof-hh">Loading…</div></div>';
 
   // memberships - live from the memberships table (frozen snapshots), async
-  html += '<div class="sec"><div class="sec-h">Memberships</div>'
+  html += '<div class="sec" data-ptab="memberships"><div class="sec-h">Memberships and agreements</div>'
     + '<div id="prof-mems"><div class="card pad" style="color:var(--muted);font-size:14px">Loading…</div></div>'
     + '<button class="add-mem" onclick="posOpenMembershipFor(\''+m.id+'\')">＋ Sell / add membership</button></div>';
 
   // stub accordions (fed by other apps)
-  html += '<div class="sec"><div class="sec-h">More</div>';
+  html += '<div class="sec" data-ptab="overview"><div class="sec-h">More</div>';
   html += acc("Rank &amp; testing history", "Pulled from the testing app. Full belt progression and test results live there and surface here.");
   html += acc("Attendance log", "Pulled from the class plan app. Class-by-class check-ins surface here.");
   html += acc("Timeline", "Every touch across the system in one feed: payments, classes, messages, rank changes.");
@@ -4928,10 +5059,153 @@ function renderProfile(){
   $("#view-profile").innerHTML = html;
   loadProfileAttendance(m.id);
   loadProfileHousehold(m.id);
-  loadProfileLedger(m.id);
   loadProfileMemberships(m.id);
   loadProfileRosters(m.id);
   loadProfileNotes(m.id);
+  loadProfileStats(m.id);
+  loadProfileMoney(m.id);
+  profApplyTab();
+}
+
+/* ── profile redesign engine (2026-08-17) ─────────────────────────────────*/
+const BELT_ORDER = ['White','Yellow','Orange','Green','Purple','Blue','Brown','Red','Black'];
+let PROF_TAB = 'overview';
+
+/* Tabs exist on desktop; the phone shows every section stacked, same data.
+ * Sections carry data-ptab and this just toggles visibility, so the async
+ * loaders never re-run on a tab switch. */
+function profApplyTab(){
+  const desktop = window.matchMedia('(min-width:900px)').matches;
+  document.querySelectorAll('#psections > .sec').forEach(s=>{
+    s.style.display = (!desktop || (s.dataset.ptab||'overview')===PROF_TAB) ? '' : 'none';
+  });
+}
+function profSetTab(t){
+  PROF_TAB = t;
+  document.querySelectorAll('.ptab').forEach(b=>b.classList.toggle('on', b.getAttribute('onclick')==="profSetTab('"+t+"')"));
+  profApplyTab();
+}
+window.addEventListener('resize', ()=>{ if(document.getElementById('psections')) profApplyTab(); });
+
+function profActionsToggle(e){
+  e.stopPropagation();
+  const menu = document.getElementById('pactMenu');
+  if(menu) menu.classList.toggle('open');
+}
+document.addEventListener('click', ()=>{
+  const menu = document.getElementById('pactMenu');
+  if(menu) menu.classList.remove('open');
+});
+
+/* Stat strip: attendance counts by window. */
+async function loadProfileStats(contactId){
+  const ymd = d => { const x=new Date(); x.setDate(x.getDate()-d); return x.toISOString().slice(0,10); };
+  const count = async (since) => {
+    const r = await sb.from('attendance').select('id',{count:'exact',head:true})
+      .eq('student_id', contactId).gte('class_date', since);
+    return r.count ?? 0;
+  };
+  const [a7, a30] = await Promise.all([count(ymd(7)), count(ymd(30))]);
+  const e7=document.getElementById('ps7'), e30=document.getElementById('ps30');
+  if(e7) e7.textContent = a7;
+  if(e30) e30.textContent = a30;
+}
+
+/* One computation feeds the balance tile AND the invoices table, so the two
+ * can never disagree. Balance is DERIVED (total minus payments), which is
+ * what makes a partial read as PAYMENT APPLIED instead of plain unpaid. */
+let PROF_MONEY = [];
+let PROF_INV_F = 'all';
+async function loadProfileMoney(contactId){
+  PROF_INV_F = 'all';
+  const sRes = await sb.from('pos_sales')
+    .select('id,sale_date,status,total_cents')
+    .eq('buyer_contact_id', contactId)
+    .order('created_at', { ascending:false }).limit(100);
+  if(sRes.error){ console.error('profile money', sRes.error); return; }
+  const sales = sRes.data||[];
+  const ids = sales.map(s=>s.id);
+  let paysBy = {}, linesBy = {};
+  if(ids.length){
+    const [pRes, lRes] = await Promise.all([
+      sb.from('pos_payments').select('sale_id,amount_cents').in('sale_id', ids),
+      sb.from('pos_sale_lines').select('sale_id,label').in('sale_id', ids)
+    ]);
+    (pRes.data||[]).forEach(p=>{ paysBy[p.sale_id]=(paysBy[p.sale_id]||0)+p.amount_cents; });
+    (lRes.data||[]).forEach(l=>{ (linesBy[l.sale_id]=linesBy[l.sale_id]||[]).push(l.label); });
+  }
+  const DEAD = ['voided','closed','abandoned'];
+  PROF_MONEY = sales.map(s=>{
+    const paid = paysBy[s.id]||0;
+    const balance = Math.max(s.total_cents - paid, 0);
+    const dead = DEAD.indexOf(s.status)!==-1;
+    const st = (s.status==='paid'||balance<=0) ? 'paid'
+             : dead ? 'other'
+             : paid>0 ? 'part' : 'unpaid';
+    return { id:s.id, date:s.sale_date, total:s.total_cents, paid, balance:(st==='paid'||dead)?0:balance,
+             st, statusRaw:s.status, labels:(linesBy[s.id]||[]).join(', ') };
+  });
+  const owed = PROF_MONEY.reduce((a,r)=>a+r.balance,0);
+  const nOwe = PROF_MONEY.filter(r=>r.balance>0).length;
+  const el=document.getElementById('psOwe'), box=document.getElementById('psOweBox'), lbl=document.getElementById('psOweL');
+  if(el){ el.textContent = money(owed/100); }
+  if(box){ box.classList.toggle('due', owed>0); }
+  if(lbl){ lbl.innerHTML = 'Balance owed'+(nOwe?'<br>'+nOwe+(nOwe===1?' invoice':' invoices'):''); }
+  profRenderInvoices();
+}
+function profInvFilter(f){
+  PROF_INV_F = f;
+  document.querySelectorAll('#invxFilters .fchip').forEach(b=>b.classList.toggle('on', b.dataset.f===f));
+  profRenderInvoices();
+}
+function profRenderInvoices(){
+  const box = document.getElementById('prof-invoices'); if(!box) return;
+  let rows = PROF_MONEY;
+  if(PROF_INV_F==='paid') rows = rows.filter(r=>r.st==='paid');
+  if(PROF_INV_F==='unpaid') rows = rows.filter(r=>r.balance>0);
+  if(!rows.length){ box.innerHTML = '<div class="card pad" style="color:var(--muted);font-size:14px">No invoices'+(PROF_INV_F!=='all'?' in this filter':'')+' yet.</div>'; return; }
+  const chip = r => r.st==='paid' ? '<span class="stx paid">PAID</span>'
+    : r.st==='part' ? '<span class="stx part">PAYMENT APPLIED</span>'
+    : r.st==='unpaid' ? '<span class="stx unpaid">UNPAID</span>'
+    : '<span class="stx other">'+escHtml(String(r.statusRaw||'').toUpperCase())+'</span>';
+  box.innerHTML = '<div class="invx-scroll"><table class="invx"><thead><tr>'
+    + '<th>Date</th><th>Total</th><th>Paid</th><th>Balance</th><th>Summary</th><th>Status</th><th></th>'
+    + '</tr></thead><tbody>'
+    + rows.map(r=>'<tr>'
+      + '<td class="num">'+escHtml(fmtDate(r.date))+'</td>'
+      + '<td class="num">'+money(r.total/100)+'</td>'
+      + '<td class="num">'+money(r.paid/100)+'</td>'
+      + '<td class="num"'+(r.balance>0?' style="color:#c8102e;font-weight:700"':'')+'>'+money(r.balance/100)+'</td>'
+      + '<td class="sum">'+escHtml(r.labels||'-')+'</td>'
+      + '<td>'+chip(r)+'</td>'
+      + '<td><button class="vc" onclick="showInvoice(\''+r.id+'\',\'profile\')">View</button></td>'
+      + '</tr>').join('')
+    + '</tbody></table></div>';
+}
+
+/* Add attendance from the profile: one small sheet, one real row. */
+function profAddAttendance(){
+  const m = currentMember; if(!m) return;
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head"><div><h3>Add attendance</h3><div class="sub">'+escHtml(m.first+' '+m.last)+'</div></div>'
+    + '<button class="close" onclick="closeSheet()">×</button></div>'
+    + '<div class="sheet-body">'
+    + '<label class="ed-lbl">Class date</label><input id="paDate" class="ed-in" type="date" value="'+escAttr(attYMD())+'">'
+    + '<label class="ed-lbl">Class</label><input id="paLabel" class="ed-in" value="Class" placeholder="e.g. Little Kickers">'
+    + '<button class="tbtn" style="width:100%;margin-top:14px" onclick="profSaveAttendance()">Add</button>'
+    + '</div>';
+  openSheet();
+}
+async function profSaveAttendance(){
+  const m = currentMember; if(!m) return;
+  const date = ((document.getElementById('paDate')||{}).value||'').trim();
+  const label = ((document.getElementById('paLabel')||{}).value||'').trim() || 'Class';
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){ toast('Pick a class date'); return; }
+  const r = await sb.from('attendance').insert({ student_id: m.id, class_date: date, class_label: label });
+  if(r.error){ toast('Could not add attendance: '+(r.error.message||r.error)); return; }
+  closeSheet(); toast('Attendance added');
+  loadProfileAttendance(m.id);
+  loadProfileStats(m.id);
 }
 
 /* ── ring up: start a sale for this person, one tap ───────────────────────*/
@@ -5049,7 +5323,7 @@ async function saveContactNote(){
 async function loadProfileMemberships(contactId){
   const box = document.getElementById('prof-mems'); if(!box) return;
   const { data, error } = await sb.from('memberships')
-    .select('id,program,plan_code,status,billing_frequency,started_on,final_recurring_cents,final_down_cents,payment_count,sale_id')
+    .select('id,program,plan_code,status,billing_frequency,started_on,ended_on,final_recurring_cents,final_down_cents,payment_count,sale_id')
     .eq('contact_id', contactId)
     .order('created_at', { ascending:false });
   if(error){ console.error('profile memberships', error); box.innerHTML='<div class="card pad" style="color:var(--muted);font-size:14px">Could not load memberships.</div>'; return; }
@@ -5066,29 +5340,61 @@ async function loadProfileMemberships(contactId){
     else (ags||[]).forEach(a=>{ if(!agrBy[a.membership_id]) agrBy[a.membership_id]=a; });
   }
   PROF_AGR = agrBy;
-  let h = '<div class="card">';
+  // Card layout from the 2026-08-17 mocks: identity, price with the locked
+  // note, the REAL term (12-month auto-renew / month-to-month / session with
+  // dates), and the agreement box front and center. Terms come from the same
+  // agreement templates the documents are signed from, so the card can never
+  // describe a deal the paperwork does not.
+  let h = '';
   rows.forEach(ms=>{
     const plan = (typeof planByCode==='function' && planByCode(ms.plan_code)) || null;
     const planName = plan ? plan.name : (ms.plan_code||'-');
-    const per = ms.billing_frequency==='weekly' ? '/wk' : ms.billing_frequency==='monthly' ? '/mo' : '';
-    const sched = ms.billing_frequency==='one_time'
-      ? 'Paid in full · '+money(ms.final_recurring_cents/100)
-      : money(ms.final_recurring_cents/100)+per
-        + (ms.payment_count ? ' · '+ms.payment_count+' payments' : ' · ongoing')
-        + (ms.final_down_cents ? ' · '+money(ms.final_down_cents/100)+' down' : '');
     const st = ms.status||'active';
-    h += '<div class="mem"><div class="mem-top"><div>'
-      + '<div class="mem-name">'+escHtml(ms.program||'-')+'</div><div class="mem-plan">'+escHtml(planName)+'</div></div>'
+    const tpl = (window.BTKDAgreements && ms.program) ? window.BTKDAgreements.forProgram(ms.program) : null;
+    const term = tpl ? tpl.term : null;
+
+    const oneTime = ms.billing_frequency==='one_time';
+    let price = oneTime
+      ? '<div class="big">'+money(ms.final_recurring_cents/100)+' paid in full</div>'
+      : '<div class="big">'+money(ms.final_recurring_cents/100)+(ms.billing_frequency==='weekly'?' per week':' per month')+'</div>'
+        + (ms.final_down_cents?'<div class="sub">'+money(ms.final_down_cents/100)+' down payment</div>':'');
+    price += '<div class="sub">Price locked at signup</div>';
+
+    const terms = [];
+    if(term==='session'){
+      terms.push(ms.ended_on ? 'Session '+fmtDate(ms.started_on)+' to '+fmtDate(ms.ended_on) : 'Single session');
+      terms.push('Paid in full, does not renew');
+    } else if(term==='twelve_month'){
+      terms.push('12-month term, auto-renews');
+      terms.push(ms.billing_frequency==='weekly' ? 'Billed weekly' : 'Billed monthly');
+      if(ms.started_on) terms.push('Started '+fmtDate(ms.started_on));
+    } else if(term==='month_to_month'){
+      terms.push('Month-to-month, 30-day notice');
+      if(ms.started_on) terms.push('Started '+fmtDate(ms.started_on));
+    } else {
+      if(ms.started_on) terms.push('Started '+fmtDate(ms.started_on));
+      if(ms.ended_on) terms.push('Ends '+fmtDate(ms.ended_on));
+    }
+
+    const ag = agrBy[ms.id];
+    const agr = ag
+      ? '<div class="memx-agr"><b>✓ Agreement signed</b><br>Signed by '+escHtml(ag.signer_name||'?')
+        + (ag.signed_at?' on '+escHtml(fmtDate(String(ag.signed_at).slice(0,10))):'')
+        + '<br><button class="vc" onclick="agrView(\''+ag.id+'\')">View agreement</button></div>'
+      : '<div class="memx-agr miss"><b>⚠ No agreement on file</b><br>'
+        + '<button class="vc" onclick="agrMissing(\''+escAttr(ms.program||'')+'\')">What to do</button></div>';
+
+    h += '<div class="memx">'
+      + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">'
+      + '<div><div class="memx-name">'+escHtml(ms.program||'-')+'</div><div class="memx-plan">'+escHtml(planName)+'</div></div>'
       + '<span class="mstatus '+escAttr(st)+'">'+escHtml(st.charAt(0).toUpperCase()+st.slice(1))+'</span></div>'
-      + '<div class="mem-pay"><span class="due">'+escHtml(sched)+(ms.started_on?' · since '+escHtml(fmtDate(ms.started_on)):'')+'</span></div>'
-      + '<div class="mem-foot">'
-      + (ms.sale_id ? '<button class="vc" onclick="showInvoice(\''+ms.sale_id+'\',\'profile\')">View invoice</button>' : '<span></span>')
-      + (agrBy[ms.id]
-          ? '<button class="vc" onclick="agrView(\''+agrBy[ms.id].id+'\')">View agreement</button>'
-          : '<button class="vc" style="color:var(--warn)" onclick="agrMissing(\''+escAttr(ms.program||'')+'\')">⚠ No agreement</button>')
-      + '</div></div>';
+      + '<div class="memx-price">'+price+'</div>'
+      + '<div class="memx-terms">'+terms.map(t=>'<div>'+escHtml(t)+'</div>').join('')+'</div>'
+      + agr
+      + (ms.sale_id?'<div><button class="vc" onclick="showInvoice(\''+ms.sale_id+'\',\'profile\')">View invoice</button></div>':'')
+      + '</div>';
   });
-  h += '</div>';
+  h += '<div class="ccg-sub" style="margin-top:2px">Agreement status is required for all memberships.</div>';
   box.innerHTML = h;
 }
 let PROF_AGR = {};
@@ -5142,36 +5448,7 @@ function agrMissing(program){
   toast('No signed agreement on file'+(program?' for '+program:'')+' - sell or re-ring the membership to capture one');
 }
 
-/* The profile's Account card: real invoices for sales where this contact is
- * the buyer. Balance owed = the sum of their unpaid invoices. Ledger-era
- * only - Spark history predates the ledger and is not represented. */
-async function loadProfileLedger(contactId){
-  const box = document.getElementById('prof-ledger'); if(!box) return;
-  const { data, error } = await sb.from('pos_sales')
-    .select('id,sale_date,status,total_cents,tender_method')
-    .eq('buyer_contact_id', contactId)
-    .order('created_at', { ascending:false })
-    .limit(25);
-  if(error){ console.error('profile ledger', error); box.innerHTML='<div class="inv-empty" style="padding:16px">Could not load invoices.</div>'; return; }
-  const rows = data||[];
-  const owed = rows.filter(r=>r.status==='unpaid').reduce((a,r)=>a+r.total_cents,0);
-  let h = '<div class="bal"><span class="bl">Balance owed</span><span class="bv num"'+(owed?' style="color:#c8102e"':'')+'>'+money(owed/100)+'</span></div>';
-  // Card on file: saved to their Stripe customer at any card payment. Staff
-  // charge it; the customer never manages it (owner's locked model).
-  if(currentMember && currentMember.id===contactId && currentMember.stripeCustomer){
-    h += '<div class="bal"><span class="bl">Card on file</span><span class="bv" style="color:#18A974;font-weight:700">Saved · Stripe</span></div>';
-  }
-  if(rows.length){
-    rows.slice(0,5).forEach(r=>{
-      h += '<div class="inv" style="cursor:pointer" onclick="showInvoice(\''+r.id+'\',\'profile\')"><div class="id">'+escHtml(r.id.slice(0,8).toUpperCase())+'<small>'+escHtml(fmtDate(r.sale_date))+(r.tender_method?' · '+escHtml(r.tender_method):'')+'</small></div>'
-        + '<div class="ia">'+money(r.total_cents/100)+'<div class="st '+(r.status==='paid'?'paid':'over')+'">'+(r.status==='paid'?'Paid':r.status==='unpaid'?'Unpaid':escHtml(r.status))+'</div></div></div>';
-    });
-    if(rows.length>5) h += '<div class="linkrow" onclick="toast(\'Full history view comes with the payments build\')">'+rows.length+' invoices - showing 5</div>';
-  } else {
-    h += '<div class="inv"><div class="id" style="color:var(--muted)">No invoices yet - ledger sales appear here.</div></div>';
-  }
-  box.innerHTML = h;
-}
+
 function kv(k,v){ return '<div class="kv"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>'; }
 function acc(title, body){ return '<details class="acc"><summary>'+title+'<span class="chev">⌄</span></summary><div class="ab">'+body+'</div></details>'; }
 let PROF_ATT_WIN='cycle';
