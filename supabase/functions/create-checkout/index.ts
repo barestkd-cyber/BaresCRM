@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
     );
 
     const saleRes = await admin.from("pos_sales")
-      .select("id,status,brand,total_cents,sale_date,buyer_contact_id")
+      .select("id,status,brand,total_cents,sale_date,buyer_contact_id,stripe_customer_id")
       .eq("view_token", token).single();
     if (saleRes.error || !saleRes.data) return json({ error: "Invoice not found" }, 404, h);
     const s = saleRes.data;
@@ -122,6 +122,33 @@ Deno.serve(async (req) => {
       };
 
       if (action === "intent") {
+        // Attach a Stripe customer and keep the card, same as the desk path
+        // (pos-charge). Without this, a down payment collected by emailed
+        // link left NO card on file, and the whole point of a membership
+        // down payment is being able to charge the rest later. Walk-ins with
+        // no contact attached still pay fine; there is just nobody to save
+        // the card against.
+        let customerId = (s.stripe_customer_id as string | null) ?? null;
+        if (!customerId && s.buyer_contact_id) {
+          const c = await admin.from("contacts")
+            .select("first_name,last_name,email,phone,stripe_customer_id")
+            .eq("id", s.buyer_contact_id).maybeSingle();
+          customerId = c.data?.stripe_customer_id ?? null;
+          if (!customerId) {
+            const cf = new URLSearchParams();
+            const nm = [c.data?.first_name, c.data?.last_name].filter(Boolean).join(" ");
+            if (nm) cf.set("name", nm);
+            if (c.data?.email) cf.set("email", String(c.data.email));
+            if (c.data?.phone) cf.set("phone", String(c.data.phone));
+            cf.set("metadata[contact_id]", String(s.buyer_contact_id));
+            const cust = await stripeApi("customers", cf);
+            customerId = cust.id;
+            await admin.from("contacts").update({ stripe_customer_id: customerId })
+              .eq("id", s.buyer_contact_id);
+          }
+          await admin.from("pos_sales").update({ stripe_customer_id: customerId }).eq("id", s.id);
+        }
+
         const f = new URLSearchParams();
         f.set("amount", String(balance));
         f.set("currency", "usd");
@@ -130,6 +157,10 @@ Deno.serve(async (req) => {
         f.set("metadata[sale_id]", s.id);
         f.set("metadata[source]", "invoice-page");
         if (email) f.set("receipt_email", email);
+        if (customerId) {
+          f.set("customer", customerId);
+          f.set("setup_future_usage", "off_session");
+        }
         const pi = await stripeApi("payment_intents", f);
         await admin.from("pos_sales").update({ stripe_payment_intent: pi.id }).eq("id", s.id);
         return json({ client_secret: pi.client_secret, payment_intent_id: pi.id, amount_cents: balance }, 200, h);
