@@ -342,6 +342,14 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .pm-carderr{display:none;color:var(--accent);font-size:13px;margin-top:7px;font-weight:600}
 .pm-testnote{margin-top:8px;font-size:12.5px;color:var(--muted);background:var(--surface);border-radius:8px;padding:8px 10px}
 
+/* ---------- idle logout warning ---------- */
+.idle-warn{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:9999;
+  background:var(--ink);color:#fff;border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:14px;
+  box-shadow:0 8px 30px rgba(0,0,0,.28);font-size:14px;max-width:calc(100vw - 32px)}
+.idle-warn b{white-space:nowrap}
+.idle-warn button{background:#fff;color:var(--ink);border:none;border-radius:8px;padding:9px 16px;
+  font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;flex-shrink:0}
+
 /* ---------- checkout-email notice on an invoice ---------- */
 .iv-emailbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;padding:10px 13px;border-radius:12px;background:#EFF6FF;border:1px solid #BFDBFE;color:#1E3A8A;font-size:13.5px}
 .iv-emailbar.warn{background:#FFF7ED;border-color:#FED7AA;color:#7C2D12}
@@ -355,7 +363,7 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .agr-chip.need{background:#EFF6FF;border-color:#BFDBFE;color:#1D4ED8}
 .agr-chip.warn{background:#FFF7ED;border-color:#FED7AA;color:#B45309}
 /* The document itself. Deliberately paper-like: serif, generous measure,
-   black on white in every theme — this is a legal instrument, not chrome. */
+   black on white in every theme - this is a legal instrument, not chrome. */
 .agr-scroll{max-height:46vh;overflow-y:auto;border:1px solid var(--line);border-radius:12px;background:#fff;padding:18px 20px;-webkit-overflow-scrolling:touch}
 .agr-doc{font-family:'Times New Roman',Times,serif;color:#111;font-size:13px;line-height:1.5}
 .agr-hd{text-align:center;margin-bottom:14px}
@@ -621,7 +629,7 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .spk-foot .spk-cancel{background:var(--card);border-color:#BFC6CF}
 .spk-foot .spk-cancel:hover{background:#EEF1F4}
 
-/* invoice detail — mobile-first, per owner mockup 2026-08-15 */
+/* invoice detail - mobile-first, per owner mockup 2026-08-15 */
 .iv-wrap{max-width:620px;margin:0 auto}
 .iv-card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:14px}
 .iv-brandrow{display:flex;gap:14px;align-items:center;padding:16px 16px 12px}
@@ -714,11 +722,11 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
    150px of a ~340px card, which pushed TAX off the screen edge. Tight padding
    here, and the row rule lives on the ROW so it is one clean line instead of
    six cell borders that can look ragged when a cell wraps. */
-/* Items table. Phone-first: only the ITEM cell may wrap — headers and money
+/* Items table. Phone-first: only the ITEM cell may wrap - headers and money
    never do (too-tight columns previously stacked "QTY" as Q/T/Y and split
    "$60.00" into "$60.0" + "0"). The row rule lives on the ROW so it draws as
    one clean line however the item wraps. */
-/* Columns size themselves to their content instead of me guessing pixels —
+/* Columns size themselves to their content instead of me guessing pixels -
    width:1% + nowrap is the shrink-to-fit idiom, and ITEM (width:auto) soaks
    up whatever is left. Fixed pixel widths kept coming up a few px short and
    spilling headers into their neighbour ("QTYITEM", "$242.50$20.01"). */
@@ -788,6 +796,10 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
   <div style="width:90%;max-width:360px;background:#161920;border:1px solid #252830;border-top:3px solid #c9920a;border-radius:10px;padding:32px 24px;">
     <img src="assets/img/logo-reverse.png" alt="Bares Taekwondo Fitness" style="width:172px;display:block;margin:0 auto 14px;" onerror="this.style.display='none'">
     <div style="font-size:0.72rem;color:#888;text-align:center;letter-spacing:2px;text-transform:uppercase;margin-bottom:24px;font-family:system-ui,sans-serif;">Office CRM</div>
+    <!-- Explains an unexpected sign-out instead of leaving staff wondering. -->
+    <div id="crm-idle-note" style="display:none;background:#1d2029;border:1px solid #2f3340;border-radius:8px;padding:11px 13px;margin-bottom:18px;color:#b9bec9;font-size:0.78rem;line-height:1.55;font-family:system-ui,sans-serif;">
+      You were signed out after 30 minutes of inactivity. Sign back in to continue.
+    </div>
     <div style="margin-bottom:12px;">
       <label style="display:block;font-size:0.65rem;letter-spacing:1.5px;text-transform:uppercase;color:#888;margin-bottom:6px;font-family:system-ui,sans-serif;">Email</label>
       <input type="email" id="crm-email" placeholder="your@email.com" style="width:100%;background:#111;border:1px solid #333;color:white;padding:10px 12px;border-radius:6px;font-size:0.9rem;outline:none;box-sizing:border-box;">
@@ -862,7 +874,7 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
           <span class="search-ico">⌕</span>
           <input class="search" id="search" placeholder="Search members" autocomplete="off" oninput="renderList()">
         </div>
-        <div class="list-head"><span class="lh-title" id="lhTitle">All members</span><span class="lh-clear" id="lhClear" style="display:none" onclick="clearFilter()" title="Only resets the search/filter — never deletes anything">Clear filter ✕</span></div>
+        <div class="list-head"><span class="lh-title" id="lhTitle">All members</span><span class="lh-clear" id="lhClear" style="display:none" onclick="clearFilter()" title="Only resets the search/filter - never deletes anything">Clear filter ✕</span></div>
         <div class="lthead"><span>Member</span><span>Belt / rank</span><span>Plan</span><span>Last visit</span><span>Phone</span><span class="lt-r">Status</span></div>
         <div class="mlist" id="mlist"></div>
         <div class="proto-note">Prototype · mock data · resets on reload. Click a member to open their profile.</div>
@@ -1121,7 +1133,7 @@ async function attSave(){
   if(!cls){ toast('No class selected for this day'); return; }
   const date=document.getElementById('att-date').value||attYMD();
   let me='staff'; try{ const s=await BTKD.getSession(); me=(s&&s.user&&s.user.email)||'staff'; }catch(e){}
-  // program column is text — forms/sparring classes gate on several programs,
+  // program column is text - forms/sparring classes gate on several programs,
   // store the first as the row's program.
   const prog=Array.isArray(cls.program)?cls.program[0]:cls.program;
   const adds=[...ATT_PRESENT].filter(id=>!ATT_SAVED.has(id)).map(id=>({student_id:id,class_label:cls.label,program:prog,class_date:date,status:'confirmed',source:'staff',recorded_by:me}));
@@ -1234,11 +1246,11 @@ function renderList(){
       : '<span class="seg '+segClass+'">'+m.segment+'</span>';
     const beltCell = m.belt
       ? '<span class="belt-bar" style="background:'+beltC+'"></span>'+m.rank
-      : '<span class="c-dash">'+(m.phase||'—')+'</span>';
-    const planCell = m.memberships.length ? m.memberships[0].plan : '<span class="c-dash">—</span>';
+      : '<span class="c-dash">'+(m.phase||'-')+'</span>';
+    const planCell = m.memberships.length ? m.memberships[0].plan : '<span class="c-dash">-</span>';
     const visitRisk = m.segment==="Active" && m.daysSince!=null && m.daysSince>=14;
-    const visitCell = m.visitLabel ? m.visitLabel : '<span class="c-dash">—</span>';
-    const phoneCell = m.phones.length ? m.phones[0][1] : '<span class="c-dash">—</span>';
+    const visitCell = m.visitLabel ? m.visitLabel : '<span class="c-dash">-</span>';
+    const phoneCell = m.phones.length ? m.phones[0][1] : '<span class="c-dash">-</span>';
     return '<button class="mrow'+(m.id===selectedId?' sel':'')+'" onclick="openProfile(\''+m.id+'\')">'
       + '<div class="c-name">'
         + '<div class="av" style="background:'+beltC+'">'+ring+'<span style="color:'+(m.belt==="White"||m.belt==="Yellow"?"#15171C":"#fff")+'">'+initials(m)+'</span></div>'
@@ -1330,7 +1342,7 @@ function renderDashboard(){
 }
 
 /* Expiring-memberships tile: ACTIVE memberships with an end date inside the
- * next 30 days. Expiry is a BILLING fact only — it never touches the person's
+ * next 30 days. Expiry is a BILLING fact only - it never touches the person's
  * standing as a contact/active member (locked principle, Race 2026-08-13). */
 async function dashLoadExpiring(){
   const nEl = document.getElementById('dash-exp-n');
@@ -1347,7 +1359,7 @@ async function dashLoadExpiring(){
   if(dEl) dEl.textContent = n ? 'next 30 days' : 'none in 30 days';
 }
 
-/* "Who expires next?" — every dated active membership, soonest first, so Race
+/* "Who expires next?" - every dated active membership, soonest first, so Race
  * can page through upcoming renewals month by month. */
 async function posExpiringSheet(){
   $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Expiring memberships</h3><button class="close" onclick="closeSheet()">×</button></div>'
@@ -1373,7 +1385,7 @@ async function posExpiringSheet(){
       +'<div style="text-align:right"><div style="font-weight:700;font-size:13px">'+escHtml(fmtDate(r.ended_on))+'</div>'
       +'<div style="font-size:11px;color:'+(days<=7?'#c8102e':'var(--muted)')+'">'+(days===0?'today':days+' day'+(days>1?'s':''))+'</div></div></div>';
   });
-  h+='<div class="ck-hint" style="margin-top:10px">Expiry is billing only — it never changes someone\'s standing as a contact. Renewal notices (month-ahead) are designed and queued for the Stripe recurring phase.</div>';
+  h+='<div class="ck-hint" style="margin-top:10px">Expiry is billing only - it never changes someone\'s standing as a contact. Renewal notices (month-ahead) are designed and queued for the Stripe recurring phase.</div>';
   $("#sheet .sheet-body").innerHTML=h;
 }
 
@@ -1440,10 +1452,10 @@ function planLine(pl){
   if(pl.monthly>0 && pl.months>0) return (pl.down>0?(money(pl.down)+" down + "):"")+money(pl.monthly)+"/mo × "+pl.months;
   if(pl.monthly>0 && pl.months===0) return money(pl.monthly)+"/mo · ongoing";
   if(pl.monthly===0 && pl.down>0) return money(pl.down)+" · paid in full";
-  return "—";
+  return "-";
 }
 /* Superseded by the real Memberships section (household pricing) further down.
-   Kept for reference only — nothing calls it. */
+   Kept for reference only - nothing calls it. */
 // The seven sales buckets, in pitch order. `program` on pricing_plans rows
 // decides which card a row lands on; rows with sellable=false are the
 // engine's rate table and render as muted rate lines, never as products.
@@ -1471,11 +1483,11 @@ async function renderMemberships(){
   if(PLAN_ROWS.some(p => p.category==='core_tkd' && !p.program)){
     html += '<div class="ag-empty">Catalog not split by program yet. Run <strong>sql/membership-programs.sql</strong> once in the Supabase SQL editor, then reload.</div>';
   }
-  const planLineHtml = p => '<div class="plan-line"><span class="pl-name">'+escHtml(p.name.replace(/^.*—\s*/,''))
+  const planLineHtml = p => '<div class="plan-line"><span class="pl-name">'+escHtml(p.name.replace(/^.*-\s*/,''))
     + (p.promo_label ? ' <span style="color:var(--go);font-size:12px;font-weight:700">'+escHtml(p.promo_label)+'</span>' : '')
     + (p.active ? '' : ' <span style="color:var(--muted);font-size:11px;font-weight:700">(off)</span>')
     + '</span><span class="pl-terms">'+mbPlanTerms(p)+'</span></div>';
-  const rateLineHtml = p => '<div class="plan-line" style="opacity:.62"><span class="pl-name" style="font-weight:400">'+escHtml(p.name.replace(/^.*—\s*/,''))
+  const rateLineHtml = p => '<div class="plan-line" style="opacity:.62"><span class="pl-name" style="font-weight:400">'+escHtml(p.name.replace(/^.*-\s*/,''))
     + ' <span style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700">rate</span>'
     + '</span><span class="pl-terms">'+mbPlanTerms(p)+'</span></div>';
   const used = new Set();
@@ -1503,7 +1515,7 @@ async function renderMemberships(){
 }
 function mbPlanTerms(p){
   const d = c => money((c||0)/100);
-  if(p.billing_frequency==='one_time') return p.pif_cents!=null ? d(p.pif_cents)+' · paid in full' : '—';
+  if(p.billing_frequency==='one_time') return p.pif_cents!=null ? d(p.pif_cents)+' · paid in full' : '-';
   if(p.billing_frequency==='weekly')   return d(p.recurring_cents)+'/wk';
   let t = (p.down_cents>0 ? d(p.down_cents)+' down + ' : '') + d(p.recurring_cents)+'/mo';
   if(p.payment_count) t += ' × '+p.payment_count;
@@ -1549,7 +1561,7 @@ function saveProgram(){
   const name = ($("#pg-name").value||"").trim();
   if(!name){ toast("Give the program a name"); return; }
   editProgram.name = name;
-  editProgram.ages = ($("#pg-ages").value||"").trim() || "—";
+  editProgram.ages = ($("#pg-ages").value||"").trim() || "-";
   editProgram.plans = editPlans;
   if(!PROGRAMS.includes(editProgram)) PROGRAMS.push(editProgram);
   closeSheet();
@@ -1696,8 +1708,8 @@ function cpRender(){
       +'<div class="frow"><div class="fld"><label>Email</label><input placeholder="you@email.com"></div><div class="fld"><label>Phone</label><input placeholder="(903) 555-0000"></div></div></div>';
   }
   // No card fields here, mock or otherwise: payment happens on Stripe-hosted
-  // checkout when the payments build lands. A card form in our page — even a
-  // fake one — is the one thing this app must never grow.
+  // checkout when the payments build lands. A card form in our page - even a
+  // fake one - is the one thing this app must never grow.
   html+='<div class="summary" id="cpSummary"></div></div></div>';
   $("#view-checkoutpub").innerHTML=html;
   cpRecompute();
@@ -1744,7 +1756,7 @@ function cpPay(){
     const pl=it.plans[cp.planIdx];
     const rec = pl.monthly>0 ? (pl.months>0 ? ((pl.months-1)+" monthly payments of "+money(pl.monthly)+" remain") : (money(pl.monthly)+"/mo continues")) : "you're paid in full";
     head="You're a member"; sys="Added to your member list";
-    msg="Enrollment in "+it.name+" on the "+pl.name+" plan is confirmed — "+rec+"."+(it.uniform&&cp.addon?" Uniform ready at first class.":"");
+    msg="Enrollment in "+it.name+" on the "+pl.name+" plan is confirmed - "+rec+"."+(it.uniform&&cp.addon?" Uniform ready at first class.":"");
   } else if(cpKind==="testing"){
     head="You're signed up"; sys="Added to the testing sheet";
     msg="Your student is registered for "+it.title+" on "+it.date+". They'll show up automatically when the judge sheets are built.";
@@ -1841,7 +1853,7 @@ function cpBookTrial(){
   const nm={id:"m"+Date.now(), first:parts[0]||name, last:parts.slice(1).join(" ")||"", segment:"Trial",
     belt:"", rank:"", rankDate:"", since:"", entered:dstr, age:age, gender:"", guardians:guard?[[guard,"Guardian"]]:[], phones:phone?[["Mobile",phone]]:[], emails:email?[email]:[], address:"",
     app:false, phase:"Free Trial", source:"Trial page", beltSize:"", kickSize:"", tags:["trial-booked"], attended:0, daysSince:null, testing:false, balance:0,
-    memberships:[{program:"Free Trial", plan:"1 week trial", status:"trial", nextDue:"—", overdue:0, contract:false, down:0, monthly:0, total:null, remaining:null, trial:true}],
+    memberships:[{program:"Free Trial", plan:"1 week trial", status:"trial", nextDue:"-", overdue:0, contract:false, down:0, monthly:0, total:null, remaining:null, trial:true}],
     invoices:[], notes:[[dstr,"Self-booked free trial"+(prog?" · interested in "+prog:"")+". First class "+s.label+" "+s.time+" ("+s.name+")."]]};
   MEMBERS.push(nm);
   CAL.push({id:"c"+Date.now(), type:"trial", title:"Trial · "+name, date:dstr, time:s.time, memberId:nm.id});
@@ -1896,7 +1908,7 @@ function cpRemoveParticipant(eid,mid){
 }
 
 /* ========== POS (memberships price from pricing_plans + BTKDPricing) ========== */
-/* Hardcoded fallback only — bootCrm() swaps in live `products` rows. A read
+/* Hardcoded fallback only - bootCrm() swaps in live `products` rows. A read
    failure keeps the fallback so the POS still sells, loudly in the console. */
 let PRODUCTS = [
   {id:"pr1", label:"Beginner uniform", amount:82.25},
@@ -1922,14 +1934,14 @@ async function loadEvents(){
 }
 async function loadProducts(){
   const { data, error } = await sb.from('products').select('*').eq('active', true).order('display_order');
-  if(error){ console.error('products load — POS is on the hardcoded fallback list', error); return; }
+  if(error){ console.error('products load - POS is on the hardcoded fallback list', error); return; }
   if(data && data.length){
     PRODUCTS = data.map(p=>({ id:p.id, dbId:p.id, label:p.name, amount:p.price_cents/100, taxable:p.taxable!==false }));
     if(document.querySelector('#view-pos .bld')) renderPOS(); // repaint if POS is on screen
   }
 }
 /* Receipt identity. The legal entity is always safe to print; the DBAs are
- * PENDING state filings — until Race flips `effective`, receipts print the
+ * PENDING state filings - until Race flips `effective`, receipts print the
  * LLC name instead of an unregistered assumed name. */
 const LEGAL_ENTITY = 'Grizzly Martial Arts & Fitness LLC';
 const RECEIPT_BRANDS = [
@@ -1949,7 +1961,7 @@ let posSale = posBlank();
 
 /* ─── staff directory ────────────────────────────────────────────────────────
  * Real names from `profiles` (email + name), POS-capable = passes is_staff()
- * (role admin/instructor or a staff_role) — no finer POS permission exists
+ * (role admin/instructor or a staff_role) - no finer POS permission exists
  * yet. STAFF_DIR maps login email → display name so "Created by" on invoices
  * and receipts reads "Race Bares", never a raw email; the picker lists every
  * POS-capable profile. staff_email on the sale stays the LOGIN (audit truth);
@@ -1971,7 +1983,7 @@ async function loadStaffDir(){
   if(!posSale.staff) posSale.staff = myStaffName();
 }
 function myStaffName(){ return (CURRENT_STAFF_EMAIL && STAFF_DIR[CURRENT_STAFF_EMAIL.toLowerCase()]) || CURRENT_STAFF_EMAIL || ''; }
-function staffDisplay(email){ return (email && STAFF_DIR[String(email).toLowerCase()]) || email || '—'; }
+function staffDisplay(email){ return (email && STAFF_DIR[String(email).toLowerCase()]) || email || '-'; }
 function posStaffList(){
   if(STAFF_LIST.length) return STAFF_LIST;
   return myStaffName() ? [myStaffName()] : ['Staff'];
@@ -1979,7 +1991,7 @@ function posStaffList(){
 function posBuyerName(){ if(!posSale.memberId) return "Walk-in / new buyer"; const m=MEMBERS.find(x=>x.id===posSale.memberId); return m? (m.first+" "+m.last) : "Walk-in / new buyer"; }
 function renderPOS(){
   // Fee-by-default (owner 2026-08-15): every invoice carries the admin fee as
-  // built — card-inclusive pricing is the quoted price. Cash/Check offer to
+  // built - card-inclusive pricing is the quoted price. Cash/Check offer to
   // remove it at tender. Manual edits via the ＋ Admin fee sheet stop the
   // auto-tracking for that invoice.
   if(!posSale.adminFeeManual && !posSale.adminFeeSuppressed && CATALOG_LOADED) posSale.adminFeeCents = posSuggestedAdminFeeCents();
@@ -1990,7 +2002,7 @@ function renderPOS(){
   html+='<div class="pos-search-wrap"><span class="search-ico">⌕</span><input class="search pos-search" placeholder="Search contacts, products or \'*\' for top 40..." oninput="posSearch(this.value)"></div>';
   html+='<div id="posResults" class="pos-results"></div>';
   html+='<div class="inv-add" style="margin-top:10px"><button onclick="posAddMembership()">＋ Membership</button><button onclick="posAddEvent()">＋ Event</button></div>';
-  // Both forms render; the stylesheet picks one — dropdown on phones, big tap
+  // Both forms render; the stylesheet picks one - dropdown on phones, big tap
   // targets on desktop (owner call 2026-08-15).
   html+='<div class="pos-sec-lbl">Quick List Products</div>';
   html+='<div class="pos-prodsel"><select onchange="if(this.value){posAddProdLine(this.value);this.selectedIndex=0;}">'
@@ -2020,7 +2032,7 @@ function renderPOS(){
       if(l.discVal) meta.push("Discount "+(l.discType==="amt"?money(l.discVal)+" ea":l.discVal+"% off"));
       if(l.orderIt) meta.push("Order it");
       const sub=meta.length?'<div style="font-size:12px;color:var(--muted)">'+meta.join(" · ")+'</div>':"";
-      // Agreement state rides under every membership line — signed, or a
+      // Agreement state rides under every membership line - signed, or a
       // one-tap way to fix that before the money is taken.
       let agr='';
       if(l.kind==="mem"){
@@ -2029,7 +2041,7 @@ function renderPOS(){
         } else {
           const r=agrResolve(l);
           agr = r.reason
-            ? '<div class="agr-chip warn" onclick="event.stopPropagation();agrShowBlockedFor('+i+')">⚠ No agreement available — tap</div>'
+            ? '<div class="agr-chip warn" onclick="event.stopPropagation();agrShowBlockedFor('+i+')">⚠ No agreement available - tap</div>'
             : '<div class="agr-chip need" onclick="event.stopPropagation();agrOpenSign('+i+')">✍ Sign agreement</div>';
         }
       }
@@ -2047,7 +2059,7 @@ function renderPOS(){
   html+='<textarea class="inv-notes" placeholder="Invoice notes..." oninput="posSale.notes=this.value">'+(s.notes||"")+'</textarea>';
   if(s.lines.length) html+='<div class="tenders" style="margin-top:11px"><button class="tbtn" onclick="posPayOpen({mode:\'sale\'})">Add payment</button><button class="tbtn" style="background:var(--ink)" onclick="posTender(\'Unpaid\')">Save unpaid</button></div>';
   html+='</div></div>';
-  html+='<div class="proto-note">Every sale writes the pos_sales ledger (see Today\'s drawer). Memberships price live from pricing_plans and save frozen snapshots; products come from the products table. Invoice math is integer cents; discounts reduce the sales-tax base (accountant to confirm). Events are still a local list. Card/ACH arrive with the Stripe build — the fee model is with the attorney.</div></div>';
+  html+='<div class="proto-note">Every sale writes the pos_sales ledger (see Today\'s drawer). Memberships price live from pricing_plans and save frozen snapshots; products come from the products table. Invoice math is integer cents; discounts reduce the sales-tax base (accountant to confirm). Events are still a local list. Card/ACH arrive with the Stripe build - the fee model is with the attorney.</div></div>';
   $("#view-pos").innerHTML=html;
 }
 function posPickBuyer(){
@@ -2073,7 +2085,7 @@ function posSetBuyer(id){ posSale.memberId=id; closeSheet(); renderPOS(); }
 /* Profile-first entrance: "+ Membership" on a member's own profile opens POS
    with that person already the student, so the very first quote is their
    real household rate. "Sold to" defaults to them too (only if not already
-   set) purely for invoice convenience — the two remain independent fields. */
+   set) purely for invoice convenience - the two remain independent fields. */
 function posOpenMembershipFor(id){
   if(!MEMBERS.find(x=>x.id===id)) return;
   if(!posSale.memberId) posSale.memberId = id;
@@ -2082,14 +2094,14 @@ function posOpenMembershipFor(id){
 }
 
 /* ─── Membership sale: live catalog + pricing engine ─────────────────────────
- * POS sells the actual PROGRAM. Which RATE applies — add-on vs standalone,
- * family position, weekly bundle, household discount — is decided by
+ * POS sells the actual PROGRAM. Which RATE applies - add-on vs standalone,
+ * family position, weekly bundle, household discount - is decided by
  * BTKDPricing, never by the seller. Rows with sellable=false are the engine's
  * rate table and are never pitched as products.
  *
  * Two entrances into the same flow:
  *   - Catalog-first: staff browse/select a plan before anyone is attached.
- *     The quote shown is the BASE/PUBLIC rate — no household, no discounts,
+ *     The quote shown is the BASE/PUBLIC rate - no household, no discounts,
  *     nothing invented. The line can be added to the invoice in that state;
  *     it just can't be sold until a member is attached (see posTender).
  *   - Profile-first: posOpenMembershipFor(id) opens this same flow with the
@@ -2097,22 +2109,22 @@ function posOpenMembershipFor(id){
  *     the start.
  * Both converge on the same posQuote / posAddMemLine / posTender machinery.
  *
- * Terminology — do not conflate these:
+ * Terminology - do not conflate these:
  *   MEMBER   = who receives the membership + enrollment (per membership line,
  *              `line.studentId`). MUST be a real CRM contact before the sale
- *              is tendered — a membership snapshot and enrollment have to
- *              belong to someone — but NOT before browsing/selecting.
- *   "Sold to" (posSale.memberId) = the pre-existing, invoice-wide concept —
+ *              is tendered - a membership snapshot and enrollment have to
+ *              belong to someone - but NOT before browsing/selecting.
+ *   "Sold to" (posSale.memberId) = the pre-existing, invoice-wide concept -
  *              who the invoice is for. Walk-in is a legitimate end state
  *              here: drop-ins, gear, event fees and other one-time items
  *              sell fine without ever creating a contact.
- *   payer/guardian are not modeled as separate fields yet — out of scope
+ *   payer/guardian are not modeled as separate fields yet - out of scope
  *   for this phase (no Stripe, no guardian-linkage UI). A parent paying for
  *   a child's membership is exactly why these stay separate.
  *
  * STATE RULE: the ONLY implicit default for a new membership line's member is
  * the current "Sold to" contact, read at the moment the picker opens. There is
- * deliberately no memory of previously attached people — switching "Sold to"
+ * deliberately no memory of previously attached people - switching "Sold to"
  * to walk-in therefore clears the default, and a later membership cannot
  * silently inherit whoever was attached before. Lines already on the invoice
  * keep their own member and never retarget.
@@ -2143,7 +2155,7 @@ function posQuote(code, ctx){
 /* Due today = down payment + first payment; a paid-in-full plan is simply its
    full amount. An override replaces the engine's numbers, not the shape. */
 /* Delegates to the engine so POS, tests and (later) the server agree on what
-   "due today" means — including the down payment on one_time plans. */
+   "due today" means - including the down payment on one_time plans. */
 function posMemDueCents(calc, override){ return BTKDPricing.dueTodayCents(calc, override); }
 function posMemLineDueCents(l){ return posMemDueCents(l.calc, l.override); }
 function posMemRecurringNote(calc, override){
@@ -2170,13 +2182,13 @@ function posProgramBuckets(){
   return buckets;
 }
 
-/* Entrance to the membership picker. Always opens — never blocks on having a
+/* Entrance to the membership picker. Always opens - never blocks on having a
    member. Pass studentId explicitly (profile-first: a real id; catalog-first
    "back" navigation: null to stay anonymous) to pin the flow's member; omit
    it to fall back to the "Sold to" contact (see STATE RULE above). */
 async function posAddMembership(studentId){
   // Default member = the current "Sold to" contact and nothing else. Walk-in
-  // ("Sold to" null) deliberately yields no default — see STATE RULE above.
+  // ("Sold to" null) deliberately yields no default - see STATE RULE above.
   POS_ADD = { studentId: studentId!==undefined ? studentId : (posSale.memberId || null) };
   $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Add membership</h3><button class="close" onclick="closeSheet()">×</button></div>'
     +'<div class="sheet-body"><div class="inv-empty" style="padding:18px">Loading catalog…</div></div>';
@@ -2205,7 +2217,7 @@ function posPickProgram(key){
   const sid = POS_ADD.studentId;
   const ctx = sid ? (POS_STUDENT_CTX[sid] || POS_ANON_CTX) : POS_ANON_CTX;
   const banner = sid ? '' :
-    '<div class="ck-hint" style="margin-bottom:11px">Base rate shown — no member attached yet. Family, member and household rates apply once you attach one.</div>';
+    '<div class="ck-hint" style="margin-bottom:11px">Base rate shown - no member attached yet. Family, member and household rates apply once you attach one.</div>';
   const body = banner + '<button class="addopt" onclick="openPacket(\'pricing\')">View pricing packet ↗</button>'
     + b.rows.map(p=>{
       const c = posQuote(p.code, ctx);
@@ -2214,7 +2226,7 @@ function posPickProgram(key){
         ? '<div style="font-size:11.5px;color:var(--go);margin-top:2px">'+escHtml(c.substitutionNote)+'</div>' : '';
       return '<button class="opt-btn"'
         + (c.eligible ? ' onclick="posAddMemLine(\''+escAttr(p.code)+'\')"' : ' disabled style="opacity:.5;cursor:default"')
-        + '><div style="flex:1"><div style="font-weight:700">'+escHtml(p.name.replace(/^.*—\s*/,''))+'</div>'
+        + '><div style="flex:1"><div style="font-weight:700">'+escHtml(p.name.replace(/^.*-\s*/,''))+'</div>'
         + '<div style="font-size:12.5px;color:var(--muted)">'+escHtml(sub)+'</div>'+swap+'</div>'
         + (c.eligible ? '<div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(posMemDueCents(c,null)/100)+'</div>' : '')
         + '</button>';
@@ -2329,7 +2341,7 @@ function posMemRosterPrograms(l){
 /* ========== membership agreements ==========================================
  * One complete standalone agreement per program (owner decision 2026-08-14).
  * The templates live in agreements.js, generated verbatim from the six FINAL
- * .docx documents — this file never authors legal prose, it only fills the
+ * .docx documents - this file never authors legal prose, it only fills the
  * money and the names, then freezes the result with the signature.
  *
  * ORDER MATTERS: the agreement is signed BEFORE the card is charged, because
@@ -2341,16 +2353,16 @@ function posMemRosterPrograms(l){
 /* Which document applies, or why none does. Returning a reason instead of
  * guessing is deliberate: a wrong contract is worse than no contract. */
 function agrResolve(line){
-  if(!window.BTKDAgreements) return { reason:'Agreement templates did not load — reload the page.' };
+  if(!window.BTKDAgreements) return { reason:'Agreement templates did not load - reload the page.' };
   const c = line.calc||{}, program = line.program || c.program || '';
   const tpl = BTKDAgreements.forProgram(program);
   if(!tpl){
     return { reason:'No approved agreement exists for '+(program||'this program')+' yet. '
       + (program==='Kickboxing + Jiu Jitsu'
-          ? 'The bundle needs its own document — Kickboxing and Jiu Jitsu each have one, the combined deal does not.'
+          ? 'The bundle needs its own document - Kickboxing and Jiu Jitsu each have one, the combined deal does not.'
           : 'Ask Dustin for one before selling it under contract.') };
   }
-  // Weekly IS a twelve-month agreement (owner, 2026-08-15) — it is just billed
+  // Weekly IS a twelve-month agreement (owner, 2026-08-15) - it is just billed
   // weekly with no down payment. The catalog's old "no contract" wording was
   // the thing that was wrong, not the pairing.
   return { template: tpl };
@@ -2373,12 +2385,12 @@ function agrBuildDoc(tpl, ctx){
       let terms;
       if(p.billing_frequency==='one_time') terms = (tpl.fees.pifText||'Single payment of {{pif}}').replace('{{pif}}', money((p.pif_cents||0)/100));
       // Weekly is the same twelve-month term, billed weekly with no down
-      // payment — phrased to match the down/monthly rows above it.
+      // payment - phrased to match the down/monthly rows above it.
       else if(p.billing_frequency==='weekly') terms = 'Down payment '+money((p.down_cents||0)/100)+' and weekly payment '+money((p.recurring_cents||0)/100);
       else terms = 'Down payment '+money((p.down_cents||0)/100)+' and monthly payment '+money((p.recurring_cents||0)/100);
       fees.rows.push({ label:p.name||p.code, terms:terms, selected: p.code===ctx.planCode });
     });
-    fees.note = 'Selected option: '+(ctx.planName||'—')
+    fees.note = 'Selected option: '+(ctx.planName||'-')
       + '    Initials: '+(ctx.initials||'________')
       + '    Payment date: '+(ctx.agreedPaymentDate||'________________');
   } else if(tpl.fees.type==='monthly'){
@@ -2400,7 +2412,7 @@ function agrBuildDoc(tpl, ctx){
   };
 }
 
-/* Flatten to text — stored alongside the structure so the agreement survives
+/* Flatten to text - stored alongside the structure so the agreement survives
  * any future change to the renderer. */
 function agrDocText(doc){
   const out = ['GRIZZLY MARTIAL ARTS & FITNESS LLC','doing business as Bares Taekwondo Fitness', doc.title.toUpperCase(), ''];
@@ -2415,7 +2427,7 @@ function agrDocText(doc){
 }
 
 /* The document, rendered. Used by the signing sheet, the profile viewer and
- * the print window — one renderer so all three always agree. */
+ * the print window - one renderer so all three always agree. */
 function agrDocHtml(doc, signed){
   let h = '<div class="agr-doc">'
     + '<div class="agr-hd"><div class="agr-ent">Grizzly Martial Arts &amp; Fitness LLC</div>'
@@ -2458,7 +2470,7 @@ function agrOpenSign(lineIdx){
   if(res.reason){ agrShowBlocked(res.reason); return; }
   const tpl = res.template, c = l.calc||{}, ov = l.override;
   const student = MEMBERS.find(x=>x.id===l.studentId);
-  // PARTICIPANT vs BUYER. The participant is the line's student — who trains,
+  // PARTICIPANT vs BUYER. The participant is the line's student - who trains,
   // and who the membership and this agreement belong to. The buyer is whoever
   // is paying. They are the same person when an adult enrols themselves, and
   // different whenever a parent enrols a child, which is the case that has to
@@ -2467,7 +2479,7 @@ function agrOpenSign(lineIdx){
   const buyerIsOther = !!(buyer && student && buyer.id !== student.id);
   const isMinor = !!(student && student.age > 0 && student.age < 18);
   // student_guardians holds an email + label and no name, so a guardian NAME
-  // can only come from a real contact record — which the buyer has when they
+  // can only come from a real contact record - which the buyer has when they
   // are the parent doing the enrolling.
   const guardian = (isMinor || buyerIsOther) && buyer ? (buyer.first+' '+buyer.last).trim() : '';
   const down = (ov && ov.downCents!=null) ? ov.downCents : c.finalDownCents;
@@ -2507,14 +2519,14 @@ function agrOpenSign(lineIdx){
 function agrShowBlockedFor(i){
   const l = posSale.lines[i]; if(!l) return;
   const r = agrResolve(l);
-  agrShowBlocked(r.reason || 'This one can be signed — reopen the invoice.');
+  agrShowBlocked(r.reason || 'This one can be signed - reopen the invoice.');
 }
 function agrShowBlocked(reason){
   $("#sheet").innerHTML = '<div class="grab"></div>'
     + '<div class="sheet-head"><div><h3>No agreement for this one</h3></div>'
     + '<button class="close" onclick="closeSheet()">×</button></div>'
     + '<div class="sheet-body"><div class="ck-hint" style="color:var(--warn);text-align:left">'+escHtml(reason)+'</div>'
-    + '<div class="proto-note">The sale can still go through — the membership just records as unsigned, and it shows that way on the profile until a document exists.</div>'
+    + '<div class="proto-note">The sale can still go through - the membership just records as unsigned, and it shows that way on the profile until a document exists.</div>'
     + '<button class="opt-btn" onclick="closeSheet()"><span class="oi">✓</span>Understood</button></div>';
   openSheet();
 }
@@ -2531,7 +2543,7 @@ function agrRenderSheet(){
     // not something you notice after it is signed.
     + '<div class="agr-who">'
     + '<div class="agr-whorow"><span class="agr-wholbl">Agreement for</span>'
-    + '<span class="agr-whoval">'+escHtml(AGR.ctx.participantName||'— no member attached —')
+    + '<span class="agr-whoval">'+escHtml(AGR.ctx.participantName||'- no member attached -')
     + (AGR.ctx.isMinor?' <span class="agr-minor">minor</span>':'')+'</span></div>'
     + (AGR.ctx.buyerIsOther
         ? '<div class="agr-whorow"><span class="agr-wholbl">Paid by</span><span class="agr-whoval">'+escHtml(AGR.ctx.buyerName)+'</span></div>'
@@ -2541,7 +2553,7 @@ function agrRenderSheet(){
     + '<div class="agr-scroll">'+agrDocHtml(d, null)+'</div>'
     + '<div class="agr-form">';
   // Date of birth and guardian are printed ON the contract, so they are
-  // captured here and written back to the student's record — enter once.
+  // captured here and written back to the student's record - enter once.
   h += '<div class="agr-frow"><label>Date of birth'+(AGR.ctx.dobWasOnFile?'':' <span class="agr-save">saves to profile</span>')+'</label>'
     + '<input id="agrDob" type="date" class="im-field" value="'+escAttr(AGR.ctx.dobYMD||'')+'" onchange="agrField(\'dobYMD\',this.value)"></div>';
   h += '<div class="agr-frow"><label>Parent / guardian'+((AGR.ctx.isMinor && !AGR.ctx.guardianOnFile)?' <span class="agr-save">saves to profile</span>':'')+'</label>'
@@ -2552,7 +2564,7 @@ function agrRenderSheet(){
     + '<input id="agrInitials" class="im-field" maxlength="6" value="'+escAttr(AGR.ctx.initials||'')+'" oninput="agrField(\'initials\',this.value)"></div>';
   // For a minor the signer is the adult, never the child. Where no guardian
   // is known the field is left EMPTY rather than pre-filled with the child's
-  // name — a wrong default here gets signed without anyone reading it.
+  // name - a wrong default here gets signed without anyone reading it.
   h += '<div class="agr-frow"><label>Printed name of signer</label>'
     + '<input id="agrSigner" class="im-field" value="'+escAttr(AGR.ctx.isMinor ? (AGR.ctx.guardian||'') : (AGR.ctx.guardian||AGR.ctx.participant||''))+'"></div>';
   h += '<div class="agr-frow"><label>Relationship to Participant</label>'
@@ -2610,10 +2622,10 @@ async function agrAccept(){
   if(!signer){ toast(AGR.ctx.isMinor ? 'Enter the parent or guardian signing for '+(AGR.ctx.participantName||'this student') : 'Enter the printed name of whoever is signing'); return; }
   // A minor's contract with no guardian named is the exact document you cannot
   // rely on later, so it is a hard stop rather than a warning.
-  if(AGR.ctx.isMinor && !guard){ toast('Name the parent or guardian — '+(AGR.ctx.participantName||'this student')+' is under 18'); return; }
-  if(!cv || !cv.__dirty || !cv.__dirty()){ toast('Signature is empty — sign in the box'); return; }
+  if(AGR.ctx.isMinor && !guard){ toast('Name the parent or guardian - '+(AGR.ctx.participantName||'this student')+' is under 18'); return; }
+  if(!cv || !cv.__dirty || !cv.__dirty()){ toast('Signature is empty - sign in the box'); return; }
   const line = posSale.lines[AGR.lineIdx];
-  if(!line){ toast('That line is gone — re-add it and sign again'); closeSheet(); return; }
+  if(!line){ toast('That line is gone - re-add it and sign again'); closeSheet(); return; }
   AGR.ctx.guardian = guard;
   AGR.doc = agrBuildDoc(AGR.tpl, AGR.ctx);   // whatever was just typed is what gets frozen
   await agrSaveBackToProfile(AGR.ctx);
@@ -2630,10 +2642,10 @@ async function agrAccept(){
     user_agent: navigator.userAgent.slice(0,300)
   };
   AGR = null; closeSheet(); renderPOS();
-  toast('Agreement signed — attached to this membership');
+  toast('Agreement signed - attached to this membership');
 }
 
-/* Detail typed on a contract is real roster data — save it once, here, so the
+/* Detail typed on a contract is real roster data - save it once, here, so the
  * next agreement for this student already knows it. Everything in this
  * function is best-effort: a failed write-back must never cost the signature,
  * so problems are reported and the signing continues. */
@@ -2651,7 +2663,7 @@ async function agrSaveBackToProfile(ctx){
     }
   }
 
-  // The adult who signed for a minor is that child's guardian — which is the
+  // The adult who signed for a minor is that child's guardian - which is the
   // same relationship the parent portal runs on. Link them by email if the
   // buyer is a real contact and no guardian is on file yet.
   if(ctx.isMinor && !ctx.guardianOnFile && ctx.buyerId && ctx.buyerEmail){
@@ -2660,7 +2672,7 @@ async function agrSaveBackToProfile(ctx){
     // 23505 = already linked, which is a success as far as this is concerned.
     if(r.error && String(r.error.code)!=='23505'){
       console.error('guardian link', r.error);
-      toast('Guardian was not linked to the profile — add it from their record');
+      toast('Guardian was not linked to the profile - add it from their record');
     } else if(student){
       student.guardians = (student.guardians||[]).concat([[ctx.buyerEmail, 'Guardian']]);
     }
@@ -2700,14 +2712,14 @@ function agrWaive(i){
   closeSheet(); renderPOS();
   const still = agrUnsignedLines();
   if(still.length){ agrGate(); return; }
-  toast('Recorded as unsigned — finish the agreement from their profile');
+  toast('Recorded as unsigned - finish the agreement from their profile');
 }
 
 /* ─── Phase A2 staging ───────────────────────────────────────────────────────
  * When true, tender sends INTENT to the pos-sale Edge Function, which
  * re-derives every price server-side from the catalog + household and does
  * ALL the writes (ledger, snapshots, enrollments). The client's total rides
- * along only as a checksum — a mismatch is a 409 and nothing records.
+ * along only as a checksum - a mismatch is a 409 and nothing records.
  * KEEP false until Race deploys pos-sale; the A1 client-write path below
  * stays fully functional and is removed only after A2 is verified live. */
 const POS_SERVER_SALES = false;
@@ -2749,7 +2761,7 @@ async function posTenderServer(method){
     console.error('pos-sale', e);
     $("#view-pos").innerHTML='<div class="bld"><div class="success"><div class="chk">!</div>'
       +'<h2>Sale NOT recorded</h2><p>'+escHtml(e.message||String(e))+'</p>'
-      +'<div class="ck-hint" style="margin:9px auto 0;max-width:420px;text-align:left">Nothing was written — the invoice you built is still here. If prices changed, reload and re-ring.</div>'
+      +'<div class="ck-hint" style="margin:9px auto 0;max-width:420px;text-align:left">Nothing was written - the invoice you built is still here. If prices changed, reload and re-ring.</div>'
       +'<div style="margin-top:18px"><button class="newbtn" style="margin:0" onclick="renderPOS()">Back to the sale</button></div></div></div>';
     return;
   }
@@ -2758,15 +2770,15 @@ async function posTenderServer(method){
   showInvoice(res.sale_id, 'pos');
 }
 
-/* The POS does not process cards yet — Stripe is a later phase. This confirm
+/* The POS does not process cards yet - Stripe is a later phase. This confirm
    exists so tapping "Card" can never quietly pretend the system charged one:
    staff must assert the terminal already ran it before it is recorded. */
 /* Admin fee (owner rule 2026-08-15, final): pass Stripe's cost through, per
- * method — card 2.9% + 30¢ (admin_fee_bps/admin_fee_flat_cents), ACH 0.8%
+ * method - card 2.9% + 30¢ (admin_fee_bps/admin_fee_flat_cents), ACH 0.8%
  * capped  at the Stripe build (admin_fee_ach_* keys), cash/check never.
  * Customer pays tuition + Stripe's cut; Race nets tuition. Fee computed on
  * the pre-fee pre-tax base (close to exact; a gross-up formula nets exact to
- * the penny — flip if ever wanted). Editable/zeroable per invoice.
+ * the penny - flip if ever wanted). Editable/zeroable per invoice.
  */
 /* The pass-through fee follows the RAIL, because Stripe's own pricing does.
  * A card tapped on a reader is card-present (cheaper for us); a card keyed at
@@ -2786,14 +2798,14 @@ function posSuggestedAdminFeeCents(method){
 /* ─── unified payment modal ──────────────────────────────────────────────────
  * One component, two contexts (owner spec from the Spark walkthrough,
  * 2026-08-15):
- *   mode 'sale'    — ringing a new sale; Pay Now creates the invoice AND the
+ *   mode 'sale'    - ringing a new sale; Pay Now creates the invoice AND the
  *                    payment (partial ⇒ invoice created unpaid + payment row).
- *   mode 'invoice' — collecting on an existing unpaid invoice; Pay Now adds a
+ *   mode 'invoice' - collecting on an existing unpaid invoice; Pay Now adds a
  *                    payment row and auto-marks paid when the balance clears.
  * Tabs are Card | Cash | Check. ACH is deliberately absent: owner decision
  * 2026-08-15 makes ACH recurring-only (set up on the membership) so nobody
  * waits days for settlement on a uniform.
- * Admin fee: prompted the moment a paper tab is chosen, per the mockups —
+ * Admin fee: prompted the moment a paper tab is chosen, per the mockups -
  * the fee is a card-processing pass-through, so cash/check may drop it.
  * Money is integer cents throughout; the inputs are the only dollar surface. */
 let PAY = null;         // live modal state
@@ -2845,7 +2857,7 @@ async function posPayTab(method){
 
   // The fee belongs to the METHOD, not to the invoice (owner rule
   // 2026-08-15: "I'm never going to charge a card without that fee").
-  // Dropping it for cash is a property of choosing cash — come back to a
+  // Dropping it for cash is a property of choosing cash - come back to a
   // card method and it returns on its own. A staff member who typed an
   // explicit amount in ＋ Admin fee still wins over all of this.
   const cardish = (method==='Card' || method==='Terminal');
@@ -2854,7 +2866,7 @@ async function posPayTab(method){
   }
 
   posPayRender();
-  // Paper money doesn't carry the card-processing fee — ask the moment the
+  // Paper money doesn't carry the card-processing fee - ask the moment the
   // method is chosen. Asked once per method, so answering "No" doesn't nag.
   PAY.feeAnswered = PAY.feeAnswered || {};
   if((method==='Cash'||method==='Check') && PAY.feeCents>0 && !PAY.feeAnswered[method]){
@@ -2905,7 +2917,7 @@ async function posPayFeeAnswer(remove){
   posPayAskClose();
   if(!remove) return;
   if(PAY.mode==='sale'){
-    // NOT adminFeeManual — that flag means "a human typed an exact amount".
+    // NOT adminFeeManual - that flag means "a human typed an exact amount".
     // Suppressed instead: method-driven, so a card method restores it.
     posSale.adminFeeCents = 0; posSale.adminFeeSuppressed = true;
     renderPOS();
@@ -2914,7 +2926,7 @@ async function posPayFeeAnswer(remove){
   } else {
     const upd = await sb.from('pos_sales').update({ admin_fee_cents:0, total_cents: PAY.totalCents - PAY.feeCents })
       .eq('id', PAY.saleId).eq('status','unpaid').gt('admin_fee_cents',0).select('id');
-    if(upd.error || !upd.data || !upd.data.length){ toast('Could not remove the fee — the invoice may no longer be unpaid.'); return; }
+    if(upd.error || !upd.data || !upd.data.length){ toast('Could not remove the fee - the invoice may no longer be unpaid.'); return; }
     PAY.totalCents -= PAY.feeCents; PAY.balanceCents -= PAY.feeCents;
   }
   PAY.feeCents = 0;
@@ -2929,7 +2941,7 @@ function posPayQuick(cents){
   posPayChange();
 }
 /* What is ACTUALLY being collected. On the cash tab, handing over less than
-   the amount asked for is not a mistake — it is a partial payment, and the
+   the amount asked for is not a mistake - it is a partial payment, and the
    cash that changed hands is the payment (owner report 2026-08-15: "$40 on an
    $89.04 invoice"). The typed fields are never rewritten mid-keystroke; the
    effective figure is derived here and used at submit. */
@@ -2947,7 +2959,7 @@ function posPayChange(){
   if(rem){
     const owed = PAY.balanceCents - e.pay;
     rem.innerHTML = (e.pay>0 && owed>0)
-      ? '<div class="pm-warn">'+(e.short?'Taking '+money(e.pay/100)+' in cash — ':'Partial payment — ')
+      ? '<div class="pm-warn">'+(e.short?'Taking '+money(e.pay/100)+' in cash - ':'Partial payment - ')
         + money(owed/100)+' will still be owed and the invoice stays open.</div>'
       : '';
   }
@@ -2981,9 +2993,9 @@ function posPayRender(){
       + '<div class="pm-sub">Send this payment to the card reader.</div>'
       + '<div class="pm-term"><div class="ring">'+IV_ICO.nfc+'</div>'
       + '<div class="tt">No reader connected</div>'
-      + '<div class="td">Once a Stripe smart reader is set up, this sends <b>'+money(PAY.balanceCents/100)+'</b> straight to it and the customer taps there — the result lands back on this invoice on its own.</div>'
+      + '<div class="td">Once a Stripe smart reader is set up, this sends <b>'+money(PAY.balanceCents/100)+'</b> straight to it and the customer taps there - the result lands back on this invoice on its own.</div>'
       + '<div class="pm-pill"><span class="dot"></span>Not configured yet</div></div>'
-      + '<button class="tbtn" id="pmPay" style="width:100%;margin-top:14px;opacity:.45" onclick="toast(\'No card reader is set up yet — use Credit Card to record a payment run elsewhere.\')">Pay Now</button>'
+      + '<button class="tbtn" id="pmPay" style="width:100%;margin-top:14px;opacity:.45" onclick="toast(\'No card reader is set up yet - use Credit Card to record a payment run elsewhere.\')">Pay Now</button>'
       + '</div>';
     $("#sheet").innerHTML = h;
     return;
@@ -3076,7 +3088,7 @@ async function pmCardMount(){
     if(!PM_LIVE){
       const n = document.createElement('div');
       n.className = 'pm-testnote';
-      n.textContent = 'Stripe is in TEST mode. Use 4242 4242 4242 4242 — a real card will be declined.';
+      n.textContent = 'Stripe is in TEST mode. Use 4242 4242 4242 4242 - a real card will be declined.';
       box.parentNode.insertBefore(n, box.nextSibling);
     }
   }catch(e){
@@ -3124,6 +3136,46 @@ async function pmChargeCard(saleId, amountCents){
   }
 }
 
+/* ── idle logout ──────────────────────────────────────────────────────────
+ * The CRM sees every contact and can charge a card, so a tablet left on the
+ * front desk should not stay signed in indefinitely. Thirty minutes of no
+ * real interaction signs out; a minute before that, a bar offers to stay.
+ * Activity is shared across tabs and the other barestkd.fit apps, so working
+ * in one keeps the others alive. */
+const CRM_IDLE_MINUTES = 30;
+function crmStartIdleLogout(){
+  if(!window.BTKD || !BTKD.idleLogout) return;   // older shared auth.js
+  BTKD.idleLogout({
+    minutes: CRM_IDLE_MINUTES,
+    warnSeconds: 60,
+    onWarn: function(secs){ crmIdleWarn(secs); },
+    onLogout: function(){
+      try{ sessionStorage.setItem('crm-signed-out-idle','1'); }catch(e){}
+      location.reload();
+    }
+  });
+}
+function crmIdleWarn(secs){
+  let el = document.getElementById('idleWarn');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'idleWarn'; el.className = 'idle-warn';
+    el.innerHTML = '<span>Signing you out in <b id="idleSecs">'+secs+'s</b> for security.</span>'
+      + '<button type="button">Stay signed in</button>';
+    el.querySelector('button').addEventListener('click', function(){
+      BTKD.markActivity(); el.remove();
+    });
+    document.body.appendChild(el);
+  }
+  const n = document.getElementById('idleSecs');
+  let left = secs;
+  const tick = setInterval(function(){
+    left--;
+    if(left <= 0 || !document.getElementById('idleWarn')){ clearInterval(tick); return; }
+    if(n) n.textContent = left + 's';
+  }, 1000);
+}
+
 function posPayClose(){
   posPayAskClose();
   const reopen = PAY && PAY.reopen, saleId = PAY && PAY.saleId;
@@ -3133,7 +3185,7 @@ function posPayClose(){
 
 async function posPaySubmit(){
   if(PAY.method==='Terminal'){ toast('No card reader is set up yet'); return; }
-  // Cash short of the asked amount is a partial payment, not an error — the
+  // Cash short of the asked amount is a partial payment, not an error - the
   // money that changed hands is what gets recorded.
   const eff = posPayEffectiveCents();
   const amt = eff.pay;
@@ -3145,13 +3197,13 @@ async function posPaySubmit(){
 
   if(method==='Cash'){
     const ten = centsFromInput((document.getElementById('pmTendered')||{}).value||'');
-    if(changeCents>0) note = 'Cash — tendered '+money(ten/100)+', change '+money(changeCents/100);
-    else if(eff.short) note = 'Cash — took '+money(ten/100);
+    if(changeCents>0) note = 'Cash - tendered '+money(ten/100)+', change '+money(changeCents/100);
+    else if(eff.short) note = 'Cash - took '+money(ten/100);
     else note = 'Cash';
   } else if(method==='Check'){
     const nm=((document.getElementById('pmCheckName')||{}).value||'').trim();
     const no=((document.getElementById('pmCheckNo')||{}).value||'').trim();
-    note = 'Check'+(no?' #'+no:'')+(nm?' — '+nm:'');
+    note = 'Check'+(no?' #'+no:'')+(nm?' - '+nm:'');
   }
   const partial = amt < PAY.balanceCents;
   if(partial) note += ' (partial)';
@@ -3163,7 +3215,7 @@ async function posPaySubmit(){
   // (posTender) and then charged from its invoice, so there is always a sale
   // id for Stripe's metadata to point at.
   if(method==='Card' && PAY.mode!=='sale'){
-    if(!PM_CARD){ toast('The card field did not load — reload and try again'); if(btn){btn.disabled=false;posPayChange();} return; }
+    if(!PM_CARD){ toast('The card field did not load - reload and try again'); if(btn){btn.disabled=false;posPayChange();} return; }
     if(btn) btn.textContent='Charging card…';
     const charged = await pmChargeCard(PAY.saleId, amt);
     if(!charged.ok){
@@ -3200,9 +3252,9 @@ async function posPaySubmit(){
       .update({ status:'paid', tender_method:method.toLowerCase(), confirmed_at:new Date().toISOString() })
       .eq('id', saleId).eq('status','unpaid').select('id');
     if(upd.error) console.error('auto-paid update', upd.error);
-    toast('Paid in full — '+money(amt/100)+' by '+method.toLowerCase()+(changeCents?' · change '+money(changeCents/100):''));
+    toast('Paid in full - '+money(amt/100)+' by '+method.toLowerCase()+(changeCents?' · change '+money(changeCents/100):''));
   } else {
-    toast('Payment recorded — '+money((bal-amt)/100)+' still owed');
+    toast('Payment recorded - '+money((bal-amt)/100)+' still owed');
   }
   // Either way they get the email: a receipt when it is settled, or an
   // updated invoice with the balance and the pay link when it is not.
@@ -3218,7 +3270,7 @@ async function posTender(method){
   const m = posSale.memberId ? MEMBERS.find(x=>x.id===posSale.memberId) : null;
 
   // A membership can be browsed and added with no student attached, but it
-  // cannot be sold that way — jump straight back to the line that needs it.
+  // cannot be sold that way - jump straight back to the line that needs it.
   const unattached = memLines.filter(l=>!l.studentId);
   if(unattached.length){
     toast((unattached.length>1?'Attach a member to every membership line':'Attach a member to that membership')+' before completing the sale.');
@@ -3230,7 +3282,7 @@ async function posTender(method){
   // this is the one place the agreement gate cannot be walked around. It sits
   // AFTER the attach check because an agreement cannot be written without
   // knowing who the participant is. Paid sales normally clear this back at
-  // posPayOpen — before card details are entered — and arrive already signed
+  // posPayOpen - before card details are entered - and arrive already signed
   // or knowingly waived.
   if(!agrGate()) return;
 
@@ -3240,17 +3292,17 @@ async function posTender(method){
   let notes=[], badges=[], problems=[];
   const staff = await currentStaffEmail();
 
-  // ── LEDGER: invoice header first — the parent row everything else points at.
+  // ── LEDGER: invoice header first - the parent row everything else points at.
   // The id is minted client-side per tender attempt: a double-tapped button
   // collides on the primary key instead of recording the sale twice, and in
   // the Stripe phase this same id becomes the idempotency key.
   // Every sale IS an invoice: paid (cash/card/check now) or unpaid (saved,
   // collected later from the drawer). An unpaid invoice has NO tender method
-  // yet — the method is recorded at the moment it is actually paid.
+  // yet - the method is recorded at the moment it is actually paid.
   // PAY_DETAIL is set by the payment modal (amount actually collected, the
   // method's own detail line, and when it was received). Absent = legacy
   // full-amount tender. A payment smaller than the total leaves the invoice
-  // UNPAID with a real payment row against it — same shape as collecting a
+  // UNPAID with a real payment row against it - same shape as collecting a
   // partial later, so there is only one partial-payment concept in the system.
   const isUnpaid = method==='Unpaid';
   const payAmt = (PAY_DETAIL && PAY_DETAIL.amountCents>0) ? PAY_DETAIL.amountCents : t.cents.totalCents;
@@ -3273,12 +3325,12 @@ async function posTender(method){
       notes: posSale.notes||null,
       confirmed_at: (isUnpaid||isPartial) ? null : new Date().toISOString()
     });
-    if(r.error){ console.error('pos_sales insert', r.error); problems.push('This sale was NOT recorded in the sales ledger: '+(r.error.message||r.error)+' — keep a paper note for reconciliation.'); return false; }
+    if(r.error){ console.error('pos_sales insert', r.error); problems.push('This sale was NOT recorded in the sales ledger: '+(r.error.message||r.error)+' - keep a paper note for reconciliation.'); return false; }
     return true;
   })();
 
   if(memLines.length){
-    // Frozen pricing snapshots — the same builder the pricing engine's own
+    // Frozen pricing snapshots - the same builder the pricing engine's own
     // save path uses. A later catalog price change never touches these rows.
     // Grouped by student: one invoice can carry memberships for more than one
     // family member (e.g. a parent buying for two kids).
@@ -3295,7 +3347,7 @@ async function posTender(method){
           startedOn:(posSale.date||attYMD()), createdBy:staff, override:l.override
         });
         // Session plans (duration_weeks) expire: bake the end date into the
-        // snapshot at sale time — the nightly sweep flips them to 'ended'.
+        // snapshot at sale time - the nightly sweep flips them to 'ended'.
         const pl = planByCode(l.requestedCode);
         if(pl && pl.duration_weeks) l.__snap.ended_on = addWeeksYMD(posSale.date||attYMD(), pl.duration_weeks);
         return Object.assign({}, l.__snap, { sale_id: saleRecorded ? saleId : null });
@@ -3303,7 +3355,7 @@ async function posTender(method){
       const ins = await sb.from('memberships').insert(rows).select('id');
       if(ins.error){
         console.error('membership insert', ins.error);
-        problems.push("The membership for "+who+" did NOT save: "+(ins.error.message||ins.error)+" — record it from their profile before they leave.");
+        problems.push("The membership for "+who+" did NOT save: "+(ins.error.message||ins.error)+" - record it from their profile before they leave.");
         continue;
       }
       (ins.data||[]).forEach((row,i)=>{ if(lines[i]) lines[i].membershipId = row.id; });
@@ -3317,17 +3369,17 @@ async function posTender(method){
         const ar = await sb.from('membership_agreements').insert(agrRows);
         if(ar.error){
           console.error('agreement insert', ar.error);
-          problems.push('The signed agreement for '+who+' did NOT save: '+(ar.error.message||ar.error)+' — have them sign again from their profile.');
+          problems.push('The signed agreement for '+who+' did NOT save: '+(ar.error.message||ar.error)+' - have them sign again from their profile.');
         } else badges.push('Agreement signed · '+who);
       }
       const unsigned = lines.filter(l=>!l.__agreement).length;
-      if(unsigned) problems.push(who+' has '+(unsigned>1?unsigned+' memberships':'a membership')+' with NO signed agreement — capture it from their profile.');
+      if(unsigned) problems.push(who+' has '+(unsigned>1?unsigned+' memberships':'a membership')+' with NO signed agreement - capture it from their profile.');
       if(student){
         lines.forEach(l=>{
           const c=l.calc, ov=l.override;
           const rec=(ov?ov.recurringCents:c.finalRecurringCents)/100;
           const dn=((ov&&ov.downCents!=null)?ov.downCents:c.finalDownCents)/100;
-          student.memberships.push({program:l.program||'—', plan:c.planName||c.planCode, status:"active",
+          student.memberships.push({program:l.program||'-', plan:c.planName||c.planCode, status:"active",
             nextDue:"next cycle", overdue:0, contract:!!c.paymentCount, down:dn, monthly:rec,
             total:c.paymentCount||null, remaining:c.paymentCount?(c.paymentCount-1):null});
         });
@@ -3341,7 +3393,7 @@ async function posTender(method){
       if(want.length){
         const { data:have, error:hErr } = await sb.from('enrollments')
           .select('program').eq('student_id', studentId);
-        if(hErr){ console.error('roster read', hErr); problems.push('Could not check class rosters for '+who+' — add them manually.'); }
+        if(hErr){ console.error('roster read', hErr); problems.push('Could not check class rosters for '+who+' - add them manually.'); }
         else {
           const existing=(have||[]).map(r=>r.program);
           const add=want.filter(p=>existing.indexOf(p)===-1)
@@ -3353,7 +3405,7 @@ async function posTender(method){
           }
         }
       }
-      posForgetStudent(studentId); // household rank changed — requote from fresh data next time
+      posForgetStudent(studentId); // household rank changed - requote from fresh data next time
     }
   }
   if(eventLines.length){
@@ -3366,13 +3418,13 @@ async function posTender(method){
       if(er.error && String(er.error.code)!=='23505'){ console.error('event regs', er.error); problems.push('Event registration did not save: '+(er.error.message||er.error)); }
       else { notes.push(m.first+' '+m.last+' registered for '+realEv.map(l=>l.label).join(', ')+'.'); badges.push('On event list'); }
     } else if(realEv.length && !m){
-      problems.push('Event sold to a walk-in — no registration recorded. Attach a buyer and re-ring to register them.');
+      problems.push('Event sold to a walk-in - no registration recorded. Attach a buyer and re-ring to register them.');
     }
     // Mock events (pre-table) keep the old in-memory behavior.
     const mockEv = eventLines.filter(l=>!l.eventDbId);
     if(mockEv.length && m){
       mockEv.forEach(l=>{ const ev=EVENTS.find(x=>x.id===l.eventId); if(ev && ev.participants && !ev.participants.some(p=>p.memberId===m.id)) ev.participants.push({memberId:m.id, paid:true}); });
-      notes.push('Event sign-up noted (mock event — not durable).');
+      notes.push('Event sign-up noted (mock event - not durable).');
     }
   }
   // ── LEDGER: line detail + the money row. After memberships, so mem lines
@@ -3399,15 +3451,15 @@ async function posTender(method){
         occurred_at: (PAY_DETAIL && PAY_DETAIL.occurredAt) || new Date().toISOString()
       });
       if(pr.error){ console.error('pos_payments insert', pr.error); problems.push('Sale recorded but the payment row did not save: '+(pr.error.message||pr.error)); }
-      if(isPartial) notes.push(money((t.cents.totalCents-payAmt)/100)+' still owed — the invoice stays open until it is paid.');
+      if(isPartial) notes.push(money((t.cents.totalCents-payAmt)/100)+' still owed - the invoice stays open until it is paid.');
       if(PAY_DETAIL && PAY_DETAIL.changeCents>0) notes.push('Change given: '+money(PAY_DETAIL.changeCents/100)+'.');
     } else {
-      notes.push('Saved as an unpaid invoice — collect it from Transactions.');
+      notes.push('Saved as an unpaid invoice - collect it from Transactions.');
     }
   }
 
   // Paid in full right here at the desk -> the receipt goes out on its own.
-  // ANY payment sends the email — a partial one carries the balance and the
+  // ANY payment sends the email - a partial one carries the balance and the
   // pay link so they can finish it online (owner call 2026-08-15). Only a
   // "Save unpaid" with no money at all stays silent.
   if(saleRecorded && !isUnpaid) posAutoReceipt(saleId);
@@ -3434,7 +3486,7 @@ async function posTender(method){
     return;
   }
   let h='<div class="bld"><div class="success"><div class="chk">!</div>'
-    +'<h2>Sale taken — needs attention</h2>'
+    +'<h2>Sale taken - needs attention</h2>'
     +'<p>'+(isUnpaid ? money(total)+' due.' : money(total)+' paid by '+pm+'.')+(notes.length?(" "+notes.join(" ")):"")+'</p>';
   badges.forEach(b=>h+='<div class="insys" style="margin:6px 4px 0">✓ '+b+'</div>');
   problems.forEach(p=>h+='<div class="ck-hint" style="margin:9px auto 0;max-width:420px;color:var(--warn);text-align:left">'+escHtml(p)+'</div>');
@@ -3448,7 +3500,7 @@ function posBuyerLabel(cid){ if(!cid) return 'Walk-in'; const m=MEMBERS.find(x=>
 /* ─── Transactions ────────────────────────────────────────────────────────────
  * Current-month transactions (newest first) with Paid/Unpaid filter chips.
  * Tap a row to open its invoice. Per Race 2026-08-10: no "drawer", no cash
- * sums; month scope only — full history belongs to the future read-only
+ * sums; month scope only - full history belongs to the future read-only
  * Reports page (the DB keeps everything). EXCEPTION: the Unpaid filter is
  * all-time, because an old unpaid invoice is still money owed and must not
  * age out of every screen; the Dashboard banner counts the same set. */
@@ -3482,9 +3534,9 @@ async function posTransactions(){
         +'<div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;margin-left:10px">'+money(r.total_cents/100)+'</div></div>';
     });
   } else {
-    h+='<div class="ag-empty">'+(TX_FILTER==='unpaid'?'No unpaid invoices — nothing owed.':'No transactions yet.')+'</div>';
+    h+='<div class="ag-empty">'+(TX_FILTER==='unpaid'?'No unpaid invoices - nothing owed.':'No transactions yet.')+'</div>';
   }
-  h+='<div class="ck-hint" style="margin-top:10px">'+(TX_FILTER==='unpaid'?'All open invoices, any month.':'This month\'s transactions — full history comes with the Reports page.')+' Tap a transaction to open its invoice.</div>';
+  h+='<div class="ck-hint" style="margin-top:10px">'+(TX_FILTER==='unpaid'?'All open invoices, any month.':'This month\'s transactions - full history comes with the Reports page.')+' Tap a transaction to open its invoice.</div>';
   $("#sheet .sheet-body").innerHTML=h;
 }
 
@@ -3506,7 +3558,7 @@ function posAddPaymentSheetLegacy(saleId, balanceCents, who, reopen){
   $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Add payment</h3><div class="sub">'+escHtml(who)+' · '+money(balanceCents/100)+' owed</div></div><button class="close" onclick="closeSheet();'+back+'">×</button></div>'
     +'<div class="sheet-body">'
     +'<label class="ed-lbl">Amount ($)</label><input id="apAmt" class="ed-in" inputmode="decimal" value="'+dollarsFromCents(balanceCents)+'">'
-    +'<div class="ck-hint" style="margin:8px 0 11px">Partial payments are fine — the invoice stays open until the balance hits zero, then marks itself paid.</div>'
+    +'<div class="ck-hint" style="margin:8px 0 11px">Partial payments are fine - the invoice stays open until the balance hits zero, then marks itself paid.</div>'
     +['Cash','Check','Card'].map(m=>'<button class="addopt" onclick="posApMethod(\''+saleId+'\',\''+m+'\','+balanceCents+',\''+(reopen||'')+'\')">'+m+'</button>').join('')
     +'</div>';
   openSheet();
@@ -3526,8 +3578,8 @@ async function posApMethod(saleId, method, balanceCents, reopen){
     +'<div class="sheet-head"><div><h3>Remove admin fee?</h3><div class="sub">'+method+' payment · fee is '+money(fee/100)+'</div></div><button class="close" onclick="closeSheet()">×</button></div>'
     +'<div class="sheet-body">'
     +'<div class="ck-hint" style="margin-bottom:11px">'+method+' doesn\'t carry the card-processing fee. Remove it? The balance becomes '+money((balanceCents-fee)/100)+'.</div>'
-    +'<button class="addopt" onclick="posApRemoveFee(\''+saleId+'\','+fee+',\''+(reopen||'')+'\')">Yes — remove it</button>'
-    +'<button class="addopt" style="margin-top:8px" onclick="posAddPaymentSheet(\''+saleId+'\','+balanceCents+',\''+escAttr(posBuyerLabel(s.buyer_contact_id))+'\',\''+(reopen||'')+'\')">No — keep the fee</button>'
+    +'<button class="addopt" onclick="posApRemoveFee(\''+saleId+'\','+fee+',\''+(reopen||'')+'\')">Yes - remove it</button>'
+    +'<button class="addopt" style="margin-top:8px" onclick="posAddPaymentSheet(\''+saleId+'\','+balanceCents+',\''+escAttr(posBuyerLabel(s.buyer_contact_id))+'\',\''+(reopen||'')+'\')">No - keep the fee</button>'
     +'</div>';
 }
 async function posApRemoveFee(saleId, feeCents, reopen){
@@ -3535,11 +3587,11 @@ async function posApRemoveFee(saleId, feeCents, reopen){
     .update({ admin_fee_cents: 0 })
     .eq('id', saleId).eq('status','unpaid').gt('admin_fee_cents', 0).select('id,total_cents,buyer_contact_id');
   if(upd.error){ toast('Could not remove the fee: '+(upd.error.message||upd.error)); return; }
-  if(!upd.data || !upd.data.length){ toast('Fee not removed — the invoice may no longer be unpaid.'); return; }
+  if(!upd.data || !upd.data.length){ toast('Fee not removed - the invoice may no longer be unpaid.'); return; }
   const row = upd.data[0];
   const newTotal = row.total_cents - feeCents;
   const tu = await sb.from('pos_sales').update({ total_cents: newTotal }).eq('id', saleId).eq('status','unpaid').select('id');
-  if(tu.error || !tu.data || !tu.data.length){ toast('Fee zeroed but total did not update — check the invoice.'); return; }
+  if(tu.error || !tu.data || !tu.data.length){ toast('Fee zeroed but total did not update - check the invoice.'); return; }
   const pRes = await sb.from('pos_payments').select('amount_cents').eq('sale_id', saleId);
   const paidNet = (pRes.data||[]).reduce((a,p)=>a+p.amount_cents,0);
   toast('Admin fee removed');
@@ -3553,7 +3605,7 @@ async function posAddPayment(saleId, method, balanceCents, reopen){
   const pr = await sb.from('pos_payments').insert({ sale_id: saleId, kind:'charge', amount_cents: cents, method: method.toLowerCase(), note: method+(partial?' (partial)':'') });
   if(pr.error){ toast('Payment did not record: '+(pr.error.message||pr.error)); return; }
   if(!partial){
-    // Balance is zero — auto-mark paid. The finishing method becomes the
+    // Balance is zero - auto-mark paid. The finishing method becomes the
     // invoice's tender_method; the payments table holds the full story.
     const upd = await sb.from('pos_sales')
       .update({ status:'paid', tender_method:method.toLowerCase(), confirmed_at:new Date().toISOString() })
@@ -3561,9 +3613,9 @@ async function posAddPayment(saleId, method, balanceCents, reopen){
     if(upd.error) console.error('auto-paid update', upd.error);
     // RLS can filter an update to zero rows without an error; the payment row
     // still recorded, so just say what happened.
-    toast('Paid in full — '+money(cents/100)+' by '+method.toLowerCase());
+    toast('Paid in full - '+money(cents/100)+' by '+method.toLowerCase());
   } else {
-    toast('Payment recorded — '+money((balanceCents-cents)/100)+' still owed');
+    toast('Payment recorded - '+money((balanceCents-cents)/100)+' still owed');
   }
   closeSheet();
   if(reopen==='inv') showInvoice(saleId, INV_CUR.from); else posTransactions();
@@ -3624,7 +3676,7 @@ async function posPrintSaleFromDb(saleId){
   const o = await loadInvoiceData(saleId);
   if(o.error){ toast('Could not load that invoice'); return; }
   const w = window.open('', '_blank');
-  if(!w){ toast('Pop-up blocked — allow pop-ups to print'); return; }
+  if(!w){ toast('Pop-up blocked - allow pop-ups to print'); return; }
   w.document.write('<!DOCTYPE html><html><head><title>'+(o.s.status==='paid'?'Receipt ':'Invoice ')+o.s.id.slice(0,8).toUpperCase()+'</title>'
     + '<style>'+POS_PRINT_CSS+'</style></head><body><div class="iv-wrap">'
     + buildInvoiceCard(o, true)
@@ -3637,10 +3689,10 @@ async function posPrintSaleFromDb(saleId){
  * identity + sold-to + invoice number, items with per-line tax, payments
  * ledger with refunds, PAID state, print. Two deliberate differences from
  * Spark: no surcharge line (fee model is parked for the attorney), and no
- * card numbers — we never store card data; method detail arrives with Stripe.
+ * card numbers - we never store card data; method detail arrives with Stripe.
  * Per-line tax shown here is a DISPLAY allocation of the stored invoice-level
  * figures (BTKDPricing.allocateCents), so lines always sum to the recorded
- * totals — the ledger row stays the single source of truth. */
+ * totals - the ledger row stays the single source of truth. */
 /* Inline monochrome SVG icons for the invoice view (no deps). */
 const IV_ICO = {
   pin: "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z\"/><circle cx=\"12\" cy=\"10\" r=\"3\"/></svg>",
@@ -3667,7 +3719,7 @@ const IV_ICO = {
 };
 /* Circular brand avatar: dark circle + white wordmark for BTKD, light circle
    for the GBS bear, initials fallback for the plain LLC. */
-/* Display date, owner preference 2026-08-15: MM-DD-YYYY. Storage stays ISO —
+/* Display date, owner preference 2026-08-15: MM-DD-YYYY. Storage stays ISO -
    this only changes what people read. Split the string rather than using
    new Date(), which parses a bare date as UTC and shifts it a day in Texas. */
 function fmtDate(ymd){
@@ -3709,10 +3761,10 @@ function invEmailBanner(s, buyer){
   if(onFile && onFile === typed) return '';   // nothing to say
 
   if(!buyer){
-    // Walk-in: no profile to update, but the address is worth seeing — it is
+    // Walk-in: no profile to update, but the address is worth seeing - it is
     // where the receipt went and the only way to identify who paid.
     return '<div class="iv-emailbar"><div><b>Paid by '+escHtml(typed)+'</b>'
-      + '<div class="iv-ebsub">Walk-in sale — no profile attached. The receipt went to this address.</div></div></div>';
+      + '<div class="iv-ebsub">Walk-in sale - no profile attached. The receipt went to this address.</div></div></div>';
   }
   const who = escHtml(buyer.first+' '+buyer.last);
   if(!onFile){
@@ -3726,14 +3778,14 @@ function invEmailBanner(s, buyer){
 }
 
 /* Adopt the checkout address onto the buyer's profile, after a confirm that
- * spells out exactly what changes — this address receives every future
+ * spells out exactly what changes - this address receives every future
  * receipt, so it is not a silent edit. */
 async function invAdoptEmail(saleId){
   const r = await sb.from('pos_sales').select('stripe_email,buyer_contact_id').eq('id', saleId).single();
   if(r.error || !r.data){ toast('Could not read that sale'); return; }
   const typed = String(r.data.stripe_email||'').trim().toLowerCase();
   const cid = r.data.buyer_contact_id;
-  if(!typed || !cid){ toast('Nothing to save — this sale has no buyer attached'); return; }
+  if(!typed || !cid){ toast('Nothing to save - this sale has no buyer attached'); return; }
   const buyer = MEMBERS.find(m=>m.id===cid);
   const onFile = String((buyer&&buyer.email)||'').trim().toLowerCase();
   const who = buyer ? (buyer.first+' '+buyer.last) : 'this contact';
@@ -3810,7 +3862,7 @@ function buildInvoiceCard(o, forPrint){
     + '</div>';
   h += '<div class="iv-div"></div>';
   h += '<div style="padding:12px 16px 4px"><div class="iv-k">'+(s.status==='paid'?'Paid by':'Payment')+'</div><div class="iv-v" style="text-transform:capitalize">'+escHtml(s.tender_method||'Not Yet Received')+'</div></div>';
-  // Disc is dead weight on most invoices — a column of dashes. Only give it
+  // Disc is dead weight on most invoices - a column of dashes. Only give it
   // a column when something is actually discounted.
   const anyDisc = o.lines.some((l,i)=>(l.discount_cents||0)+o.discAlloc[i] > 0);
   h += '<table class="inv-tbl" style="margin-top:8px"><thead><tr><th class="c-qty">Qty</th><th class="c-item">Item</th><th class="r c-price">Price</th>'
@@ -3821,12 +3873,12 @@ function buildInvoiceCard(o, forPrint){
     h += '<tr><td class="qty">'+(l.qty||1)+'</td><td class="c-item">'+escHtml(l.label)
       + (st?'<div style="font-size:12px;color:var(--muted)">For '+escHtml(st)+'</div>':'')
       + '</td><td class="r num">'+money(l.unit_cents/100)+'</td>'
-      + (anyDisc ? '<td class="r num">'+((l.discount_cents||o.discAlloc[i])?('−'+money(((l.discount_cents||0)+o.discAlloc[i])/100)):'—')+'</td>' : '')
-      + '<td class="r num">'+(o.taxAlloc[i]?money(o.taxAlloc[i]/100):'—')+'</td>'
+      + (anyDisc ? '<td class="r num">'+((l.discount_cents||o.discAlloc[i])?('−'+money(((l.discount_cents||0)+o.discAlloc[i])/100)):'-')+'</td>' : '')
+      + '<td class="r num">'+(o.taxAlloc[i]?money(o.taxAlloc[i]/100):'-')+'</td>'
       + '<td class="r num iv-d">'+money((l.line_total_cents - o.discAlloc[i] + o.taxAlloc[i])/100)+'</td></tr>';
   });
   h += '</tbody></table>';
-  // totals stack — the receipt's honest math, admin fee as its own line
+  // totals stack - the receipt's honest math, admin fee as its own line
   const trow = (k,v,neg) => '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:12.5px'+(neg?';color:var(--muted)':'')+'"><span>'+k+'</span><span class="num">'+(neg?'−':'')+money(v/100)+'</span></div>';
   h += '<div style="padding:8px 16px 2px">'
     + trow('Subtotal', s.subtotal_cents)
@@ -3835,7 +3887,7 @@ function buildInvoiceCard(o, forPrint){
     + trow('Sales tax', s.tax_cents)
     + '</div>';
   // Black bar is always what the invoice CAME TO. What actually arrived gets
-  // its own green bar under the payments — two different facts, two bars.
+  // its own green bar under the payments - two different facts, two bars.
   h += '<div class="iv-total"><span class="lbl">'+(s.status==='closed'?'Closed · balance waived':'Total due')+'</span>'
     + '<span class="amt num">'+money(s.total_cents/100)+'</span></div>';
 
@@ -3862,7 +3914,7 @@ function buildInvoiceCard(o, forPrint){
   return h;
 }
 
-/* Status stamp for the date row — replaces the old chip (owner redesign
+/* Status stamp for the date row - replaces the old chip (owner redesign
    2026-08-15). Payments now render inside buildInvoiceCard, so the separate
    payments card is gone. */
 function ivStamp(st, paidNet, balance){
@@ -3881,7 +3933,7 @@ function ivStamp(st, paidNet, balance){
 /* Copy the invoice's public view link (receipt-view + view_token). */
 async function posCopyInvoiceLink(saleId){
   const r = await sb.from('pos_sales').select('view_token').eq('id', saleId).single();
-  if(r.error || !r.data || !r.data.view_token){ toast('No link available — run the receipt SQL block first'); return; }
+  if(r.error || !r.data || !r.data.view_token){ toast('No link available - run the receipt SQL block first'); return; }
   const url = 'https://www.barestkd.fit/invoice/?t='+r.data.view_token;
   try { await navigator.clipboard.writeText(url); toast('Invoice link copied'); }
   catch(e){ window.prompt('Copy the invoice link:', url); }
@@ -3939,7 +3991,7 @@ async function showInvoice(saleId, from){
 }
 
 /* Automatic receipt after a payment (owner rule 2026-08-15): the customer
- * should never have to be SENT a receipt by hand. Fire-and-forget — the
+ * should never have to be SENT a receipt by hand. Fire-and-forget - the
  * money is already recorded, so a mail failure must never look like a
  * payment failure. The server resolves the recipient from the buyer on
  * file and quietly skips walk-ins and contacts with no email. */
@@ -3959,7 +4011,7 @@ function posAutoReceipt(saleId){
  * the live view-only page (receipt-view, by the sale's token). The client
  * supplies ONLY the sale id and recipients.
  *
- * Recipient rule (per Race 2026-08-13): NO typing in the normal case — the
+ * Recipient rule (per Race 2026-08-13): NO typing in the normal case - the
  * buyer's on-file email is the recipient automatically. Tap it to correct,
  * "+ Add another" for extra recipients (max 3). An empty input only appears
  * when there is genuinely no email on file (walk-in / missing email). */
@@ -3973,12 +4025,12 @@ function posEmailReceiptSheet(saleId){
       +'<label class="ed-lbl">To</label><div id="er-list">'
       +'<input class="ed-in er-to" type="email" value="'+escAttr(prefill)+'" placeholder="their@email.com">'
       +'</div>'
-      +(prefill?'' : '<div class="ck-hint" style="margin-top:8px">No email on file for this buyer — enter one. (Buyer profiles should carry an email.)</div>')
+      +(prefill?'' : '<div class="ck-hint" style="margin-top:8px">No email on file for this buyer - enter one. (Buyer profiles should carry an email.)</div>')
       +'<button class="addopt" style="margin-top:8px" onclick="posEmailAddRecipient()">＋ Add another email</button>'
       +'<label class="ed-lbl">Opening line</label>'
       +'<input id="er-intro" class="ed-in" oninput="posEmailPreview(\''+saleId+'\')" placeholder="Loading…">'
       +'<label class="ed-lbl">Personal message <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>'
-      +'<textarea id="er-note" class="ed-in" rows="3" oninput="posEmailPreview(\''+saleId+'\')" placeholder="Anything you want to say — thanks for coming in, see you Tuesday…"></textarea>'
+      +'<textarea id="er-note" class="ed-in" rows="3" oninput="posEmailPreview(\''+saleId+'\')" placeholder="Anything you want to say - thanks for coming in, see you Tuesday…"></textarea>'
       +'<div class="ed-lbl" style="margin-top:14px">Preview · exactly what they get</div>'
       +'<div id="er-preview" style="border:1px solid var(--line);border-radius:11px;overflow:hidden;background:#fff">'
       +'<div class="inv-empty" style="padding:22px">Building preview…</div></div>'
@@ -3989,8 +4041,8 @@ function posEmailReceiptSheet(saleId){
   });
 }
 
-/* Live preview of the real email. The server renders it — same code path that
-   sends — so what Race approves is literally what leaves the building. Only
+/* Live preview of the real email. The server renders it - same code path that
+   sends - so what Race approves is literally what leaves the building. Only
    the opening line and the personal message are editable; every figure, the
    link, the brand and the legal footer stay server-derived. Debounced so
    typing doesn't hammer the function. */
@@ -4020,7 +4072,7 @@ function posEmailPreview(saleId, immediate){
         + escHtml(data.subject||'') + '</div>' + (data.html||'');
     }catch(e){
       console.error('preview failed', e);
-      box.innerHTML = '<div class="inv-empty" style="padding:18px">Couldn\'t build the preview — you can still send.</div>';
+      box.innerHTML = '<div class="inv-empty" style="padding:18px">Couldn\'t build the preview - you can still send.</div>';
     }
   }, immediate ? 0 : 350);
 }
@@ -4069,7 +4121,7 @@ function invBack(){
 /* ─── Reports ────────────────────────────────────────────────────────────────
  * Read-only money reports over the ledger (owner request 2026-08-10/13):
  * month navigator, collected/refund summary from the PAYMENTS table (cash
- * basis — a payment counts in the month the money moved, not the month the
+ * basis - a payment counts in the month the money moved, not the month the
  * invoice was written), paid-sales-by-method breakdown, and the full
  * transaction list for the month, any status, click-through to invoices.
  * Month boundaries are studio-local (America/Chicago), never UTC. */
@@ -4126,7 +4178,7 @@ async function loadReports(){
   const next = new Date(y, m, 1);
   const end = next.getFullYear()+'-'+String(next.getMonth()+1).padStart(2,'0')+'-01';
   // Payments fetched with UTC bounds padded a day each side, then filtered to
-  // the exact local month client-side — DST-proof without offset arithmetic.
+  // the exact local month client-side - DST-proof without offset arithmetic.
   const padStart = new Date(new Date(start+'T00:00:00').getTime() - 86400000).toISOString();
   const padEnd   = new Date(new Date(end+'T00:00:00').getTime() + 86400000).toISOString();
   const [sRes, pRes, uRes] = await Promise.all([
@@ -4165,7 +4217,7 @@ async function loadReports(){
   const paidSales = sales.filter(r=>r.status==='paid');
   if(paidSales.length){
     const by = {};
-    paidSales.forEach(r=>{ const k=r.tender_method||'—'; by[k]=by[k]||{n:0,c:0}; by[k].n++; by[k].c+=r.total_cents; });
+    paidSales.forEach(r=>{ const k=r.tender_method||'-'; by[k]=by[k]||{n:0,c:0}; by[k].n++; by[k].c+=r.total_cents; });
     h += '<div class="sec-h" style="margin:0 2px 8px">Paid sales by method</div><div class="card" style="margin-bottom:14px">';
     Object.keys(by).sort().forEach(k=>{
       h += '<div style="display:flex;justify-content:space-between;padding:9px 16px;border-bottom:1px solid var(--line)">'
@@ -4187,27 +4239,27 @@ async function loadReports(){
   } else {
     h += '<div class="inv-empty" style="padding:20px">No transactions in '+escHtml(RPT_MONTH)+'.</div>';
   }
-  h += '</div><div class="ck-hint" style="margin-top:10px">Ledger-era only — Spark history is not represented. Tap a transaction to open its invoice.</div>';
+  h += '</div><div class="ck-hint" style="margin-top:10px">Ledger-era only - Spark history is not represented. Tap a transaction to open its invoice.</div>';
   box.innerHTML = h;
 }
 
 /* ─── Close / Delete (owner rules 2026-08-13) ───────────────────────────────
  * CLOSE: unpaid → balance forgiven, NOT paid. Partial payments stay.
- * DELETE: unpaid + zero payments only — "never happened." Unwinds any
+ * DELETE: unpaid + zero payments only - "never happened." Unwinds any
  * membership/enrollment this sale seeded, then removes the invoice. An
  * invoice with any payment applied is undeletable (policy + FK enforce). */
 function posCloseInvoiceSheet(saleId, balanceCents){
   $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Close invoice</h3><div class="sub">'+money(balanceCents/100)+' balance is waived</div></div><button class="close" onclick="closeSheet()">×</button></div>'
     +'<div class="sheet-body"><div class="ck-hint" style="margin-bottom:11px">The remaining balance stops being owed and this invoice leaves the unpaid list. It is NOT recorded as paid, and any payments already made stay on record. This does not delete anything.</div>'
-    +'<button class="tbtn" style="width:100%" onclick="posCloseInvoice(\''+saleId+'\')">Close it — balance no longer due</button></div>';
+    +'<button class="tbtn" style="width:100%" onclick="posCloseInvoice(\''+saleId+'\')">Close it - balance no longer due</button></div>';
   openSheet();
 }
 async function posCloseInvoice(saleId){
   const upd = await sb.from('pos_sales').update({ status:'closed' })
     .eq('id', saleId).eq('status','unpaid').select('id');
   if(upd.error){ toast('Could not close: '+(upd.error.message||upd.error)); return; }
-  if(!upd.data || !upd.data.length){ toast('Not closed — run sql/pos-invoice-lifecycle.sql, or the invoice is no longer unpaid.'); return; }
-  toast('Invoice closed — balance waived');
+  if(!upd.data || !upd.data.length){ toast('Not closed - run sql/pos-invoice-lifecycle.sql, or the invoice is no longer unpaid.'); return; }
+  toast('Invoice closed - balance waived');
   closeSheet(); showInvoice(saleId, INV_CUR.from);
 }
 async function posDeleteInvoiceSheet(saleId){
@@ -4231,21 +4283,21 @@ async function posDeleteInvoice(saleId){
   if(mm.error){ toast('Could not remove memberships: '+(mm.error.message||mm.error)); return; }
   const ds = await sb.from('pos_sales').delete().eq('id', saleId).select('id');
   if(ds.error){ toast('Could not delete: '+(ds.error.message||ds.error)); return; }
-  // RLS can filter a delete to zero rows silently — surface it.
-  if(!ds.data || !ds.data.length){ toast('Not deleted — run sql/pos-invoice-lifecycle.sql, or a payment exists on this invoice.'); return; }
+  // RLS can filter a delete to zero rows silently - surface it.
+  if(!ds.data || !ds.data.length){ toast('Not deleted - run sql/pos-invoice-lifecycle.sql, or a payment exists on this invoice.'); return; }
   toast('Invoice deleted');
   closeSheet(); INV_CUR={id:null,from:null};
   showSection('pos'); posTransactions();
 }
 
 /* Record money handed back (cash refund, terminal refund). Append-only: a
- * negative payment row, never an edit — the sale and its snapshot stay put. */
+ * negative payment row, never an edit - the sale and its snapshot stay put. */
 function posRefundSheet(saleId, maxCents){
   $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Record refund</h3><div class="sub">Up to '+money(maxCents/100)+' · does not move money</div></div><button class="close" onclick="closeSheet()">×</button></div>'
     +'<div class="sheet-body">'
     +'<div class="ck-hint" style="margin-bottom:11px">This records a refund you already gave (cash back, card terminal refund). It does not process one.</div>'
     +'<label class="ed-lbl">Refund amount ($)</label><input id="rfAmt" class="ed-in" inputmode="decimal" value="'+dollarsFromCents(maxCents)+'">'
-    +'<label class="ed-lbl" style="margin-top:8px">Reason / note</label><input id="rfNote" class="ed-in" placeholder="e.g. returned uniform — cash back">'
+    +'<label class="ed-lbl" style="margin-top:8px">Reason / note</label><input id="rfNote" class="ed-in" placeholder="e.g. returned uniform - cash back">'
     +'<button class="tbtn" style="width:100%;margin-top:14px" onclick="posRefundSave(\''+saleId+'\','+maxCents+')">Record refund</button>'
     +'</div>';
   openSheet();
@@ -4258,13 +4310,13 @@ async function posRefundSave(saleId, maxCents){
   if(!note){ toast('A refund needs a reason'); return; }
   const r = await sb.from('pos_payments').insert({ sale_id: saleId, kind:'refund', amount_cents: -cents, note: note });
   if(r.error){ toast('Refund did not record: '+(r.error.message||r.error)); return; }
-  closeSheet(); toast('Refund recorded — '+money(cents/100));
+  closeSheet(); toast('Refund recorded - '+money(cents/100));
   showInvoice(saleId, INV_CUR.from);
 }
 
 /* ─── printable receipt ──────────────────────────────────────────────────────
  * Renders the captured sale into a bare print window. Header identity follows
- * the sale's brand — but an unregistered (pending) DBA never prints; the LLC
+ * the sale's brand - but an unregistered (pending) DBA never prints; the LLC
  * name stands in until Race flips `effective` in RECEIPT_BRANDS. */
 let POS_LAST_RECEIPT = null;
 function posPrintReceipt(rIn){
@@ -4280,7 +4332,7 @@ function posPrintReceipt(rIn){
     +'</td><td class="r">'+money(l.net)+'</td></tr>').join('');
   const paid = r.paid!==false;
   const w = window.open('', '_blank');
-  if(!w){ toast('Pop-up blocked — allow pop-ups to print receipts'); return; }
+  if(!w){ toast('Pop-up blocked - allow pop-ups to print receipts'); return; }
   w.document.write('<!DOCTYPE html><html><head><title>'+(paid?'Receipt':'Invoice')+'</title><style>'
     +'body{font-family:Arial,Helvetica,sans-serif;color:#111;max-width:420px;margin:24px auto;padding:0 14px}'
     +'h1{font-size:17px;margin:0 0 2px;text-align:center}'
@@ -4368,7 +4420,7 @@ function posEditMemLine(i,isNew){
   const name = posStudentName(l.studentId);
   const studentRow = name
     ? '<div class="im-row" style="margin-bottom:12px"><span>Member</span><span class="im-buyer">'+escHtml(name)+' <button class="pb-change" style="font-size:11px;padding:1px 7px" onclick="posAttachSheet('+i+','+backB+')">change</button></span></div>'
-    : '<div class="ck-hint" style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px"><span>⚠ Member not attached — base rate shown</span><button class="pb-change" style="font-size:11px;padding:1px 7px;flex-shrink:0;white-space:nowrap" onclick="posAttachSheet('+i+','+backB+')">Attach member</button></div>';
+    : '<div class="ck-hint" style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px"><span>⚠ Member not attached - base rate shown</span><button class="pb-change" style="font-size:11px;padding:1px 7px;flex-shrink:0;white-space:nowrap" onclick="posAttachSheet('+i+','+backB+')">Attach member</button></div>';
   const freq = c.billingFrequency==='monthly'?'/month':c.billingFrequency==='weekly'?'/week':' one time';
   const per  = c.billingFrequency==='weekly'?'per week':c.billingFrequency==='monthly'?'per month':'one time';
   let card='<div class="spk-card"><div class="spk-card-ttl">'+escHtml(l.label)+'</div>'
@@ -4565,7 +4617,7 @@ async function calLoadData(force){
     const t=await sb.from('trial_bookings').select('id,contact_id,class_datetime,program,class_label')
       .gte('class_datetime', start.toISOString()).lte('class_datetime', endIso);
     if(t.error) console.warn('trial_bookings read failed (RLS?):', t.error.message);
-    else if(!(t.data||[]).length) console.info('trial_bookings: 0 rows in window — if trials exist, staff may lack a SELECT policy');
+    else if(!(t.data||[]).length) console.info('trial_bookings: 0 rows in window - if trials exist, staff may lack a SELECT policy');
     CAL_TRIALS=(t.error?[]:(t.data||[])).map(b=>{
       const d=new Date(b.class_datetime);
       const m=MEMBERS.find(x=>x.id===b.contact_id);
@@ -4700,7 +4752,7 @@ function calSchedSheet(){
   body+='<div class="frow2"><div class="medit"><label>Date</label><input id="cs-date" value="'+dstr+'"></div>'
     +'<div class="medit"><label>Time</label><input id="cs-time" value="'+(t==="blackout"?"All day":"5:30 PM")+'"></div></div>';
   if(t==="event"){
-    body+='<div class="medit"><label>Link URL (optional — checkout page)</label><input id="cs-link" placeholder="https://…"></div>';
+    body+='<div class="medit"><label>Link URL (optional - checkout page)</label><input id="cs-link" placeholder="https://…"></div>';
     body+='<div class="medit"><label>Payment (optional, tap to toggle)</label><div class="seg-pick" style="margin-bottom:0">'
       +'<button class="'+(calSchedPaid==="paid"?"on":"")+'" onclick="calSetPaid(\'paid\')">Paid</button>'
       +'<button class="'+(calSchedPaid==="unpaid"?"on":"")+'" onclick="calSetPaid(\'unpaid\')">Unpaid</button></div></div>';
@@ -4803,7 +4855,7 @@ function renderProfile(){
   // two-column body wrapper on PC, single column on mobile
   html += '<div class="psections">';
 
-  // contact (first — often the first thing you reach for)
+  // contact (first - often the first thing you reach for)
   html += '<div class="sec"><div class="sec-h">Contact</div><div class="card pad">';
   if(m.guardians.length) html += kv("Guardians", m.guardians.map(g=>g[0]+" ("+g[1]+")").join("<br>"));
   m.phones.forEach(p=> html += kv(p[0], p[1]));
@@ -4834,17 +4886,17 @@ function renderProfile(){
   } else { html += '<div class="note-empty">No notes yet.</div>'; }
   html += '</div></div>';
 
-  // account — live from the sales ledger (pos_sales), filled async
+  // account - live from the sales ledger (pos_sales), filled async
   html += '<div class="sec"><div class="sec-h">Account</div><div class="card" id="prof-ledger"><div class="inv-empty" style="padding:16px">Loading…</div></div></div>';
 
   // access & role (authorization)
   const _role = m.role || "Student";
   html += '<div class="sec"><div class="sec-h">Access &amp; role</div><div class="card pad role-row"><div><span class="role-badge '+_role.toLowerCase()+'">'+_role+'</span><div class="role-desc">'+roleDesc(_role)+'</div></div><button class="pb-change" onclick="openRole()">Set access</button></div></div>';
 
-  // household (billing family — filled async by loadProfileHousehold)
+  // household (billing family - filled async by loadProfileHousehold)
   html += '<div class="sec"><div class="sec-h">Household</div><div class="card pad" id="prof-hh">Loading…</div></div>';
 
-  // memberships — live from the memberships table (frozen snapshots), async
+  // memberships - live from the memberships table (frozen snapshots), async
   html += '<div class="sec"><div class="sec-h">Memberships</div>'
     + '<div id="prof-mems"><div class="card pad" style="color:var(--muted);font-size:14px">Loading…</div></div>'
     + '<button class="add-mem" onclick="posOpenMembershipFor(\''+m.id+'\')">＋ Sell / add membership</button></div>';
@@ -4863,7 +4915,7 @@ function renderProfile(){
   loadProfileMemberships(m.id);
 }
 
-/* The profile's Memberships card, live from the real `memberships` table —
+/* The profile's Memberships card, live from the real `memberships` table -
  * frozen snapshots survive reloads (previously this card only knew about
  * memberships sold in the current browser session). Pause/cancel actions
  * arrive with the recurring-billing build; until then the card is truth,
@@ -4891,7 +4943,7 @@ async function loadProfileMemberships(contactId){
   let h = '<div class="card">';
   rows.forEach(ms=>{
     const plan = (typeof planByCode==='function' && planByCode(ms.plan_code)) || null;
-    const planName = plan ? plan.name : (ms.plan_code||'—');
+    const planName = plan ? plan.name : (ms.plan_code||'-');
     const per = ms.billing_frequency==='weekly' ? '/wk' : ms.billing_frequency==='monthly' ? '/mo' : '';
     const sched = ms.billing_frequency==='one_time'
       ? 'Paid in full · '+money(ms.final_recurring_cents/100)
@@ -4900,7 +4952,7 @@ async function loadProfileMemberships(contactId){
         + (ms.final_down_cents ? ' · '+money(ms.final_down_cents/100)+' down' : '');
     const st = ms.status||'active';
     h += '<div class="mem"><div class="mem-top"><div>'
-      + '<div class="mem-name">'+escHtml(ms.program||'—')+'</div><div class="mem-plan">'+escHtml(planName)+'</div></div>'
+      + '<div class="mem-name">'+escHtml(ms.program||'-')+'</div><div class="mem-plan">'+escHtml(planName)+'</div></div>'
       + '<span class="mstatus '+escAttr(st)+'">'+escHtml(st.charAt(0).toUpperCase()+st.slice(1))+'</span></div>'
       + '<div class="mem-pay"><span class="due">'+escHtml(sched)+(ms.started_on?' · since '+escHtml(fmtDate(ms.started_on)):'')+'</span></div>'
       + '<div class="mem-foot">'
@@ -4916,7 +4968,7 @@ async function loadProfileMemberships(contactId){
 let PROF_AGR = {};
 
 /* Read a stored agreement back. The document is re-rendered from the frozen
- * body_json — never from the current template — so it always shows exactly
+ * body_json - never from the current template - so it always shows exactly
  * what was signed, even after the templates are revised. */
 async function agrView(agreementId){
   const { data, error } = await sb.from('membership_agreements').select('*').eq('id', agreementId).single();
@@ -4930,7 +4982,7 @@ async function agrView(agreementId){
     + agrDocHtml(data.body_json, data)
     + '</div><div class="agr-actions"><button class="tbtn" style="background:var(--ink)" onclick="closeSheet()">Close</button>'
     + '<button class="tbtn" onclick="agrPrint()">Print / PDF</button></div>'
-    + '<div class="proto-note">Template '+escHtml(data.template_key||'')+' v'+escHtml(data.template_version||'')+'. This is the document as signed — later template revisions do not change it.</div>'
+    + '<div class="proto-note">Template '+escHtml(data.template_key||'')+' v'+escHtml(data.template_version||'')+'. This is the document as signed - later template revisions do not change it.</div>'
     + '</div>';
   $("#sheet").classList.add("sheet-lg");
   openSheet();
@@ -4961,12 +5013,12 @@ function agrPrint(){
 }
 
 function agrMissing(program){
-  toast('No signed agreement on file'+(program?' for '+program:'')+' — sell or re-ring the membership to capture one');
+  toast('No signed agreement on file'+(program?' for '+program:'')+' - sell or re-ring the membership to capture one');
 }
 
 /* The profile's Account card: real invoices for sales where this contact is
  * the buyer. Balance owed = the sum of their unpaid invoices. Ledger-era
- * only — Spark history predates the ledger and is not represented. */
+ * only - Spark history predates the ledger and is not represented. */
 async function loadProfileLedger(contactId){
   const box = document.getElementById('prof-ledger'); if(!box) return;
   const { data, error } = await sb.from('pos_sales')
@@ -4983,9 +5035,9 @@ async function loadProfileLedger(contactId){
       h += '<div class="inv" style="cursor:pointer" onclick="showInvoice(\''+r.id+'\',\'profile\')"><div class="id">'+escHtml(r.id.slice(0,8).toUpperCase())+'<small>'+escHtml(fmtDate(r.sale_date))+(r.tender_method?' · '+escHtml(r.tender_method):'')+'</small></div>'
         + '<div class="ia">'+money(r.total_cents/100)+'<div class="st '+(r.status==='paid'?'paid':'over')+'">'+(r.status==='paid'?'Paid':r.status==='unpaid'?'Unpaid':escHtml(r.status))+'</div></div></div>';
     });
-    if(rows.length>5) h += '<div class="linkrow" onclick="toast(\'Full history view comes with the payments build\')">'+rows.length+' invoices — showing 5</div>';
+    if(rows.length>5) h += '<div class="linkrow" onclick="toast(\'Full history view comes with the payments build\')">'+rows.length+' invoices - showing 5</div>';
   } else {
-    h += '<div class="inv"><div class="id" style="color:var(--muted)">No invoices yet — ledger sales appear here.</div></div>';
+    h += '<div class="inv"><div class="id" style="color:var(--muted)">No invoices yet - ledger sales appear here.</div></div>';
   }
   box.innerHTML = h;
 }
@@ -5007,7 +5059,7 @@ async function loadProfileAttendance(id){
   if(error){ box.innerHTML='<div style="color:var(--muted);font-size:14px">Could not load attendance.</div>'; return; }
   const rows=data||[]; const total=rows.length; const last=rows.length?rows[0].class_date:null;
   let h='<div class="kv"><span class="k">Classes this window</span><span class="v">'+total+'</span></div>';
-  h+='<div class="kv"><span class="k">Last seen</span><span class="v">'+(last||'—')+'</span></div>';
+  h+='<div class="kv"><span class="k">Last seen</span><span class="v">'+(last||'-')+'</span></div>';
   if(rows.length){
     h+='<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:6px;">';
     rows.slice(0,15).forEach(r=>{ h+='<div class="tc-row"><div class="tc-info"><div class="tc-name">'+String(r.class_label||'').replace(/\s{2,}/g,' · ')+'</div><div class="tc-when">'+r.class_date+'</div></div></div>'; });
@@ -5053,7 +5105,7 @@ function memActions(i){
   openSheet();
 }
 /* The in-memory membership list on `currentMember` is the session-local view
- * (it predates the real table), so it has no agreement id of its own — fall
+ * (it predates the real table), so it has no agreement id of its own - fall
  * back to telling the truth rather than guessing. */
 function memAgreement(i){
   const ms = currentMember.memberships[i];
@@ -5115,7 +5167,7 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape"){ closeSheet(); clo
  * sql/membership-schema.sql to have been run once in the Supabase SQL editor.
  *
  * The attendance roster (`enrollments`) is a SEPARATE concept and is not
- * modified here — the only touch is an optional, additive "also add to class
+ * modified here - the only touch is an optional, additive "also add to class
  * rosters" step after a membership is saved.
  * ========================================================================== */
 let HH_ROWS = [], HH_LINKS = [], HH_LOADED = false;
@@ -5342,7 +5394,7 @@ async function renderMembershipsPricing(){
     $("#view-memberships").innerHTML = html; return;
   }
 
-  // 1 — member picker
+  // 1 - member picker
   html += '<div class="sec" style="padding:0 0 4px"><div class="sec-h">Member</div>';
   if(MB_PERSON){
     const m = MEMBERS.find(x=>x.id===MB_PERSON);
@@ -5358,7 +5410,7 @@ async function renderMembershipsPricing(){
   html += '</div>';
 
   if(MB_PERSON && MB_CTX){
-    // 2 — household summary
+    // 2 - household summary
     const ctx = MB_CTX;
     const activeOf = list => (list||[]).filter(x=>x.status==='active');
     const tkdCount = [ctx.person].concat(ctx.householdMembers)
@@ -5376,7 +5428,7 @@ async function renderMembershipsPricing(){
       + (own.length ? own.map(x=>{ const pl=planByCode(x.plan_code); return escHtml(pl?pl.name:x.plan_code); }).join(', ') : 'None yet') + '</span></div>'
       + '</div></div>';
 
-    // 3 — program picker
+    // 3 - program picker
     html += '<div class="sec"><div class="sec-h">Program</div>';
     MB_CAT_ORDER.forEach(cat=>{
       const rows = PLAN_ROWS.filter(p=>p.active && p.category===cat);
@@ -5395,7 +5447,7 @@ async function renderMembershipsPricing(){
     });
     html += '</div>';
 
-    // 4 — recommendation
+    // 4 - recommendation
     if(MB_CALC){
       const c = MB_CALC;
       const freq = c.billingFrequency==='monthly'?'/month':c.billingFrequency==='weekly'?'/week':' one time';
@@ -5414,7 +5466,7 @@ async function renderMembershipsPricing(){
         + (!c.eligible?'<div class="ck-hint" style="margin-top:6px;color:var(--warn)">'+escHtml(c.eligibilityReason)+'</div>':'')
         + '</div></div>';
 
-      // 5 — override
+      // 5 - override
       html += '<div class="sec"><div class="sec-h">Override price</div><div class="card pad">'
         + '<button class="pb-change" onclick="mbToggleOverride()">'+(MB_OVERRIDE?'Cancel override':'Override this price')+'</button>';
       if(MB_OVERRIDE){
@@ -5434,7 +5486,7 @@ async function renderMembershipsPricing(){
       }
       html += '</div></div>';
 
-      // 6 — save
+      // 6 - save
       html += '<div class="sec"><div class="sec-h">Save</div><div class="card pad">';
       if(c.category==='core_tkd' || c.category==='weekly_bundle'){
         html += '<div class="fld"><label>Class roster track</label><div class="seg-pick">'
@@ -5448,7 +5500,7 @@ async function renderMembershipsPricing(){
     }
   }
 
-  html += '<div class="proto-note">Memberships are the billing record. Class rosters (attendance) stay separate — the checkbox above only seeds them.</div></div>';
+  html += '<div class="proto-note">Memberships are the billing record. Class rosters (attendance) stay separate - the checkbox above only seeds them.</div></div>';
   $("#view-memberships").innerHTML = html;
 }
 
@@ -5592,7 +5644,7 @@ function mbEditProgram(key){
   };
   const rowHtml = p => '<div class="planrow">'
     + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
-    + '<div style="flex:1;font-weight:700;font-size:14px;">'+escHtml(p.name.replace(/^.*—\s*/,''))
+    + '<div style="flex:1;font-weight:700;font-size:14px;">'+escHtml(p.name.replace(/^.*-\s*/,''))
     + (p.sellable===false?' <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;">rate</span>':'')+'</div>'
     + '<label style="display:flex;gap:5px;align-items:center;font-size:12px;color:var(--muted);cursor:pointer;"><input type="checkbox" id="mbe-act-'+p.id+'"'+(p.active?' checked':'')+' onchange="mbEditPreview()"> active</label></div>'
     + fieldFor(p)
@@ -5611,7 +5663,7 @@ function mbEditProgram(key){
 
 function mbeVal(id){ const el=document.getElementById(id); return el?el.value:null; }
 
-// PLAN_ROWS clones with the sheet's unsaved values overlaid — what the
+// PLAN_ROWS clones with the sheet's unsaved values overlaid - what the
 // preview quotes against, and what save writes.
 function mbEditedRows(){
   return PLAN_ROWS.map(p=>{
@@ -5643,7 +5695,7 @@ function mbEditPreview(){
     const down = r.finalRecurringCents && r.finalDownCents ? ' <span style="color:var(--muted)">(+'+d(r.finalDownCents)+' down)</span>' : '';
     return '<div class="kv"><span class="k">'+lbl+'</span><span class="v">'+d(main)+down+'</span></div>';
   };
-  let h='<div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:6px;">Engine preview — what these numbers quote</div>';
+  let h='<div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:6px;">Engine preview - what these numbers quote</div>';
   const key=MB_EDIT_PROG;
   const otherTkdKid={contact_id:'kid', activeMemberships:[amRow('juniors_option_c')]};
   const otherTkdKid2={contact_id:'kid2', activeMemberships:[amRow('juniors_option_c')]};
@@ -5716,15 +5768,15 @@ async function mbSaveDiscounts(){
 const sb = BTKD.sb;
 let currentUser = null, currentRole = null, _crmBooted = false;
 
-// The CRM's original boot — now only runs once the staff gate passes.
+// The CRM's original boot - now only runs once the staff gate passes.
 async function bootCrm(){
   if(_crmBooted) return;
   _crmBooted = true;
   await loadMembers();
-  loadProducts();  // async — POS quick-list swaps in live rows when it lands
-  loadEvents();    // async — real events replace the mock list when the table exists
-  loadStaffDir();  // async — real staff names for picker/created-by/receipts
-  // PRICE_SETTINGS lives here, and the admin fee needs it on EVERY sale — not
+  loadProducts();  // async - POS quick-list swaps in live rows when it lands
+  loadEvents();    // async - real events replace the mock list when the table exists
+  loadStaffDir();  // async - real staff names for picker/created-by/receipts
+  // PRICE_SETTINGS lives here, and the admin fee needs it on EVERY sale - not
   // just membership sales. Before this, a plain uniform sale never loaded the
   // catalog, so no fee was applied and the cash/check "remove fee?" prompt had
   // nothing to ask about. Re-render POS if it is already on screen when this
@@ -5742,7 +5794,7 @@ async function bootCrm(){
 function showCrmApp(){
   document.getElementById('crm-loading').style.display = 'none';
   document.getElementById('crm-login').style.display = 'none';
-  document.getElementById('app').style.display = '';   // reveal — CSS sets the real display
+  document.getElementById('app').style.display = '';   // reveal - CSS sets the real display
   bootCrm();
 }
 function crmIsStaff(){ return currentRole === 'admin' || currentRole === 'instructor'; }
@@ -5769,9 +5821,18 @@ async function initAuth(){
     currentRole = await BTKD.getMyRole();
     if(!crmIsStaff()){ showCrmDenied(); return; }
     showCrmApp();
+    crmStartIdleLogout();
   } else {
     document.getElementById('crm-loading').style.display = 'none';
     document.getElementById('crm-login').style.display = 'flex';
+    // Say why, if we just timed them out.
+    try{
+      if(sessionStorage.getItem('crm-signed-out-idle')==='1'){
+        sessionStorage.removeItem('crm-signed-out-idle');
+        const n = document.getElementById('crm-idle-note');
+        if(n) n.style.display = 'block';
+      }
+    }catch(e){}
   }
 }
 
