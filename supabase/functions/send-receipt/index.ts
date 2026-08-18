@@ -24,6 +24,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { PDFDocument, StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
+import { LOGO_PNG_BASE64 } from "./logo.ts";
 
 const ALLOWED_ORIGINS = ["https://crm.barestkd.fit"];
 
@@ -44,6 +45,16 @@ async function agreementPdf(bodyText: string, signaturePng: string | null): Prom
   const size = 9.5, lh = size * 1.45;
   let page = pdf.addPage([pageW, pageH]);
   let y = pageH - margin;
+  // The school's mark at the top of page one, same as the trial waiver PDF.
+  try {
+    const logoRaw = Uint8Array.from(atob(LOGO_PNG_BASE64), (ch) => ch.charCodeAt(0));
+    const logo = await pdf.embedPng(logoRaw);
+    const lw = 140, lh = logo.height * (lw / logo.width);
+    page.drawImage(logo, { x: (pageW - lw) / 2, y: y - lh, width: lw, height: lh });
+    y -= lh + 14;
+  } catch (e) {
+    console.error("pdf logo failed", e);
+  }
   const down = (need: number) => {
     if (y - need < margin) { page = pdf.addPage([pageW, pageH]); y = pageH - margin; }
   };
