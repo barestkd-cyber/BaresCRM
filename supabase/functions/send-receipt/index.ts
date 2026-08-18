@@ -23,8 +23,59 @@
 // ===========================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { PDFDocument, StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
 
 const ALLOWED_ORIGINS = ["https://crm.barestkd.fit"];
+
+function b64(bytes: Uint8Array): string {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+
+/** The signed agreement as a PDF, for the email trail. Same recipe the trial
+ *  funnel's waiver uses: wrap + paginate the stored body_text, then embed the
+ *  drawn signature. The DOCUMENT OF RECORD stays the database row; this is a
+ *  faithful print of it. */
+async function agreementPdf(bodyText: string, signaturePng: string | null): Promise<string> {
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const pageW = 612, pageH = 792, margin = 54, maxW = pageW - margin * 2;
+  const size = 9.5, lh = size * 1.45;
+  let page = pdf.addPage([pageW, pageH]);
+  let y = pageH - margin;
+  const down = (need: number) => {
+    if (y - need < margin) { page = pdf.addPage([pageW, pageH]); y = pageH - margin; }
+  };
+  for (const para of String(bodyText).split("\n")) {
+    const words = para.split(/\s+/).filter(Boolean);
+    if (!words.length) { down(lh); y -= lh * 0.6; continue; }
+    let line = "";
+    for (const w of words) {
+      const test = line ? line + " " + w : w;
+      if (font.widthOfTextAtSize(test, size) > maxW && line) {
+        down(lh); page.drawText(line, { x: margin, y, size, font }); y -= lh;
+        line = w;
+      } else line = test;
+    }
+    if (line) { down(lh); page.drawText(line, { x: margin, y, size, font }); y -= lh; }
+  }
+  if (signaturePng && signaturePng.startsWith("data:image/png;base64,")) {
+    try {
+      const png = await pdf.embedPng(signaturePng);
+      const w = Math.min(220, png.width), h = png.height * (w / png.width);
+      down(h + lh * 2);
+      y -= lh;
+      page.drawText("Signature:", { x: margin, y, size, font });
+      y -= h + 4;
+      page.drawImage(png, { x: margin, y, width: w, height: h });
+      y -= lh;
+    } catch (e) {
+      console.error("signature embed failed", e);
+    }
+  }
+  return b64(await pdf.save());
+}
 const REPLY_TO = "race@barestkd.fit";
 const LEGAL_ENTITY = "Grizzly Martial Arts & Fitness LLC";
 
@@ -246,6 +297,28 @@ Deno.serve(async (req) => {
       }, 200, cors);
     }
 
+    // ── the signed paperwork rides along as a PDF (owner request 2026-08-18):
+    // buyer and owner both get a copy for the trail, on top of the stored
+    // agreement on the student's profile. Built per send from the frozen
+    // body_text, so it always prints exactly what was signed. A PDF failure
+    // must never block the receipt.
+    const attachments: Array<{ filename: string; content: string }> = [];
+    try {
+      const agr = await admin.from("membership_agreements")
+        .select("document_title,body_text,signature_png,body_json")
+        .eq("sale_id", saleId).limit(4);
+      for (const a of agr.data ?? []) {
+        if (!a.body_text) continue;
+        const who = String((a.body_json as { participant?: string })?.participant ?? "").trim();
+        const fname = (String(a.document_title || "Membership Agreement")
+          + (who ? " - " + who : ""))
+          .replace(/[^A-Za-z0-9 .-]/g, "").replace(/\s+/g, "-") + ".pdf";
+        attachments.push({ filename: fname, content: await agreementPdf(a.body_text, a.signature_png) });
+      }
+    } catch (e) {
+      console.error("agreement pdf failed", e);
+    }
+
     const resendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
@@ -256,6 +329,7 @@ Deno.serve(async (req) => {
         reply_to: REPLY_TO,
         subject,
         html,
+        ...(attachments.length ? { attachments } : {}),
       }),
     });
     if (!resendRes.ok) {
@@ -300,6 +374,7 @@ Deno.serve(async (req) => {
           reply_to: to[0] || REPLY_TO,   // replying goes to the customer
           subject: `Paid: ${money(s.total_cents)} · ${String(buyerName).replace(/<br>.*/s, "")}`,
           html: ownerHtml,
+          ...(attachments.length ? { attachments } : {}),
         }),
       }).then((r) => { if (!r.ok) console.error("owner notify failed", r.status); })
         .catch((e) => console.error("owner notify threw", e));
