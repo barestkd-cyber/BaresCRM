@@ -1042,9 +1042,9 @@ async function loadMembers(){
   if(error){ console.error('loadMembers contacts error', error); return; }
   // name included: both funnels store it now, and "Pat Lee" reads better on a
   // profile than a bare email address.
-  const { data: gl } = await sb.from('student_guardians').select('student_id,email,label,name');
+  const { data: gl } = await sb.from('student_guardians').select('student_id,email,label,name,phone,address');
   const guardiansById = {};
-  (gl||[]).forEach(g=>{ (guardiansById[g.student_id] = guardiansById[g.student_id] || []).push([g.email || '', g.label || 'Guardian', g.name || '']); });
+  (gl||[]).forEach(g=>{ (guardiansById[g.student_id] = guardiansById[g.student_id] || []).push([g.email || '', g.label || 'Guardian', g.name || '', g.phone || '']); });
 
   const COLORS = ['White','Yellow','Orange','Green','Purple','Blue','Brown','Red','Black'];
   const deriveBelt = r => { if(!r) return ''; return COLORS.find(c => r.includes(c)) || ''; };
@@ -5017,6 +5017,7 @@ function renderProfile(){
       html += '<div class="ccg-row">'
         + (g[2] ? '<b>'+escHtml(g[2])+'</b>' : '<span style="color:var(--muted)">(no name)</span>')
         + (g[1] ? '<span class="ccg-chip">'+escHtml(g[1])+'</span>' : '')
+        + (g[3] ? '<a href="tel:'+escAttr(g[3])+'" class="ccg-sub" style="color:var(--muted)">'+escHtml(g[3])+'</a>' : '')
         + (g[0] ? '<a href="mailto:'+escAttr(g[0])+'" class="ccg-sub" style="color:var(--muted)">'+escHtml(g[0])+'</a>' : '')
         + '</div>';
     });
@@ -5024,6 +5025,7 @@ function renderProfile(){
     html += '<div class="ccg-sub">No guardian on file'+(m.age && m.age<18?' - add one at the next signing':'')+'.</div>';
   }
   html += '<div class="ccg-sub" style="margin:10px 0 4px">Household</div><div id="prof-hh">Loading…</div>';
+  html += '<div id="prof-people"></div>';
   html += '</div></div>';
 
   // training & gear (martial-arts-native)
@@ -5091,6 +5093,7 @@ function renderProfile(){
   loadProfileRosters(m.id);
   loadProfileNotes(m.id);
   loadProfileStats(m.id);
+  loadProfilePeople(m.id);
   loadProfileMoney(m.id);
   profApplyTab();
 }
@@ -5126,6 +5129,34 @@ document.addEventListener('click', ()=>{
 });
 
 /* Stat strip: attendance counts by window. */
+/* Emergency contacts and authorized pickups, from student_contacts. Optional
+ * people collected at enrollment; phone-first because the moment you need
+ * this list you are holding a phone. */
+async function loadProfilePeople(contactId){
+  const box = document.getElementById('prof-people'); if(!box) return;
+  const { data, error } = await sb.from('student_contacts')
+    .select('kind,name,phone,relationship')
+    .eq('student_id', contactId).order('created_at');
+  if(error){ console.error('student_contacts', error); return; }
+  const rows = data||[];
+  if(!rows.length) return;
+  let html = '';
+  const group = (kind, title) => {
+    const list = rows.filter(r=>r.kind===kind);
+    if(!list.length) return;
+    html += '<div class="ccg-sub" style="margin:10px 0 4px">'+title+'</div>';
+    list.forEach(r=>{
+      html += '<div class="ccg-row"><b>'+escHtml(r.name)+'</b>'
+        + (r.relationship ? '<span class="ccg-chip">'+escHtml(r.relationship)+'</span>' : '')
+        + (r.phone ? '<a href="tel:'+escAttr(r.phone)+'" class="ccg-sub" style="color:var(--muted)">'+escHtml(r.phone)+'</a>' : '')
+        + '</div>';
+    });
+  };
+  group('emergency','Emergency contacts');
+  group('pickup','Authorized to pick up');
+  box.innerHTML = html;
+}
+
 async function loadProfileStats(contactId){
   const ymd = d => { const x=new Date(); x.setDate(x.getDate()-d); return x.toISOString().slice(0,10); };
   const count = async (since) => {
@@ -5234,6 +5265,7 @@ async function profSaveAttendance(){
   closeSheet(); toast('Attendance added');
   loadProfileAttendance(m.id);
   loadProfileStats(m.id);
+  loadProfilePeople(m.id);
 }
 
 /* ── ring up: start a sale for this person, one tap ───────────────────────*/
