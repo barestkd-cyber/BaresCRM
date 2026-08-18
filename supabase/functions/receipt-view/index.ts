@@ -85,10 +85,12 @@ const CSS = [
   ".iv-col + .iv-col{border-left:1px solid #E2E6EB;padding-left:14px}",
   ".iv-k{font-size:10.5px;color:#6A727E;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:3px}",
   ".iv-v{font-weight:600;font-size:14.5px}",
+  ".inv-scroll{overflow-x:auto}",
   "table.inv-tbl{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}",
+  "@media(max-width:480px){table.inv-tbl{font-size:12px}.inv-tbl th,.inv-tbl td{padding:8px 5px}}",
   ".inv-tbl th{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:#6A727E;text-align:left;padding:6px 8px;border-bottom:1px solid #E2E6EB}",
   ".inv-tbl th,.inv-tbl td{padding:9px 7px;border-bottom:none;vertical-align:top;white-space:nowrap}",
-  ".inv-tbl th.c-item,.inv-tbl td.c-item{white-space:normal;word-break:break-word}",
+  ".inv-tbl th.c-item,.inv-tbl td.c-item{white-space:normal;min-width:8em}",
   "table.inv-tbl{table-layout:auto}",
   ".inv-tbl th.c-qty,.inv-tbl th.c-price,.inv-tbl th.c-disc,.inv-tbl th.c-tax{width:1%;white-space:nowrap}",
   ".inv-tbl th.c-item{width:auto}",
@@ -206,12 +208,12 @@ Deno.serve(async (req) => {
     // with their own green total bar mirroring the black one above.
     const payCard = pays.length
       ? '<div class="iv-payhd">' + ICO.wallet + "<span>PAYMENTS</span></div>" +
-        '<table class="inv-tbl"><thead><tr><th>Date</th><th>Type</th><th class="r">Amount</th></tr></thead><tbody>' +
+        '<div class="inv-scroll"><table class="inv-tbl"><thead><tr><th>Date</th><th>Type</th><th class="r">Amount</th></tr></thead><tbody>' +
         pays.map((p) =>
           "<tr><td>" + esc(fmtDate(String(p.occurred_at).slice(0, 10))) + "</td>" +
           '<td style="text-transform:capitalize">' + esc(p.kind) + (p.note ? '<div style="font-size:11px;color:#6A727E">' + esc(p.note) + "</div>" : "") + "</td>" +
           '<td class="r"' + (p.amount_cents < 0 ? ' style="color:#c8102e"' : "") + ">" + (p.amount_cents < 0 ? "−" : "") + money(Math.abs(p.amount_cents)) + "</td></tr>").join("") +
-        "</tbody></table>" +
+        "</tbody></table></div>" +
         '<div class="iv-total paid"><span class="lbl">Total paid</span><span class="amt">' + money(paidNet) + "</span></div>" +
         (balance > 0 && !closed ? '<div style="padding:0 16px 12px;font-size:12.5px;font-weight:700;color:#c8102e">Still owed: ' + money(balance) + "</div>" : "")
       : "";
@@ -235,10 +237,10 @@ Deno.serve(async (req) => {
       "</div>" +
       '<div class="iv-div"></div>' +
       '<div style="padding:12px 16px 4px"><div class="iv-k">' + (paid ? "Paid by" : "Payment") + '</div><div class="iv-v" style="text-transform:capitalize">' + esc(s.tender_method || (closed ? "Closed — no balance due" : "Not Yet Received")) + "</div></div>" +
-      '<table class="inv-tbl"><thead><tr><th class="c-qty">Qty</th><th class="c-item">Item</th><th class="r c-price">Price</th>' +
+      '<div class="inv-scroll"><table class="inv-tbl"><thead><tr><th class="c-qty">Qty</th><th class="c-item">Item</th><th class="r c-price">Price</th>' +
       (anyDisc ? '<th class="r c-disc">Disc</th>' : "") +
       '<th class="r c-tax">Tax</th><th class="r">Total</th></tr></thead><tbody>' +
-      rows + "</tbody></table>" +
+      rows + "</tbody></table></div>" +
       '<div style="padding:8px 16px 2px">' +
       trow("Subtotal", s.subtotal_cents) +
       (s.discount_cents ? trow("Discount", s.discount_cents, true) : "") +
