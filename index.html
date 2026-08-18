@@ -342,6 +342,13 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .pm-carderr{display:none;color:var(--accent);font-size:13px;margin-top:7px;font-weight:600}
 .pm-testnote{margin-top:8px;font-size:12.5px;color:var(--muted);background:var(--surface);border-radius:8px;padding:8px 10px}
 
+/* ---------- brand switcher: martial arts vs Grizzly Business Systems ---- */
+.bswitch-row{display:flex;gap:6px;width:100%;margin-bottom:9px;overflow-x:auto}
+.bswitch{flex:0 0 auto;background:#fff;border:1.5px solid var(--line);color:var(--muted);font-weight:700;
+  font-size:12.5px;border-radius:99px;padding:7px 14px;cursor:pointer;font-family:inherit;white-space:nowrap}
+.bswitch.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.bswitch .bn{opacity:.65;font-weight:600;margin-left:3px}
+
 /* ---------- profile redesign (2026-08-17 mocks): stat strip, belt bar,
    actions menu, tabs. PC-first; phone keeps stacked cards. ---------- */
 .pstats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 14px 0}
@@ -1057,6 +1064,7 @@ async function loadMembers(){
     age: c.dob ? Math.floor((Date.now() - new Date(c.dob)) / 3.15576e10) : 0,
     dob: c.dob || '',       // printed on the membership agreement
     gender: c.gender || '',
+    brand: c.brand || 'btkd',   // which business this contact belongs to
     guardians: guardiansById[c.id] || [],
     // These were hardcoded [] for weeks, so the profile showed no phone or
     // email for anyone even though both columns were loaded. Map the truth.
@@ -1287,9 +1295,20 @@ const FILTERS = {
 
 /* ========== RENDER: chips ========== */
 function renderChips(){
-  $("#chips").innerHTML = Object.keys(FILTERS).map(key=>{
+  // The brand switcher only appears once GBS actually has clients, so the
+  // martial arts side never carries UI for a business that isn't running yet.
+  const gbs = brandCount('gbs');
+  const bt = brandCount('btkd');
+  let head = '';
+  if(gbs > 0){
+    const tab = (b,label,n) => '<button class="bswitch'+(ROSTER_BRAND===b?' on':'')+'" onclick="setRosterBrand(\''+b+'\')">'
+      + escHtml(label)+' <span class="bn">'+n+'</span></button>';
+    head = '<div class="bswitch-row">'+tab('btkd','Martial arts',bt)+tab('gbs','Grizzly Business Systems',gbs)+'</div>';
+  }
+  $("#chips").innerHTML = head + Object.keys(FILTERS).map(key=>{
     const f = FILTERS[key];
-    const count = MEMBERS.filter(f.test).length;
+    // counts follow the brand being shown, not the whole table
+    const count = MEMBERS.filter(m => (m.brand||'btkd') === ROSTER_BRAND).filter(f.test).length;
     const on = activeFilter===key;
     return '<button class="chip'+(f.alert?' alert':'')+(on?' on':'')+'" onclick="toggleFilter(\''+key+'\')">'
       + '<div class="c-count num">'+count+'</div>'
@@ -1300,8 +1319,17 @@ function toggleFilter(key){ activeFilter = (activeFilter===key)?null:key; render
 function clearFilter(){ activeFilter=null; $("#search").value=""; renderChips(); renderList(); }
 
 /* ========== RENDER: list ========== */
+/* Which business the roster is showing. Grizzly Business Systems clients live
+   in the same contacts table but must not clutter the martial arts roster, so
+   the list is scoped to one brand at a time and defaults to btkd. */
+let ROSTER_BRAND = 'btkd';
+function setRosterBrand(b){
+  ROSTER_BRAND = b; activeFilter = null;
+  renderChips(); renderList();
+}
+function brandCount(b){ return MEMBERS.filter(m => (m.brand||'btkd') === b).length; }
 function filteredMembers(){
-  let list = MEMBERS.slice();
+  let list = MEMBERS.filter(m => (m.brand||'btkd') === ROSTER_BRAND);
   if(activeFilter) list = list.filter(FILTERS[activeFilter].test);
   const q = $("#search").value.trim().toLowerCase();
   if(q) list = list.filter(m => (m.first+" "+m.last).toLowerCase().includes(q));
