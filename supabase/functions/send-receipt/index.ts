@@ -190,10 +190,30 @@ Deno.serve(async (req) => {
     // ── load the sale; make sure it has a view token ────────────────────────
     const admin = createClient(url, serviceKey);
     const saleRes = await admin.from("pos_sales")
-      .select("id,status,brand,total_cents,sale_date,view_token,buyer_contact_id,stripe_email,customer_note,calendar_url,notes")
+      .select("id,status,brand,total_cents,sale_date,view_token,buyer_contact_id,stripe_email,customer_note,calendar_url,notes,receipt_sent_at")
       .eq("id", saleId).single();
     if (saleRes.error || !saleRes.data) return json({ error: "Sale not found" }, 404, cors);
     const s = saleRes.data;
+
+    // ── one receipt per payment, however many things noticed it ──────────
+    // Two independent paths can see the same payment land: the page the
+    // customer paid on (create-checkout, or a checkout function finalizing),
+    // and the Stripe webhook backstop that exists for the customer who closes
+    // the tab mid-payment. Both are correct to fire, and on 2026-08-19 both
+    // did, so Mike got two identical receipts and Race got two notifications
+    // one second apart.
+    //
+    // The payment ledger deduped properly on stripe_object_id, so the money
+    // was only ever recorded once; it was only the mail that doubled.
+    //
+    // AUTOMATIC sends authenticate with the service key; Race clicking Email
+    // in the CRM authenticates with his own staff token. So `internal` is
+    // exactly the line between "something noticed a payment" and "a human
+    // asked for this", and only the former is suppressed. Re-sending a
+    // receipt by hand must always work, including to a corrected address.
+    if (internal && s.receipt_sent_at) {
+      return json({ ok: true, skipped: "receipt already sent for this sale" }, 200, cors);
+    }
 
     if (!to.length) {
       // Resolution order, most-specific first:
