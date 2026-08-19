@@ -2180,11 +2180,14 @@ function renderPOS(){
   // Both forms render; the stylesheet picks one - dropdown on phones, big tap
   // targets on desktop (owner call 2026-08-15).
   html+='<div class="pos-sec-lbl">Quick List Products</div>';
-  html+='<div class="pos-prodsel"><select onchange="if(this.value){posAddProdLine(this.value);this.selectedIndex=0;}">'
+  html+='<div class="pos-prodsel"><select onchange="posQuickPick(this)">'
     +'<option value="">Add a product…</option>'
+    +'<option value="__oneoff">One-off item… (not saved to your list)</option>'
     +PRODUCTS.map(p=>'<option value="'+escAttr(p.id)+'">'+escHtml(p.label)+' · '+money(p.amount)+'</option>').join("")
     +'</select></div>';
-  html+='<div class="pos-prods">'+PRODUCTS.map(p=>'<button onclick="posAddProdLine(\''+escAttr(p.id)+'\')">'+escHtml(p.label)+'<span class="pp-amt">'+money(p.amount)+'</span></button>').join("")+'</div>';
+  html+='<div class="pos-prods">'
+    +'<button onclick="posOneOff()" style="border-style:dashed">One-off item…<span class="pp-amt">not saved to your list</span></button>'
+    +PRODUCTS.map(p=>'<button onclick="posAddProdLine(\''+escAttr(p.id)+'\')">'+escHtml(p.label)+'<span class="pp-amt">'+money(p.amount)+'</span></button>').join("")+'</div>';
   html+='<div class="pos-sec-lbl">Reference</div><div class="inv-add">'+PACKETS.map(p=>'<button onclick="openPacket(\''+p.id+'\')">▤ '+p.label+(p.url?'':' · add')+'</button>').join("")+'</div>';
   html+='</div>';
   html+='<div><div class="inv pos-inv">';
@@ -2483,11 +2486,7 @@ async function posRequoteLine(i){
   l.sub = posMemRecurringNote(c, null);
   l.amount = posMemDueCents(c, null)/100;
 }
-function posAddProduct(){
-  const body=posOneOffBtn()+PRODUCTS.map(p=>'<button class="opt-btn" onclick="posAddProdLine(\''+p.id+'\')"><div style="flex:1;font-weight:600">'+p.label+'</div><div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(p.amount)+'</div></button>').join("");
-  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Add product</h3><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'</div>';
-  openSheet();
-}
+
 /* ── ONE-OFF ITEMS ───────────────────────────────────────────────────────
    Something sold once and never again: a used chest guard, a replacement
    patch, a parent chipping in for a seminar. It must NOT join the products
@@ -2503,10 +2502,16 @@ function posAddProduct(){
    Only the NAME is asked for here. Price, tax, quantity, discount, income
    category and notes all come from the normal line editor, which opens
    straight after, so there is no second form to keep in step with it. */
-function posOneOffBtn(){
-  return '<button class="opt-btn" onclick="posOneOff()" style="border-style:dashed">'
-    +'<div style="flex:1;font-weight:600">One-off item…</div>'
-    +'<div style="font-size:12.5px;color:var(--muted)">not saved to your list</div></button>';
+
+/* The Quick List dropdown is what phones show; the button grid is desktop
+   only. Both feed through here so the one-off entry behaves the same on
+   either, and so no string literal has to survive being quoted inside an
+   inline handler inside a JS string. */
+function posQuickPick(sel){
+  const v = sel.value;
+  sel.selectedIndex = 0;                 // always reset, even on cancel
+  if(!v) return;
+  if(v === "__oneoff") posOneOff(); else posAddProdLine(v);
 }
 function posOneOff(){
   $("#sheet").classList.remove("sheet-lg");
