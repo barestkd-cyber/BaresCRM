@@ -107,6 +107,25 @@ function methodFromSession(session: Record<string, any>): string {
   return "card";
 }
 
+/** Where a card payment actually came from, for the ledger note.
+ *
+ * This branch used to hardcode "keyed at the desk". It is the BACKSTOP for
+ * every card payment, not just POS ones, so on 2026-08-19 it labelled a
+ * payment Mike made through his invoice link as taken at the front desk,
+ * and won the race against create-checkout which had it right. Every
+ * PaymentIntent we create carries metadata.source; read it instead of
+ * guessing, and stay vague rather than wrong when it is missing. */
+function paymentNote(source: string): string {
+  switch (source) {
+    case "pos-manual":        return "Card payment (keyed at the desk)";
+    case "invoice-page":      return "Card payment (invoice page)";
+    case "lk-checkout":       return "Card payment (Little Kickers signup)";
+    case "cubs-checkout":     return "Card payment (Cubs enrollment)";
+    case "testing-checkout":  return "Card payment (testing registration)";
+    default:                  return "Card payment";
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("POST only", { status: 405 });
 
@@ -226,7 +245,7 @@ Deno.serve(async (req) => {
           await admin.from("pos_payments").insert({
             sale_id: saleId, kind: "charge", amount_cents: amount,
             method: "card", stripe_object_id: obj.id, stripe_event_id: event.id,
-            note: "Card payment (keyed at the desk)",
+            note: paymentNote(String(obj.metadata?.source ?? "")),
           });
         }
         const sale = await admin.from("pos_sales").select("total_cents,status").eq("id", saleId).single();
