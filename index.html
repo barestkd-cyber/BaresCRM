@@ -1683,6 +1683,61 @@ let TESTING = [
   {id:"t1", title:"Belt Testing · June 2026", date:"Jun 28, 2026", fee:60, desc:"Reserve your student's spot for the next belt testing. The fee covers the evaluation and certificate."},
   {id:"t2", title:"Belt Testing · Sept 2026", date:"Sep 27, 2026", fee:60, desc:"Reserve your student's spot for the next belt testing. The fee covers the evaluation and certificate."}
 ];
+
+/* Belt testing, for real. The mock TESTING array above is the old prototype
+   mirroring Class Plan's cycle.testingDates; the Testing tab no longer renders
+   it. Groups now come from the testing_dates table, and ONE switch on the
+   settings singleton puts the public signup page live.
+   Owner, 2026-08-19: "just a toggle for a page live/not live. ill set it open
+   when i want" - nothing here is scheduled, computed, or auto-opened. */
+let TESTING_ROWS = [], TESTING_PAGE_LIVE = false;
+const cpEsc = s => String(s == null ? "" : s).replace(/[&<>"']/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* Groups dated today or later, studio-local. Past testings drop off on their
+   own, so adding the next testing needs no cleanup of the last one. */
+async function loadTesting(){
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  const [d, st] = await Promise.all([
+    sb.from('testing_dates')
+      .select('id,label,test_date,start_time,fee_cents,signup_by,sort_order')
+      .gte('test_date', today).order('sort_order'),
+    sb.from('settings').select('testing_page_live').limit(1).maybeSingle()
+  ]);
+  if(d.error){ console.error('testing dates load', d.error); } else { TESTING_ROWS = d.data || []; }
+  if(st.error){ console.error('testing page switch load', st.error); }
+  else if(st.data){ TESTING_PAGE_LIVE = st.data.testing_page_live === true; }
+
+  if(TESTING_ROWS.length){
+    const c = await sb.from('testing_signups').select('testing_date_id')
+      .in('testing_date_id', TESTING_ROWS.map(r => r.id));
+    const counts = {};
+    (c.data || []).forEach(r => { counts[r.testing_date_id] = (counts[r.testing_date_id] || 0) + 1; });
+    TESTING_ROWS.forEach(r => { r.signups = counts[r.id] || 0; });
+  }
+  const v = document.getElementById('view-checkout');
+  if(v && v.classList.contains('on')) renderCheckout();
+}
+
+/* The only thing standing between a parent and the signup page. */
+async function cpToggleTestingPage(){
+  const next = !TESTING_PAGE_LIVE;
+  const { error } = await sb.from('settings').update({ testing_page_live: next }).eq('id', true);
+  if(error){ console.error('testing page toggle', error); toast('Could not change the page. Try again.'); return; }
+  TESTING_PAGE_LIVE = next;
+  renderCheckout();
+  toast(next ? 'Testing signup page is LIVE' : 'Testing signup page is off');
+}
+
+/* "Fri, Aug 28 at 5:30 PM", built without new Date(str) - that parses as UTC
+   and reads a day early in Central, which would print the wrong testing day. */
+function cpTestingWhen(row){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(row.test_date || ''));
+  if(!m) return String(row.test_date || '');
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  const label = d.toLocaleDateString('en-US', { timeZone:'UTC', weekday:'short', month:'short', day:'numeric' });
+  return row.start_time ? (label + ' at ' + row.start_time) : label;
+}
 // Weekly class grid synced from Class Plan (read-only). Only the trial flag is set here.
 // day: 0 Sun ... 6 Sat
 let SCHEDULE = [
@@ -1724,17 +1779,30 @@ function renderCheckout(){
       + '<div class="ck-btns"><button class="prog-edit" onclick="cpManageEvent(\''+e.id+'\')">Participants</button><button class="prog-edit" onclick="cpEditEvent(\''+e.id+'\')">Edit</button><button class="prog-edit ghost" onclick="cpOpen(\'event\',\''+e.id+'\')">Preview ↗</button></div></div>').join("");
     html += '<div class="proto-note">Events auto-archive after their date and keep their sign-up stats.</div>';
   } else if(cpTab==="testing"){
-    html += '<div class="ck-hint">Testing dates are set in Class Plan. Each page goes public 4 weeks before its date, and stays open afterward so you can backfill testers.</div>';
-    html += '<button class="addopt" onclick="launchApp(\'classplan\')">Set testing dates in Class Plan ↗</button>';
-    html += TESTING.map(t=>{
-      const st=testingStatus(t);
-      const badge = st.state==="live" ? '<span class="prog-count" style="background:#E4F5EE;color:var(--go)">Live</span>'
-        : st.state==="scheduled" ? '<span class="prog-count" style="background:var(--surface);color:var(--muted)">Scheduled</span>'
-        : '<span class="prog-count" style="background:#FBE9E9;color:var(--accent)">Past</span>';
+    const live = TESTING_PAGE_LIVE;
+    html += '<div class="prog-card" style="border-color:' + (live ? '#BFE6D6' : '#F0C9C9') + '">'
+      + '<div class="prog-top"><div>'
+      + '<div class="prog-name">Testing signup page</div>'
+      + '<div class="prog-ages">' + (live
+          ? 'Parents can reach it and pay right now.'
+          : 'Dark. Nobody can sign up until you turn it on.') + '</div></div>'
+      + (live ? '<span class="prog-count" style="background:#E4F5EE;color:var(--go)">Live</span>'
+              : '<span class="prog-count" style="background:#FBE9E9;color:var(--accent)">Off</span>')
+      + '</div><div class="ck-btns">'
+      + '<button class="prog-edit" onclick="cpToggleTestingPage()">' + (live ? 'Turn the page off' : 'Turn the page on') + '</button>'
+      + '<button class="prog-edit ghost" onclick="window.open(\'https://www.barestkd.fit/testing-checkout/\',\'_blank\')">Open page ↗</button>'
+      + '</div></div>';
+    html += '<div class="ck-hint">These are the groups a parent picks from, and a group leaves the page by itself once its date passes. The sign-up-by date is printed for parents, never enforced.</div>';
+    if(!TESTING_ROWS.length){
+      html += '<div class="proto-note">No testing dates coming up.</div>';
+    }
+    html += TESTING_ROWS.map(t=>{
+      const fee = (t.fee_cents == null) ? 'family pricing' : money(t.fee_cents/100) + ' flat';
+      const n = t.signups || 0;
       return '<div class="prog-card"><div class="prog-top"><div>'
-        + '<div class="prog-name">'+t.title+'</div><div class="prog-ages">'+money(t.fee)+' · '+t.date+' · feeds the testing app</div></div>'+badge+'</div>'
-        + '<div class="ck-status '+st.state+'">'+st.label+'</div>'
-        + '<div class="ck-btns"><button class="prog-edit ghost" onclick="cpOpen(\'testing\',\''+t.id+'\')">Preview ↗</button></div></div>';
+        + '<div class="prog-name">' + cpEsc(t.label) + '</div>'
+        + '<div class="prog-ages">' + cpEsc(cpTestingWhen(t)) + ' · ' + fee + ' · ' + n + ' signed up</div></div>'
+        + '<span class="prog-count" style="background:#FBF1DC;color:var(--gold)">Group</span></div></div>';
     }).join("");
   } else {
     html += '<div class="ck-hint">The Free Trial page is the self-serve front door, prospects do everything themselves. Enrollment pages come from your programs; to add a program or change plans, edit it in Memberships.</div>';
@@ -6246,6 +6314,7 @@ async function bootCrm(){
   loadProducts();  // async - POS quick-list swaps in live rows when it lands
   loadEvents();    // async - real events replace the mock list when the table exists
   loadStaffDir();  // async - real staff names for picker/created-by/receipts
+  loadTesting();   // async - real testing groups + the public-page switch
   // PRICE_SETTINGS lives here, and the admin fee needs it on EVERY sale - not
   // just membership sales. Before this, a plain uniform sale never loaded the
   // catalog, so no fee was applied and the cash/check "remove fee?" prompt had
