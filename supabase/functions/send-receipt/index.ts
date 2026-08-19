@@ -87,6 +87,21 @@ async function agreementPdf(bodyText: string, signaturePng: string | null): Prom
   }
   return b64(await pdf.save());
 }
+// DEPLOY: supabase functions deploy send-receipt --no-verify-jwt
+//
+// The --no-verify-jwt is REQUIRED and was learned the hard way on
+// 2026-08-19. Supabase rotated the injected env keys on 2026-08-18, and
+// SUPABASE_SERVICE_ROLE_KEY is now a 41-char sb_secret_ key rather than a
+// legacy JWT. Our own functions call this one server-to-server with
+// ; the API gateway tried to parse it as
+// a JWT, failed, and returned 401 BEFORE the request ever reached this
+// function. Every web-checkout receipt was silently failing, because the
+// callers log the failure and swallow it so a receipt problem can never
+// cost a payment.
+//
+// Skipping gateway verification does NOT weaken this endpoint: the auth
+// gate below is the real one, and it still demands either the exact
+// service key or a signed-in staff user.
 const REPLY_TO = "race@barestkd.fit";
 const LEGAL_ENTITY = "Grizzly Martial Arts & Fitness LLC";
 
