@@ -2030,7 +2030,9 @@ async function loadEvents(){
   // POS does not sell it). One table -> student events autopopulate.
   const { data, error } = await sb.from('events').select('*').order('date', { ascending: true });
   if(error){ console.error('events load (mock list stays)', error); return; }
-  const sellable = (data||[]).filter(e=>e.price_cents!=null && e.active!==false);
+  // The column is `archived`, not `active`. Filtering on a column that does not
+  // exist made every archived event sellable, because undefined !== false.
+  const sellable = (data||[]).filter(e=>e.price_cents!=null && e.archived!==true);
   if(sellable.length){
     EVENTS = sellable.map(e=>({ id: e.id, dbId: e.id, title: e.label, price: e.price_cents/100,
       date: e.date||'', desc: e.note||'', qty:false, participants:[] }));
