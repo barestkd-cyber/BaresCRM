@@ -530,6 +530,87 @@ test('29 allocateCents: exact sum, stable order, degenerate inputs', function ()
   assert.deepStrictEqual(t.discountAllocationCents, [2000, 1000]);
 });
 
+// ─── belt-testing fee ladder (owner spec 2026-08-19) ───────────────────────
+
+var TFEE = {
+  testing_fee_cubs_cents: 5000,
+  testing_fee_standard_cents: 6000,
+  testing_fee_2nd_cents: 5000,
+  testing_fee_3rd_cents: 3000,
+  testing_fee_addl_cents: 1000
+};
+
+test('30 testing seat 1 follows the program, later seats are flat', function () {
+  var f = function (program, position) {
+    return P.testingFeeCents({ program: program, position: position, settings: TFEE });
+  };
+  assert.strictEqual(f('Cubs', 1), 5000, 'Cubs first seat is $50');
+  assert.strictEqual(f('Juniors', 1), 6000);
+  assert.strictEqual(f('Teens/Adults', 1), 6000);
+  // Seats 2+ ignore the program entirely: a Cubs second child is still $50,
+  // and a Juniors third child is still $30.
+  assert.strictEqual(f('Cubs', 2), 5000);
+  assert.strictEqual(f('Juniors', 2), 5000);
+  assert.strictEqual(f('Cubs', 3), 3000);
+  assert.strictEqual(f('Juniors', 3), 3000);
+});
+
+test('31 fourth seat and EACH additional is $10', function () {
+  var f = function (n) { return P.testingFeeCents({ program: 'Juniors', position: n, settings: TFEE }); };
+  assert.strictEqual(f(4), 1000);
+  assert.strictEqual(f(5), 1000, 'the ladder does not stop at four');
+  assert.strictEqual(f(9), 1000);
+});
+
+test('32 a whole family adds up the way Race described it', function () {
+  var seat = function (program, position) {
+    return P.testingFeeCents({ program: program, position: position, settings: TFEE });
+  };
+  // Two Juniors siblings: $60 + $50.
+  assert.strictEqual(seat('Juniors', 1) + seat('Juniors', 2), 11000);
+  // Cubs first, Juniors second: the owner's stated case, $50 + $50.
+  assert.strictEqual(seat('Cubs', 1) + seat('Juniors', 2), 10000);
+  // Five kids: 60 + 50 + 30 + 10 + 10.
+  var five = seat('Juniors', 1) + seat('Juniors', 2) + seat('Juniors', 3)
+           + seat('Juniors', 4) + seat('Juniors', 5);
+  assert.strictEqual(five, 16000);
+});
+
+test('33 a parent returning later starts at seat 2 with no seat 1 in the cart', function () {
+  // The whole point of declared positions: this is one student, checked out
+  // alone, at the second-family-member price.
+  assert.strictEqual(P.testingFeeCents({ program: 'Juniors', position: 2, settings: TFEE }), 5000);
+  assert.strictEqual(P.testingFeeCents({ program: 'Cubs', position: 4, settings: TFEE }), 1000);
+});
+
+test('34 missing or junk settings fall back, never to free', function () {
+  // A misspelled settings key must not make testing cost nothing.
+  assert.strictEqual(P.testingFeeCents({ program: 'Juniors', position: 1, settings: {} }), 6000);
+  assert.strictEqual(P.testingFeeCents({ program: 'Cubs', position: 1 }), 5000);
+  assert.strictEqual(P.testingFeeCents({ position: 3, settings: {} }), 3000);
+  assert.strictEqual(P.testingFeeCents({ program: 'Juniors', position: 1, settings: { testing_fee_standard_cents: 'abc' } }), 6000);
+  // Nonsense positions clamp to seat 1 rather than throwing or going free.
+  assert.strictEqual(P.testingFeeCents({ program: 'Juniors', position: 0, settings: TFEE }), 6000);
+  assert.strictEqual(P.testingFeeCents({ program: 'Juniors', position: -3, settings: TFEE }), 6000);
+  assert.strictEqual(P.testingFeeCents({ program: 'Cubs' }), 5000);
+});
+
+test('35 testing seats run through invoiceTotals as taxable lines', function () {
+  // The catalog marks the testing fee taxable today. Two seats, card fee on
+  // the pre-tax base, tax on the seats.
+  var lines = [
+    { cents: P.testingFeeCents({ program: 'Juniors', position: 1, settings: TFEE }), taxable: true },
+    { cents: P.testingFeeCents({ program: 'Cubs', position: 2, settings: TFEE }), taxable: true }
+  ];
+  var base = 6000 + 5000;
+  var fee = Math.round(base * 290 / 10000) + 30;             // 319 + 30
+  assert.strictEqual(fee, 349);
+  var t = P.invoiceTotals({ lines: lines, discountCents: 0, adminFeeCents: fee, taxRate: 0.0825 });
+  assert.strictEqual(t.subtotalCents, 11000);
+  assert.strictEqual(t.taxCents, 908);                        // 11000 * .0825 = 907.5 → 908
+  assert.strictEqual(t.totalCents, 11000 + 349 + 908);
+});
+
 // ─── summary ───────────────────────────────────────────────────────────────
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
