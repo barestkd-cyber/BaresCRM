@@ -36,19 +36,19 @@ alter table public.testing_dates
   add column if not exists start_time text,
   add column if not exists applies_to text,
   add column if not exists sort_order integer default 100,
-  add column if not exists closes_on date;
+  add column if not exists signup_by date;
 
 comment on column public.testing_dates.applies_to is
   'Plain-English who-this-is-for, shown on the public signup page.';
 comment on column public.testing_dates.fee_cents is
   'Per-seat price override. NULL means use the family ladder in pricing_settings.';
-comment on column public.testing_dates.closes_on is
-  'Last day signups are accepted, inclusive, studio-local. NULL means no deadline.';
+comment on column public.testing_dates.signup_by is
+  'SOFT deadline shown to parents. Never enforced.';
 
 -- 2 ─ the groups --------------------------------------------------------------
 -- Idempotent on (label, test_date): a re-run updates rather than duplicating.
 
-with g(label, test_date, start_time, applies_to, sort_order, fee_cents, closes_on) as (values
+with g(label, test_date, start_time, applies_to, sort_order, fee_cents, signup_by) as (values
   ('Cubs',
    date '2026-08-28', '5:30 PM',
    'Cubs students. Friday, August 28 at 5:30 PM.',
@@ -66,15 +66,15 @@ with g(label, test_date, start_time, applies_to, sort_order, fee_cents, closes_o
    'For students who cannot make their scheduled group. Tuesday, September 1 at 5:30 PM.',
    40, 7000, date '2026-08-27')
 )
-insert into public.testing_dates (label, test_date, start_time, applies_to, sort_order, fee_cents, closes_on)
-select g.label, g.test_date, g.start_time, g.applies_to, g.sort_order, g.fee_cents, g.closes_on
+insert into public.testing_dates (label, test_date, start_time, applies_to, sort_order, fee_cents, signup_by)
+select g.label, g.test_date, g.start_time, g.applies_to, g.sort_order, g.fee_cents, g.signup_by
   from g
  where not exists (
    select 1 from public.testing_dates t
     where t.label = g.label and t.test_date = g.test_date
  );
 
-with g(label, test_date, start_time, applies_to, sort_order, fee_cents, closes_on) as (values
+with g(label, test_date, start_time, applies_to, sort_order, fee_cents, signup_by) as (values
   ('Cubs', date '2026-08-28', '5:30 PM',
    'Cubs students. Friday, August 28 at 5:30 PM.', 10, null::integer, date '2026-08-27'),
   ('Juniors, white through orange belt', date '2026-08-29', '9:30 AM',
@@ -89,7 +89,7 @@ update public.testing_dates t
        applies_to = g.applies_to,
        sort_order = g.sort_order,
        fee_cents  = g.fee_cents,
-       closes_on  = g.closes_on
+       signup_by  = g.signup_by
   from g
  where t.label = g.label and t.test_date = g.test_date;
 
@@ -97,7 +97,7 @@ update public.testing_dates t
 select label, test_date::text as on_date, to_char(test_date,'Dy') as dow,
        coalesce(start_time,'(time not set)') as at_time,
        coalesce(fee_cents::text,'ladder') as fee,
-       closes_on::text as signups_close,
-       public_from::text as visible_from
+       signup_by::text as signup_by
+
   from public.testing_dates
  order by sort_order;
