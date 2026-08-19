@@ -611,6 +611,42 @@ test('35 testing seats run through invoiceTotals as taxable lines', function () 
   assert.strictEqual(t.totalCents, 11000 + 349 + 908);
 });
 
+test('36 a per-event flat fee replaces the ladder for the first seat', function () {
+  // Late Testing: the owner prices the catch-up slot on its own terms.
+  var s = { testing_fee_cubs_cents: 5000, testing_fee_standard_cents: 6000,
+            testing_fee_2nd_cents: 5000, testing_fee_3rd_cents: 3000,
+            testing_fee_addl_cents: 1000 };
+  assert.strictEqual(P.testingFeeCents({ program: 'TKD', position: 1, settings: s,
+    flatCents: 7000, flatAddlCents: 6000 }), 7000);
+});
+
+test('37 later seats at a flat event pay the event rate, not the ladder', function () {
+  var s = { testing_fee_2nd_cents: 5000, testing_fee_3rd_cents: 3000, testing_fee_addl_cents: 1000 };
+  // "2nd + late tester can be 60": every additional seat, not a sliding scale.
+  [2, 3, 4, 9].forEach(function (pos) {
+    assert.strictEqual(
+      P.testingFeeCents({ program: 'TKD', position: pos, settings: s, flatCents: 7000, flatAddlCents: 6000 }),
+      6000, 'seat ' + pos);
+  });
+});
+
+test('38 a flat event with no additional rate charges everyone the same', function () {
+  var s = { testing_fee_2nd_cents: 5000 };
+  assert.strictEqual(P.testingFeeCents({ position: 1, settings: s, flatCents: 7000 }), 7000);
+  assert.strictEqual(P.testingFeeCents({ position: 3, settings: s, flatCents: 7000 }), 7000);
+});
+
+test('39 no override means the ladder still runs untouched', function () {
+  var s = { testing_fee_cubs_cents: 5000, testing_fee_standard_cents: 6000,
+            testing_fee_2nd_cents: 5000, testing_fee_3rd_cents: 3000,
+            testing_fee_addl_cents: 1000 };
+  assert.strictEqual(P.testingFeeCents({ program: 'Cubs', position: 1, settings: s }), 5000);
+  assert.strictEqual(P.testingFeeCents({ program: 'TKD',  position: 1, settings: s }), 6000);
+  assert.deepStrictEqual([2, 3, 4].map(function (n) {
+    return P.testingFeeCents({ program: 'TKD', position: n, settings: s });
+  }), [5000, 3000, 1000]);
+});
+
 // ─── summary ───────────────────────────────────────────────────────────────
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');

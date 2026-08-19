@@ -2484,9 +2484,52 @@ async function posRequoteLine(i){
   l.amount = posMemDueCents(c, null)/100;
 }
 function posAddProduct(){
-  const body=PRODUCTS.map(p=>'<button class="opt-btn" onclick="posAddProdLine(\''+p.id+'\')"><div style="flex:1;font-weight:600">'+p.label+'</div><div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(p.amount)+'</div></button>').join("");
+  const body=posOneOffBtn()+PRODUCTS.map(p=>'<button class="opt-btn" onclick="posAddProdLine(\''+p.id+'\')"><div style="flex:1;font-weight:600">'+p.label+'</div><div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(p.amount)+'</div></button>').join("");
   $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Add product</h3><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'</div>';
   openSheet();
+}
+/* ── ONE-OFF ITEMS ───────────────────────────────────────────────────────
+   Something sold once and never again: a used chest guard, a replacement
+   patch, a parent chipping in for a seminar. It must NOT join the products
+   catalog, because that list is what Race taps every day and a pile of
+   never-again items makes it slower to use. But it still has to print on the
+   invoice and the receipt with a real name and price.
+
+   A one-off is simply a `prod` line with no product_id. Nothing else had to
+   change: pos_sale_lines already stores each line's own label and
+   unit_cents, and product_id is already nullable, so every receipt, invoice
+   and report surface renders it correctly as-is.
+
+   Only the NAME is asked for here. Price, tax, quantity, discount, income
+   category and notes all come from the normal line editor, which opens
+   straight after, so there is no second form to keep in step with it. */
+function posOneOffBtn(){
+  return '<button class="opt-btn" onclick="posOneOff()" style="border-style:dashed">'
+    +'<div style="flex:1;font-weight:600">One-off item…</div>'
+    +'<div style="font-size:12.5px;color:var(--muted)">not saved to your list</div></button>';
+}
+function posOneOff(){
+  $("#sheet").classList.remove("sheet-lg");
+  $("#sheet").innerHTML='<div class="grab"></div>'
+    +'<div class="sheet-head"><h3>One-off item</h3><button class="close" onclick="closeSheet()">×</button></div>'
+    +'<div class="sheet-body"><div class="spk-form">'
+    +'<label class="spk-label">What is it?</label>'
+    +'<input id="pciLabel" class="ed-in" maxlength="80" autocomplete="off" placeholder="Used chest guard">'
+    +'<p style="margin:10px 0 0;font-size:12.5px;color:var(--muted)">Prints on the invoice and receipt exactly as you type it. It is not added to your product list.</p>'
+    +'</div></div>'
+    +'<div class="spk-foot"><button class="spk-cancel" onclick="closeSheet()">Cancel</button>'
+    +'<button class="spk-add" onclick="posOneOffNext()">Next</button></div>';
+  openSheet();
+  setTimeout(function(){ const el=document.getElementById("pciLabel"); if(el) el.focus(); },80);
+}
+function posOneOffNext(){
+  const el=document.getElementById("pciLabel");
+  const label=((el&&el.value)||"").trim();
+  if(!label){ toast("Give it a name so the receipt reads right"); if(el) el.focus(); return; }
+  posSale.lines.push({kind:"prod", label:label, amount:0, retail:0,
+    taxable:true, productDbId:null, oneOff:true});
+  renderPOS();
+  posEditLine(posSale.lines.length-1, true);   // price and the rest go here
 }
 function posAddProdLine(prid){ const p=PRODUCTS.find(x=>x.id===prid); posSale.lines.push({kind:"prod", label:p.label, amount:p.amount, retail:p.amount, taxable:(p.taxable!==undefined?p.taxable:true), productDbId:p.dbId||null}); renderPOS(); posEditLine(posSale.lines.length-1, true); }
 function posAddEvent(){
