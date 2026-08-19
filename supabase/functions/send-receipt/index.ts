@@ -7,8 +7,11 @@
 // paid/due state - the link is the receipt.
 //
 // HARD RULES:
-//   1. STAFF-ONLY. Deployed WITH JWT verification (no --no-verify-jwt), and
-//      additionally checks is_staff() with the caller's own token.
+//   1. STAFF OR INTERNAL. Deployed WITH --no-verify-jwt (see the DEPLOY
+//      note further down for why), so this function does its OWN auth: it
+//      accepts either the exact injected service key, used by our other
+//      functions server-to-server, or a signed-in user who passes
+//      is_staff() on their own token. Nothing else gets in.
 //   2. The client sends ONLY { sale_id, to: [emails] } - the ledger row is
 //      the source of everything rendered. Max 3 recipients.
 //   3. Brand identity follows the sale's brand; the legal line names the LLC.
@@ -92,8 +95,8 @@ async function agreementPdf(bodyText: string, signaturePng: string | null): Prom
 // The --no-verify-jwt is REQUIRED and was learned the hard way on
 // 2026-08-19. Supabase rotated the injected env keys on 2026-08-18, and
 // SUPABASE_SERVICE_ROLE_KEY is now a 41-char sb_secret_ key rather than a
-// legacy JWT. Our own functions call this one server-to-server with
-// ; the API gateway tried to parse it as
+// legacy JWT. Our own functions call this one server-to-server with that
+// key as a bearer token; the API gateway tried to parse it as
 // a JWT, failed, and returned 401 BEFORE the request ever reached this
 // function. Every web-checkout receipt was silently failing, because the
 // callers log the failure and swallow it so a receipt problem can never
