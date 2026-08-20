@@ -122,6 +122,7 @@ function paymentNote(source: string): string {
     case "lk-checkout":       return "Card payment (Little Kickers signup)";
     case "cubs-checkout":     return "Card payment (Cubs enrollment)";
     case "testing-checkout":  return "Card payment (testing registration)";
+    case "program-checkout":  return "Card payment (online enrollment)";
     default:                  return "Card payment";
   }
 }
