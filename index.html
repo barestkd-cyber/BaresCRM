@@ -672,6 +672,12 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .spk-card-row b{color:var(--ink)}
 .spk-form{display:flex;flex-direction:column}
 .spk-label{font-size:13px;font-weight:700;color:var(--text);margin:14px 0 5px}
+/* Editing a membership: a warning when the number moves away from what was
+   signed, a quiet hint, and a row for the card actions. */
+.spk-note-warn{background:#FBE9E9;border-left:3px solid var(--accent);border-radius:0 8px 8px 0;
+  padding:8px 10px;font-size:12.5px;line-height:1.5;color:#7a1f1f;margin:6px 0 0}
+.spk-hint{font-size:12px;color:var(--muted);margin:6px 0 0;line-height:1.5}
+.memx-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .spk-form>.spk-label:first-child{margin-top:0}
 .spk-select{appearance:auto}
 .spk-price{display:flex;align-items:stretch}
@@ -5524,10 +5530,118 @@ async function saveContactNote(){
  * memberships sold in the current browser session). Pause/cancel actions
  * arrive with the recurring-billing build; until then the card is truth,
  * not controls. */
+/* ── EDIT A MEMBERSHIP ────────────────────────────────────────────────────
+ * The membership row is the answer to "what are they billed". Editing it is
+ * legitimate - people negotiate rates, move billing dates, switch weekly to
+ * monthly - but a frozen snapshot that can be quietly rewritten is worth
+ * nothing, so every change lands in membership_edits with what it was
+ * before and why.
+ *
+ * What is deliberately NOT editable here: the program and the plan. Those
+ * are what the signed agreement is about, and changing them means a
+ * different contract, not an edit. */
+let MEM_EDIT = null;
+
+const MEM_FIELDS = [
+  { key:'final_recurring_cents', label:'Price',          kind:'money' },
+  { key:'billing_frequency',     label:'Billed',         kind:'freq'  },
+  { key:'next_bill_on',          label:'Next bills on',  kind:'date'  },
+  { key:'status',                label:'Status',         kind:'status'},
+];
+
+async function memEditOpen(id){
+  const { data, error } = await sb.from('memberships')
+    .select('id,contact_id,program,plan_code,status,billing_frequency,next_bill_on,final_recurring_cents,final_down_cents,started_on,ended_on')
+    .eq('id', id).single();
+  if(error||!data){ toast('Could not open that membership'); return; }
+  MEM_EDIT = data;
+
+  // What the signed agreement says, so an edit that moves away from the
+  // paperwork is visible while it is being made rather than discovered later.
+  const { data:ag } = await sb.from('membership_agreements')
+    .select('id,document_title,recurring_cents,signed_at').eq('membership_id', id)
+    .eq('status','signed').maybeSingle();
+
+  const freq = data.billing_frequency||'monthly';
+  const body = '<div class="spk-form">'
+    + '<div class="spk-card"><div class="spk-card-ttl">'+escHtml(data.program||'-')+'</div>'
+      + '<div class="spk-card-desc">'+escHtml(data.plan_code||'')+'</div></div>'
+    + '<label class="spk-label">Price</label>'
+    + '<div class="spk-price"><span class="spk-dollar">$</span>'
+      + '<input id="me-price" class="ed-in" type="number" step="0.01" min="0" value="'
+      + ((data.final_recurring_cents||0)/100).toFixed(2)+'"></div>'
+    + (ag && ag.recurring_cents!=null && ag.recurring_cents!==data.final_recurring_cents
+        ? '<div class="spk-note-warn">The signed agreement says '+money(ag.recurring_cents/100)+'.</div>' : '')
+    + '<label class="spk-label">Billed</label>'
+    + '<select id="me-freq" class="ed-in spk-select">'
+      + ['monthly','weekly','one_time'].map(f=>'<option value="'+f+'"'+(f===freq?' selected':'')+'>'
+          + (f==='one_time'?'Paid in full':f.charAt(0).toUpperCase()+f.slice(1))+'</option>').join('')
+      + '</select>'
+    + '<label class="spk-label">Next bills on</label>'
+    + '<input id="me-next" class="ed-in" type="date" value="'+escAttr(data.next_bill_on||'')+'">'
+    + '<div class="spk-hint">Leave empty if nothing is scheduled. Set this to line a second program up with the one they already pay.</div>'
+    + '<label class="spk-label">Status</label>'
+    + '<select id="me-status" class="ed-in spk-select">'
+      + ['active','paused','canceled','ended'].map(x=>'<option value="'+x+'"'+(x===(data.status||'active')?' selected':'')+'>'
+          + x.charAt(0).toUpperCase()+x.slice(1)+'</option>').join('')
+      + '</select>'
+    + '<label class="spk-label">Why (recorded)</label>'
+    + '<input id="me-reason" class="ed-in" maxlength="200" placeholder="Moved billing to the 1st at her request">'
+    + '</div>';
+
+  $("#sheet").classList.add("sheet-lg");
+  $("#sheet").innerHTML='<div class="grab"></div>'
+    + '<div class="sheet-head spk-head"><h3>Edit membership</h3>'
+    + '<button class="close" onclick="closeSheet()">&times;</button></div>'
+    + '<div class="sheet-body spk-body">'+body+'</div>'
+    + '<div class="spk-foot"><button class="spk-cancel" onclick="closeSheet()">Cancel</button>'
+    + '<button class="spk-add" onclick="memEditSave()">Save changes</button></div>';
+  openSheet();
+}
+
+async function memEditSave(){
+  if(!MEM_EDIT) return;
+  const before = MEM_EDIT;
+  const priceCents = Math.round(parseFloat($("#me-price").value||"0")*100);
+  if(!isFinite(priceCents) || priceCents < 0){ toast("Enter a price"); return; }
+  const next = {
+    final_recurring_cents: priceCents,
+    billing_frequency: $("#me-freq").value,
+    next_bill_on: $("#me-next").value || null,
+    status: $("#me-status").value,
+  };
+  const reason = ($("#me-reason").value||"").trim();
+
+  // Only what actually moved, so the trail is a list of changes and not a
+  // snapshot of every save.
+  const changed = MEM_FIELDS.filter(f => String(before[f.key] ?? "") !== String(next[f.key] ?? ""));
+  if(!changed.length){ closeSheet(); toast("Nothing changed"); return; }
+  if(!reason){ toast("Say why - it goes on the record"); $("#me-reason").focus(); return; }
+
+  const { error } = await sb.from('memberships').update(next).eq('id', before.id);
+  if(error){ console.error('membership update', error); toast('Could not save that'); return; }
+
+  // The trail is best-effort: a failure here must not undo a saved change,
+  // but it must be loud, because a silent gap in an audit trail is worse
+  // than no audit trail at all.
+  const who = (typeof currentEmail!=='undefined' && currentEmail) ? currentEmail : 'staff';
+  const rows = changed.map(f => ({
+    membership_id: before.id, contact_id: before.contact_id, field: f.label,
+    old_value: String(before[f.key] ?? ""), new_value: String(next[f.key] ?? ""),
+    reason: reason, edited_by: who,
+  }));
+  const { error: aErr } = await sb.from('membership_edits').insert(rows);
+  if(aErr){ console.error('membership_edits', aErr); toast('Saved, but the change log did not record it'); }
+  else toast('Membership updated');
+
+  closeSheet();
+  if(before.contact_id) loadProfileMemberships(before.contact_id);
+}
+
 async function loadProfileMemberships(contactId){
   const box = document.getElementById('prof-mems'); if(!box) return;
   const { data, error } = await sb.from('memberships')
-    .select('id,program,plan_code,status,billing_frequency,started_on,ended_on,final_recurring_cents,final_down_cents,payment_count,sale_id')
+    .select('id,contact_id,program,plan_code,status,billing_frequency,started_on,ended_on,final_recurring_cents,final_down_cents,payment_count,sale_id,next_bill_on')
     .eq('contact_id', contactId)
     .order('created_at', { ascending:false });
   if(error){ console.error('profile memberships', error); box.innerHTML='<div class="card pad" style="color:var(--muted);font-size:14px">Could not load memberships.</div>'; return; }
@@ -5564,7 +5678,12 @@ async function loadProfileMemberships(contactId){
         + (ms.final_down_cents?'<div class="sub">'+money(ms.final_down_cents/100)+' down payment</div>':'');
     price += '<div class="sub">Price locked at signup</div>';
 
+    // The next charge date is the single most asked-about fact on a
+    // membership, so it goes on the card rather than behind the edit sheet.
     const terms = [];
+    if(ms.next_bill_on && ms.billing_frequency!=='one_time' && st==='active'){
+      terms.push('Next bills '+fmtDate(ms.next_bill_on));
+    }
     if(term==='session'){
       terms.push(ms.ended_on ? 'Session '+fmtDate(ms.started_on)+' to '+fmtDate(ms.ended_on) : 'Single session');
       terms.push('Paid in full, does not renew');
@@ -5595,7 +5714,10 @@ async function loadProfileMemberships(contactId){
       + '<div class="memx-price">'+price+'</div>'
       + '<div class="memx-terms">'+terms.map(t=>'<div>'+escHtml(t)+'</div>').join('')+'</div>'
       + agr
-      + (ms.sale_id?'<div><button class="vc" onclick="showInvoice(\''+ms.sale_id+'\',\'profile\')">View invoice</button></div>':'')
+      + '<div class="memx-acts">'
+      + '<button class="vc" onclick="memEditOpen(\''+ms.id+'\')">Edit membership</button>'
+      + (ms.sale_id?' <button class="vc" onclick="showInvoice(\''+ms.sale_id+'\',\'profile\')">View invoice</button>':'')
+      + '</div>'
       + '</div>';
   });
   h += '<div class="ccg-sub" style="margin-top:2px">Agreement status is required for all memberships.</div>';

@@ -121,7 +121,7 @@ const FNS = [
   'posAttachSheet', 'posAttachSearch', 'posPickStudentForLine', 'posRequoteLine', 'posSetBuyer',
   'posTkdTrackFor', 'posMemRosterPrograms',
   // agreement capture — renderPOS/posPayOpen/posTender all reach into these
-  'agrResolve', 'agrBuildDoc', 'agrDocText', 'agrDocHtml', 'agrUnsignedLines',
+  'agrResolve', 'agrApplyAddOns', 'agrBuildDoc', 'agrDocText', 'agrDocHtml', 'agrUnsignedLines',
   'agrGate', 'agrWaive', 'agrShowBlocked', 'agrShowBlockedFor', 'agrOpenSign', 'agrRenderSheet',
   'agrSigInit', 'agrSigClear', 'agrAccept', 'agrField', 'agrSaveBackToProfile',
   'posTender', 'posBuildSaleIntent',

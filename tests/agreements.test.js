@@ -98,7 +98,7 @@ sandbox.globalThis = sandbox;
 vm.createContext(sandbox);
 vm.runInContext(
   [liftVar('money'), liftVar('escHtml'), liftVar('escAttr'),
-   liftFn('agrResolve'), liftFn('agrBuildDoc'), liftFn('agrDocText'),
+   liftFn('agrResolve'), liftFn('agrApplyAddOns'), liftFn('agrBuildDoc'), liftFn('agrDocText'),
    liftFn('agrDocHtml'), liftFn('agrUnsignedLines')].join('\n'),
   sandbox
 );
