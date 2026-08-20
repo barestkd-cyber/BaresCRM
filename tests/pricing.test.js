@@ -719,6 +719,37 @@ test('48 junk inputs return an empty schedule, never half of one', function () {
   assert.deepStrictEqual(P.installmentSchedule({}), []);
 });
 
+test('49 a single private lesson is the flat rate', function () {
+  assert.strictEqual(P.privateLessonCents({ count: 1, settings: {"private_rate_cents":3500,"private_pack_size":7,"private_pack_pay_for":6} }), 3500);
+});
+
+test('50 a pack of seven is charged for six: buy 6 get one free', function () {
+  var s = {"private_rate_cents":3500,"private_pack_size":7,"private_pack_pay_for":6};
+  assert.strictEqual(P.privateLessonCents({ count: 7, settings: s }), 21000,
+    'seven lessons must cost 6 x $35 = $210, not $245');
+  assert.strictEqual(P.privateLessonCents({ count: 7, settings: s }),
+    P.privateLessonCents({ count: 1, settings: s }) * 6);
+});
+
+test('51 only the exact pack size earns the free lesson', function () {
+  var s = {"private_rate_cents":3500,"private_pack_size":7,"private_pack_pay_for":6};
+  assert.strictEqual(P.privateLessonCents({ count: 6, settings: s }), 21000, 'six is six at full rate');
+  assert.strictEqual(P.privateLessonCents({ count: 3, settings: s }), 10500, 'three must not inherit the pack discount');
+  assert.strictEqual(P.privateLessonCents({ count: 8, settings: s }), 28000);
+});
+
+test('52 a changed rate flows through both prices, still exact in cents', function () {
+  var s = { private_rate_cents: 4000, private_pack_size: 7, private_pack_pay_for: 6 };
+  assert.strictEqual(P.privateLessonCents({ count: 1, settings: s }), 4000);
+  assert.strictEqual(P.privateLessonCents({ count: 7, settings: s }), 24000);
+});
+
+test('53 junk settings fall back to the studio rate, never to free', function () {
+  assert.strictEqual(P.privateLessonCents({ count: 1, settings: {} }), 3500);
+  assert.strictEqual(P.privateLessonCents({ count: 1, settings: { private_rate_cents: 'x' } }), 3500);
+  assert.ok(P.privateLessonCents({}) > 0, 'a private lesson is never free by accident');
+});
+
 // ─── summary ───────────────────────────────────────────────────────────────
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');

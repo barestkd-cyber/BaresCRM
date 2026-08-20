@@ -123,6 +123,7 @@ function paymentNote(source: string): string {
     case "cubs-checkout":     return "Card payment (Cubs enrollment)";
     case "testing-checkout":  return "Card payment (testing registration)";
     case "program-checkout":  return "Card payment (online enrollment)";
+    case "private-checkout":  return "Card payment (private lesson)";
     default:                  return "Card payment";
   }
 }
