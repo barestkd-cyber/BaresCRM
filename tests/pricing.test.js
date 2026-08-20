@@ -690,6 +690,35 @@ test('44 junk dates fall back to the full month, never to free', function () {
   assert.strictEqual(P.nextBillOn('nonsense', '2026-08-20'), null);
 });
 
+test('45 installmentSchedule keeps its anchor day across short months', function () {
+  var sch = P.installmentSchedule({ firstDueOn: '2027-01-31', frequency: 'monthly', amountCents: 9500, count: 4 });
+  assert.deepStrictEqual(sch.map(function (r) { return r.dueOn; }),
+    ['2027-01-31', '2027-02-28', '2027-03-31', '2027-04-30'],
+    'a schedule anchored on the 31st must bounce back after February, not slide to the 28th forever');
+  assert.deepStrictEqual(sch.map(function (r) { return r.seq; }), [1, 2, 3, 4]);
+  assert.ok(sch.every(function (r) { return r.amountCents === 9500; }));
+});
+
+test('46 weekly schedules are exactly 7 days apart', function () {
+  var sch = P.installmentSchedule({ firstDueOn: '2026-09-03', frequency: 'weekly', amountCents: 3395, count: 3 });
+  assert.deepStrictEqual(sch.map(function (r) { return r.dueOn; }),
+    ['2026-09-03', '2026-09-10', '2026-09-17']);
+});
+
+test('47 a 12-payment monthly run crosses the year boundary intact', function () {
+  var sch = P.installmentSchedule({ firstDueOn: '2026-09-20', frequency: 'monthly', amountCents: 11000, count: 12 });
+  assert.strictEqual(sch.length, 12);
+  assert.strictEqual(sch[3].dueOn, '2026-12-20');
+  assert.strictEqual(sch[4].dueOn, '2027-01-20');
+  assert.strictEqual(sch[11].dueOn, '2027-08-20');
+});
+
+test('48 junk inputs return an empty schedule, never half of one', function () {
+  assert.deepStrictEqual(P.installmentSchedule({ firstDueOn: 'nope', frequency: 'monthly', amountCents: 1000, count: 3 }), []);
+  assert.deepStrictEqual(P.installmentSchedule({ firstDueOn: '2026-09-01', frequency: 'monthly', amountCents: 1000, count: 0 }), []);
+  assert.deepStrictEqual(P.installmentSchedule({}), []);
+});
+
 // ─── summary ───────────────────────────────────────────────────────────────
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');

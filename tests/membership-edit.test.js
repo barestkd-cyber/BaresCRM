@@ -90,5 +90,42 @@ test('the sale-time override audit is never overwritten by an edit', () => {
     assert.ok(!src.includes(f), 'memEditSave touches ' + f));
 });
 
+/* ── the payment schedule ────────────────────────────────── */
+
+test('schedule edits demand a reason before any row is written', () => {
+  const src = /async function memSchedSave\(\)\{([\s\S]*?)\n\}/.exec(html);
+  assert.ok(src, 'memSchedSave not found');
+  const body = src[1];
+  const gate = body.indexOf('Say why');
+  const write = body.indexOf('membership_installments").update');
+  assert.ok(gate > -1 && write > -1 && gate < write, 'the reason gate must come before the write');
+});
+
+test('an installment invoice is untaxed, fee-free, and unpaid at creation', () => {
+  const src = /async function memSchedInvoice\(id\)\{([\s\S]*?)\n\}/.exec(html);
+  assert.ok(src, 'memSchedInvoice not found');
+  const body = src[1];
+  assert.ok(/status:"unpaid"/.test(body), 'must be created unpaid, never paid');
+  assert.ok(/tax_cents:0/.test(body), 'a membership payment is a service, untaxed');
+  assert.ok(/admin_fee_cents:0/.test(body), 'no card fee at creation; the fee question belongs to the charging engine');
+  assert.ok(/taxable:false/.test(body), 'the line must be untaxed too');
+  ['override_reason', 'override_by'].forEach((x) =>
+    assert.ok(!body.includes(x), x + ' must not be touched'));
+});
+
+test('a paid, invoiced or waived installment cannot be edited in place', () => {
+  const src = /function memSchedRender\(\)\{([\s\S]*?)\n\}/.exec(html);
+  assert.ok(src, 'memSchedRender not found');
+  assert.ok(/locked = st\[0\]!=="Scheduled"/.test(src[1]),
+    'only Scheduled rows may be edited; everything else locks');
+});
+
+test('the generator uses the engine, never local date math', () => {
+  const src = /async function memSchedGenerate\(\)\{([\s\S]*?)\n\}/.exec(html);
+  assert.ok(src, 'memSchedGenerate not found');
+  assert.ok(/BTKDPricing\.installmentSchedule\(/.test(src[1]),
+    'dates must come from the tested engine generator');
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
 process.exit(failed ? 1 : 0);

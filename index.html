@@ -678,6 +678,26 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
   padding:8px 10px;font-size:12.5px;line-height:1.5;color:#7a1f1f;margin:6px 0 0}
 .spk-hint{font-size:12px;color:var(--muted);margin:6px 0 0;line-height:1.5}
 .memx-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+/* Blackout days read as closed at a glance, and the sheet toggles line up. */
+.cal-day.blackout{background:#ECEEF2}
+.cal-day.blackout .dnum{color:#5A6472;font-weight:800}
+.bo-togs{display:flex;flex-wrap:wrap;gap:10px 16px;padding:4px 0}
+.bo-togs label{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:600;cursor:pointer}
+.bo-togs input{width:17px;height:17px}
+/* Payment schedule rows: one row per installment, editable in place. */
+.inst-list{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.inst-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff}
+.inst-row.lk{background:var(--surface);opacity:.75}
+.inst-seq{font-weight:800;min-width:22px;text-align:right;color:var(--muted)}
+.inst-row input[type=date]{font:inherit;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px}
+.inst-row input[type=number]{font:inherit;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;width:88px}
+.inst-cur{color:var(--muted);margin-right:-4px}
+.inst-st{font-size:11px;font-weight:800;letter-spacing:.03em;border-radius:6px;padding:2px 7px;text-transform:uppercase}
+.inst-st.sc{background:var(--surface);color:var(--muted)}
+.inst-st.iv{background:#FBF1DC;color:var(--gold)}
+.inst-st.pd{background:#E4F5EE;color:var(--go)}
+.inst-st.wv{background:#FBE9E9;color:var(--accent)}
+.inst-acts{margin-left:auto;display:flex;gap:6px}
 .spk-form>.spk-label:first-child{margin-top:0}
 .spk-select{appearance:auto}
 .spk-price{display:flex;align-items:stretch}
@@ -4950,7 +4970,7 @@ async function renderCalendar(){
       const cur=new Date(calMonth.getFullYear(), calMonth.getMonth(), d);
       const items=calItemsOn(cur);
       const dots=items.slice(0,4).map(i=>'<span class="dot" style="background:'+CAL_TYPES[i.type].color+'"></span>').join("");
-      const cls='cal-day'+(sameDay(cur,today)?' today':'')+(calSel&&sameDay(cur,calSel)?' sel':'');
+      const cls='cal-day'+(sameDay(cur,today)?' today':'')+(calSel&&sameDay(cur,calSel)?' sel':'')+(items.some(i=>i.type==='blackout')?' blackout':'');
       html+='<div class="'+cls+'" onclick="calPick('+d+')" onmouseenter="calHoverDay(event,'+d+')" onmouseleave="calHoverHide()"><span class="dnum">'+d+'</span><div class="cal-dots">'+dots+'</div></div>';
     }
     html+='</div></div>';
@@ -5006,6 +5026,15 @@ function calSchedSheet(){
   body+='<div class="medit"><label>'+nameLabel+'</label><input id="cs-name" placeholder="'+ph+'"></div>';
   body+='<div class="frow2"><div class="medit"><label>Date</label><input id="cs-date" value="'+dstr+'"></div>'
     +'<div class="medit"><label>Time</label><input id="cs-time" value="'+(t==="blackout"?"All day":"5:30 PM")+'"></div></div>';
+  if(t==="blackout"){
+    body+='<div class="medit"><label>What is closed that day</label>'
+      +'<div class="bo-togs">'
+      +'<label><input type="checkbox" id="cs-bo-classes" checked> Classes</label>'
+      +'<label><input type="checkbox" id="cs-bo-trials" checked> Trial bookings</label>'
+      +'<label><input type="checkbox" id="cs-bo-privates" checked> Private lessons</label>'
+      +'</div>'
+      +'<div class="ck-hint" style="margin-top:6px">All three checked is a full closure, the usual case. Untick what stays open. Blocked trials disappear from the website booker, and the closure shows in the Curriculum app.</div></div>';
+  }
   if(t==="event"){
     body+='<div class="medit"><label>Link URL (optional - checkout page)</label><input id="cs-link" placeholder="https://…"></div>';
     body+='<div class="medit"><label>Payment (optional, tap to toggle)</label><div class="seg-pick" style="margin-bottom:0">'
@@ -5053,7 +5082,12 @@ async function calSaveSched(){
     type:t, title:title, event_date:calYMD(new Date(date)), event_time:time||null,
     link_url:(t==="event" && $("#cs-link") && $("#cs-link").value.trim()) || null,
     paid:t==="event" ? (calSchedPaid==="paid"?true:calSchedPaid==="unpaid"?false:null) : null,
-    created_by:email
+    created_by:email,
+    ...(t==="blackout" ? {
+      blocks_classes: !!($("#cs-bo-classes")&&$("#cs-bo-classes").checked),
+      blocks_trials: !!($("#cs-bo-trials")&&$("#cs-bo-trials").checked),
+      blocks_privates: !!($("#cs-bo-privates")&&$("#cs-bo-privates").checked)
+    } : {})
   };
   const { error } = await sb.from('calendar_events').insert(row);
   if(error){ toast('Save failed: '+error.message); return; }
@@ -5638,6 +5672,201 @@ async function memEditSave(){
   if(before.contact_id) loadProfileMemberships(before.contact_id);
 }
 
+/* ── PAYMENT SCHEDULES ────────────────────────────────────────────────────────
+ * One row per future payment of a membership (membership_installments).
+ * This is the owner's 2026-08-15 doctrine made concrete: THE SCHEDULED
+ * PAYMENT IS THE DUE DATE. An invoice alone means pay-when-you-can;
+ * scheduling a charge is what attaches a commitment to a date. The future
+ * recurring-charging engine reads this same table.
+ *
+ * His 2026-08-20 spec: "someone might say hey could you bill me 2 weeks late
+ * in october 4 months away and i want to be able to change the price or
+ * payment date of a specific installment." So: each row edits on its own,
+ * every change needs a reason and lands in membership_edits, and any single
+ * scheduled row can be turned into a real invoice on the spot.
+ *
+ * Paid-ness is read off the linked sale, never stored twice: an installment
+ * with an invoice shows Paid exactly when its sale is paid. */
+let SCHED = null;
+
+function instToday(){ return new Date().toLocaleDateString("en-CA",{timeZone:"America/Chicago"}); }
+
+async function memSchedOpen(id){
+  const { data:ms, error } = await sb.from("memberships")
+    .select("id,contact_id,program,plan_code,status,billing_frequency,next_bill_on,final_recurring_cents,payment_count,started_on")
+    .eq("id", id).single();
+  if(error||!ms){ toast("Could not open that membership"); return; }
+  const { data:insts, error:iErr } = await sb.from("membership_installments")
+    .select("*").eq("membership_id", id).order("seq");
+  if(iErr){ console.error("installments", iErr); toast("Could not load the schedule"); return; }
+  let saleStatus = {};
+  const saleIds = (insts||[]).map(x=>x.sale_id).filter(Boolean);
+  if(saleIds.length){
+    const { data:ss } = await sb.from("pos_sales").select("id,status").in("id", saleIds);
+    (ss||[]).forEach(r=>saleStatus[r.id]=r.status);
+  }
+  SCHED = { ms: ms, insts: insts||[], saleStatus: saleStatus };
+  memSchedRender();
+}
+
+function instStatusLabel(x){
+  if(x.status==="waived") return ["Waived","wv"];
+  if(x.status==="canceled") return ["Canceled","wv"];
+  if(x.sale_id && SCHED.saleStatus[x.sale_id]==="paid") return ["Paid","pd"];
+  if(x.status==="invoiced") return ["Invoiced","iv"];
+  return ["Scheduled","sc"];
+}
+
+function memSchedRender(){
+  const ms=SCHED.ms, insts=SCHED.insts;
+  let body='<div class="spk-card"><div class="spk-card-ttl">'+escHtml(ms.program||"-")+'</div>'
+    +'<div class="spk-card-desc">'+escHtml(ms.plan_code||"")+'</div></div>';
+  if(!insts.length){
+    const cnt = ms.payment_count || 12;
+    const amt = ((ms.final_recurring_cents||0)/100).toFixed(2);
+    body+='<p class="spk-hint" style="margin-top:10px">No schedule yet. Lay one out from the membership, then edit any single payment: its date, its amount, or waive it.</p>'
+      +'<div class="frow2"><div class="medit"><label>Payments</label><input id="sc-count" type="number" min="1" max="60" value="'+cnt+'"></div>'
+      +'<div class="medit"><label>Amount each</label><input id="sc-amt" type="number" step="0.01" min="0" value="'+amt+'"></div></div>'
+      +'<div class="medit"><label>First due</label><input id="sc-first" type="date" value="'+escAttr(ms.next_bill_on||"")+'"></div>'
+      +'<button class="savebtn" onclick="memSchedGenerate()">Create schedule</button>';
+  } else {
+    body+='<div class="inst-list">';
+    insts.forEach((x,i)=>{
+      const st=instStatusLabel(x);
+      const locked = st[0]!=="Scheduled";
+      body+='<div class="inst-row'+(locked?" lk":"")+'">'
+        +'<span class="inst-seq">'+x.seq+'</span>'
+        +'<input type="date" data-if="due" data-i="'+i+'" value="'+escAttr(x.due_on)+'"'+(locked?" disabled":"")+'>'
+        +'<span class="inst-cur">$</span><input type="number" step="0.01" min="0" data-if="amt" data-i="'+i+'" value="'+((x.amount_cents||0)/100).toFixed(2)+'"'+(locked?" disabled":"")+'>'
+        +'<span class="inst-st '+st[1]+'">'+st[0]+'</span>'
+        +'<span class="inst-acts">'
+        + (x.sale_id ? '<button class="vc" onclick="memSchedInvoiceView(\''+x.sale_id+'\')">Invoice</button>'
+           : (x.status==="scheduled" ? '<button class="vc" onclick="memSchedInvoice(\''+x.id+'\')">Bill now</button>'
+              +'<button class="vc" onclick="memSchedWaive(\''+x.id+'\')">Waive</button>' : ""))
+        +'</span></div>';
+    });
+    body+='</div>'
+      +'<button class="addopt" style="margin-top:10px" onclick="memSchedAdd()">Add a payment</button>'
+      +'<div class="medit" style="margin-top:12px"><label>Why (recorded with any change)</label><input id="sc-reason" maxlength="200" placeholder="She asked to be billed two weeks late in October"></div>'
+      +'<button class="savebtn" onclick="memSchedSave()">Save changes</button>';
+  }
+  $("#sheet").classList.add("sheet-lg");
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head spk-head"><div><h3>Payment schedule</h3><div class="sub">Move, reprice, waive, or bill any single payment</div></div><button class="close" onclick="closeSheet()">×</button></div>'
+    +'<div class="sheet-body spk-body">'+body+'</div>';
+  openSheet();
+}
+
+async function memSchedGenerate(){
+  const ms=SCHED.ms;
+  const count=Math.round(parseFloat($("#sc-count").value||"0"));
+  const amtC=Math.round(parseFloat($("#sc-amt").value||"0")*100);
+  const first=$("#sc-first").value;
+  if(!count||count<1){ toast("How many payments?"); return; }
+  if(!isFinite(amtC)||amtC<0){ toast("Enter the amount"); return; }
+  if(!first){ toast("Pick the first due date"); return; }
+  const sch=BTKDPricing.installmentSchedule({ firstDueOn:first, frequency:ms.billing_frequency, amountCents:amtC, count:count });
+  if(!sch.length){ toast("Could not lay that out"); return; }
+  const rows=sch.map(r=>({ membership_id:ms.id, contact_id:ms.contact_id, seq:r.seq, due_on:r.dueOn, amount_cents:r.amountCents, status:"scheduled" }));
+  const { error } = await sb.from("membership_installments").insert(rows);
+  if(error){ console.error("schedule insert", error); toast("Could not save the schedule"); return; }
+  toast(count+" payments laid out");
+  memSchedOpen(ms.id);
+  if(ms.contact_id) loadProfileMemberships(ms.contact_id);
+}
+
+async function memSchedSave(){
+  const ms=SCHED.ms, insts=SCHED.insts;
+  const reason=($("#sc-reason").value||"").trim();
+  const edits=[];
+  document.querySelectorAll("#sheet [data-if]").forEach(el=>{
+    const i=+el.getAttribute("data-i"); const x=insts[i]; if(!x||el.disabled) return;
+    if(el.getAttribute("data-if")==="due"){
+      const v=el.value;
+      if(v && v!==x.due_on) edits.push({x:x, field:"due_on", val:v, old:x.due_on, label:"installment "+x.seq+" due date"});
+    } else {
+      const c=Math.round(parseFloat(el.value||"0")*100);
+      if(isFinite(c)&&c>=0&&c!==x.amount_cents) edits.push({x:x, field:"amount_cents", val:c, old:x.amount_cents, label:"installment "+x.seq+" amount"});
+    }
+  });
+  if(!edits.length){ closeSheet(); toast("Nothing changed"); return; }
+  if(!reason){ toast("Say why - it goes on the record"); $("#sc-reason").focus(); return; }
+  const who=(typeof currentEmail!=="undefined"&&currentEmail)?currentEmail:"staff";
+  for(const e of edits){
+    const upd={}; upd[e.field]=e.val;
+    const { error } = await sb.from("membership_installments").update(upd).eq("id", e.x.id);
+    if(error){ console.error("installment update", error); toast("Could not save installment "+e.x.seq); return; }
+  }
+  const trail=edits.map(e=>({ membership_id:ms.id, contact_id:ms.contact_id, field:e.label,
+    old_value:String(e.old==null?"":e.old), new_value:String(e.val==null?"":e.val), reason:reason, edited_by:who }));
+  const { error:tErr } = await sb.from("membership_edits").insert(trail);
+  if(tErr){ console.error("membership_edits", tErr); toast("Saved, but the change log did not record it"); }
+  else toast(edits.length+" change"+(edits.length===1?"":"s")+" saved");
+  closeSheet();
+  if(ms.contact_id) loadProfileMemberships(ms.contact_id);
+}
+
+async function memSchedWaive(id){
+  const reason=(($("#sc-reason")&&$("#sc-reason").value)||"").trim();
+  if(!reason){ toast("Say why in the box first - a waived payment needs a reason"); return; }
+  const x=SCHED.insts.find(r=>r.id===id); if(!x) return;
+  const { error } = await sb.from("membership_installments").update({ status:"waived", note:reason }).eq("id", id);
+  if(error){ toast("Could not waive it"); return; }
+  const who=(typeof currentEmail!=="undefined"&&currentEmail)?currentEmail:"staff";
+  await sb.from("membership_edits").insert({ membership_id:SCHED.ms.id, contact_id:SCHED.ms.contact_id,
+    field:"installment "+x.seq+" status", old_value:x.status, new_value:"waived", reason:reason, edited_by:who });
+  toast("Installment "+x.seq+" waived");
+  memSchedOpen(SCHED.ms.id);
+  if(SCHED.ms.contact_id) loadProfileMemberships(SCHED.ms.contact_id);
+}
+
+async function memSchedAdd(){
+  const ms=SCHED.ms, insts=SCHED.insts;
+  const maxSeq=insts.reduce((a,x)=>Math.max(a,x.seq),0);
+  const lastAmt=insts.length?insts[insts.length-1].amount_cents:(ms.final_recurring_cents||0);
+  let due=instToday();
+  const lastDue=insts.length?insts[insts.length-1].due_on:null;
+  if(lastDue){ due=BTKDPricing.nextBillOn(lastDue, lastDue)||due; }
+  const { error } = await sb.from("membership_installments").insert({
+    membership_id:ms.id, contact_id:ms.contact_id, seq:maxSeq+1, due_on:due, amount_cents:lastAmt, status:"scheduled" });
+  if(error){ console.error("installment add", error); toast("Could not add a payment"); return; }
+  memSchedOpen(ms.id);
+}
+
+/* Turn one scheduled payment into a real invoice, today. The invoice is the
+ * face value of the installment: no card fee at creation (the fee question
+ * belongs to the charging engine), no tax (a membership payment is a
+ * service). Uses the same ledger rails as every other sale, so the pay link,
+ * the receipt and the reports all just work. */
+async function memSchedInvoice(id){
+  const x=SCHED.insts.find(r=>r.id===id); if(!x) return;
+  const ms=SCHED.ms;
+  let brand="btkd";
+  try{ const c=await sb.from("contacts").select("brand").eq("id", ms.contact_id).maybeSingle(); if(c.data&&c.data.brand) brand=c.data.brand; }catch(e){}
+  const who=(typeof currentEmail!=="undefined"&&currentEmail)?currentEmail:"staff";
+  const saleId=crypto.randomUUID();
+  const label=(ms.program||"Membership")+" - installment "+x.seq+" of "+SCHED.insts.length;
+  const { error:sErr } = await sb.from("pos_sales").insert({
+    id:saleId, buyer_contact_id:ms.contact_id, sale_date:instToday(),
+    staff_email:who, brand:brand, tender_method:null, status:"unpaid",
+    subtotal_cents:x.amount_cents, discount_cents:0, admin_fee_cents:0, tax_cents:0,
+    total_cents:x.amount_cents,
+    notes:label+" (scheduled for "+x.due_on+")"
+  });
+  if(sErr){ console.error("installment invoice", sErr); toast("Could not create the invoice"); return; }
+  const { error:lErr } = await sb.from("pos_sale_lines").insert({
+    sale_id:saleId, kind:"mem", label:label, qty:1, unit_cents:x.amount_cents,
+    discount_cents:0, taxable:false, line_total_cents:x.amount_cents,
+    student_contact_id:ms.contact_id, membership_id:ms.id
+  });
+  if(lErr) console.error("installment invoice line", lErr);
+  const { error:uErr } = await sb.from("membership_installments").update({ status:"invoiced", sale_id:saleId }).eq("id", id);
+  if(uErr) console.error("installment link", uErr);
+  toast("Invoice created");
+  closeSheet();
+  showInvoice(saleId, "profile");
+}
+function memSchedInvoiceView(saleId){ closeSheet(); showInvoice(saleId, "profile"); }
+
 async function loadProfileMemberships(contactId){
   const box = document.getElementById('prof-mems'); if(!box) return;
   const { data, error } = await sb.from('memberships')
@@ -5658,6 +5887,15 @@ async function loadProfileMemberships(contactId){
     else (ags||[]).forEach(a=>{ if(!agrBy[a.membership_id]) agrBy[a.membership_id]=a; });
   }
   PROF_AGR = agrBy;
+  // Payment schedules for these memberships, one query for the whole card.
+  let instBy = {};
+  if(rows.length){
+    const { data:insts, error:iErr } = await sb.from('membership_installments')
+      .select('membership_id,status,sale_id').in('membership_id', rows.map(r=>r.id));
+    if(iErr) console.error('installments load', iErr);
+    else (insts||[]).forEach(x=>{ (instBy[x.membership_id]=instBy[x.membership_id]||[]).push(x); });
+  }
+  PROF_INST = instBy;
   // Card layout from the 2026-08-17 mocks: identity, price with the locked
   // note, the REAL term (12-month auto-renew / month-to-month / session with
   // dates), and the agreement box front and center. Terms come from the same
@@ -5683,6 +5921,11 @@ async function loadProfileMemberships(contactId){
     const terms = [];
     if(ms.next_bill_on && ms.billing_frequency!=='one_time' && st==='active'){
       terms.push('Next bills '+fmtDate(ms.next_bill_on));
+    }
+    const instAll = PROF_INST[ms.id]||[];
+    if(instAll.length){
+      const left = instAll.filter(x=>x.status==='scheduled'||x.status==='invoiced').length;
+      terms.push(left+' of '+instAll.length+' payments remaining');
     }
     if(term==='session'){
       terms.push(ms.ended_on ? 'Session '+fmtDate(ms.started_on)+' to '+fmtDate(ms.ended_on) : 'Single session');
@@ -5716,6 +5959,7 @@ async function loadProfileMemberships(contactId){
       + agr
       + '<div class="memx-acts">'
       + '<button class="vc" onclick="memEditOpen(\''+ms.id+'\')">Edit membership</button>'
+      + ' <button class="vc" onclick="memSchedOpen(\''+ms.id+'\')">Payment schedule</button>'
       + (ms.sale_id?' <button class="vc" onclick="showInvoice(\''+ms.sale_id+'\',\'profile\')">View invoice</button>':'')
       + '</div>'
       + '</div>';
@@ -5724,6 +5968,7 @@ async function loadProfileMemberships(contactId){
   box.innerHTML = h;
 }
 let PROF_AGR = {};
+let PROF_INST = {};
 
 /* Read a stored agreement back. The document is re-rendered from the frozen
  * body_json - never from the current template - so it always shows exactly
