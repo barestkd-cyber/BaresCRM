@@ -314,7 +314,7 @@ Deno.serve(async (req) => {
       headers: { "Authorization": "Bearer " + resendKey, "Content-Type": "application/json" },
       body: JSON.stringify({
         from: FROM, to: [to], reply_to: REPLY_TO,
-        subject: prettyDate(today),
+        subject: "Nightly Report BaresTKD",
         html,
       }),
     });
