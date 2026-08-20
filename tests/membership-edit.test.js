@@ -127,5 +127,97 @@ test('the generator uses the engine, never local date math', () => {
     'dates must come from the tested engine generator');
 });
 
+/* ── fixes from the 2026-08-20 adversarial review ─────────────────── */
+
+test('Bill now bills the price on screen, not a stale cached one', () => {
+  const src = /async function memSchedInvoice\(id\)\{([\s\S]*?)\n\}/.exec(html);
+  assert.ok(src, 'memSchedInvoice not found');
+  const body = src[1];
+  assert.ok(/data-if=.amt./.test(body),
+    'must read the row\'s own amount box before billing');
+  const readBox = body.search(/data-if=.amt./);
+  const insert = body.indexOf('from("pos_sales").insert');
+  assert.ok(readBox > -1 && insert > -1 && readBox < insert,
+    'the typed price must be read BEFORE the invoice is created');
+});
+
+test('Bill now cannot double-bill: guarded, and re-checks the row', () => {
+  const src = /async function memSchedInvoice\(id\)\{([\s\S]*?)\n\}/.exec(html);
+  const body = src[1];
+  assert.ok(/MEM_SCHED_BUSY/.test(body), 'needs an in-flight guard against a double tap');
+  const recheck = body.indexOf('.select("status,sale_id")');
+  const insert = body.indexOf('from("pos_sales").insert');
+  assert.ok(recheck > -1 && recheck < insert,
+    'must re-read the row before creating a second sale for it');
+  assert.ok(/is\("sale_id", null\)/.test(body),
+    'the link must be conditional so two callers cannot both claim it');
+});
+
+test('a failed link or line unwinds the invoice instead of reporting success', () => {
+  const src = /async function memSchedInvoice\(id\)\{([\s\S]*?)\n\}/.exec(html);
+  const body = src[1];
+  const deletes = (body.match(/from\("pos_sales"\)\.delete\(\)/g) || []).length;
+  assert.ok(deletes >= 2,
+    'both the line failure and the link failure must remove the orphan sale');
+  assert.ok(!/if\(lErr\) console\.error\("installment invoice line", lErr\);\s*const/.test(body),
+    'a failed line must not be swallowed');
+});
+
+test('deleting an invoice releases its scheduled payment', () => {
+  const src = /async function posDeleteInvoice\(saleId\)\{([\s\S]*?)\n\}/.exec(html);
+  assert.ok(src, 'posDeleteInvoice not found');
+  const body = src[1];
+  const rel = body.indexOf('membership_installments');
+  const del = body.indexOf("from('pos_sales').delete()");
+  assert.ok(rel > -1 && del > -1 && rel < del,
+    'the installment must be released BEFORE the sale row is deleted');
+  assert.ok(/status:'scheduled', sale_id:null/.test(body),
+    'releasing means back to scheduled with no sale');
+});
+
+test('a partly-applied save still records what changed', () => {
+  const src = /async function memSchedSave\(\)\{([\s\S]*?)\n\}/.exec(html);
+  const body = src[1];
+  assert.ok(/const done=\[\]/.test(body), 'must track which edits actually landed');
+  assert.ok(/trail=done\.map/.test(body),
+    'the audit trail must be built from what landed, not from what was attempted');
+});
+
+test('a cleared amount box means no change, never free', () => {
+  const src = /async function memSchedSave\(\)\{([\s\S]*?)\n\}/.exec(html);
+  assert.ok(/if\(!String\(el\.value\|\|""\)\.trim\(\)\) return;/.test(src[1]),
+    'an empty amount must be skipped, not parsed as 0');
+});
+
+test('remaining payments counts a paid invoice as settled', () => {
+  const src = /async function loadProfileMemberships\(contactId\)\{([\s\S]*?)\n\}/.exec(html);
+  assert.ok(src, 'loadProfileMemberships not found');
+  const body = src[1];
+  assert.ok(/x\.settled/.test(body), 'settled-ness must be computed');
+  assert.ok(/paidSale\[x\.sale_id\]/.test(body),
+    'an invoiced installment is only done once its sale is paid');
+  assert.ok(!/status===.invoiced.\)\.length/.test(body),
+    'invoiced must not be counted as remaining forever');
+});
+
+test('escJs makes an apostrophe safe inside an onclick', () => {
+  const src = /const escJs = ([\s\S]*?);\r?\nconst escAttr/.exec(html);
+  assert.ok(src, 'escJs not found');
+  const escJs = eval('(' + src[1] + ')');
+  const decoded = ("f('" + escJs("AMP'D") + "')")
+    .replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&amp;/g, "&");
+  let got = null;
+  eval("(function(){ function f(x){ got = x; } " + decoded + " })()");
+  assert.strictEqual(got, "AMP'D",
+    'the button must fire and receive the exact program name');
+});
+
+test('the blackout scope toggles survive a sheet type switch', () => {
+  const src = /function calSetType\(t\)\{([\s\S]*?)\n\}/.exec(html);
+  assert.ok(src, 'calSetType not found');
+  assert.ok(/cs-bo-/.test(src[1]),
+    'a partial closure must not silently become a full one');
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
 process.exit(failed ? 1 : 0);

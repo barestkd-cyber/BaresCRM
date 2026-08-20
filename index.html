@@ -1302,6 +1302,7 @@ const $ = s => document.querySelector(s);
 const money = n => "$" + Number(n).toFixed(2);
 const initials = m => (m.first[0]||"") + (m.last[0]||"");
 const escHtml = s => String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const escJs = s => { var B=String.fromCharCode(92), Q=String.fromCharCode(39), D=String.fromCharCode(34); return String(s==null?"":s).split(B).join(B+B).split(Q).join(B+Q).split("&").join("&amp;").split(D).join("&quot;").split("<").join("&lt;"); };
 const escAttr = s => String(s==null?"":s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
 
 /* ========== FILTERS ========== */
@@ -1630,7 +1631,7 @@ async function renderMemberships(){
       + '<div class="prog-plans">'+sell.map(planLineHtml).join("")
       + (rates.length ? '<div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-top:8px;">Engine rates</div>'+rates.map(rateLineHtml).join("") : '')
       + '</div>'
-      + (admin && key ? '<button class="prog-edit" onclick="mbEditProgram(\''+escAttr(key)+'\')">Edit prices</button>' : '')
+      + (admin && key ? '<button class="prog-edit" onclick="mbEditProgram(\''+escJs(key)+'\')">Edit prices</button>' : '')
       + '</div>';
   };
   MB_PROGRAM_CARDS.forEach(pc=>{
@@ -2407,7 +2408,7 @@ async function posAddMembership(studentId){
   const name = posStudentName(POS_ADD.studentId);
   const sub = name ? ('Pricing confirmed for '+escHtml(name)) : 'Base pricing shown · attach a member to confirm';
   const body = posProgramBuckets().map(b=>
-    '<button class="opt-btn" onclick="posPickProgram(\''+escAttr(b.key)+'\')"><span class="oi">◆</span><div style="flex:1">'
+    '<button class="opt-btn" onclick="posPickProgram(\''+escJs(b.key)+'\')"><span class="oi">◆</span><div style="flex:1">'
     + '<div style="font-weight:700">'+escHtml(b.title)+'</div>'
     + '<div style="font-size:12.5px;color:var(--muted)">'+escHtml(b.ages)+'</div></div></button>').join("");
   $("#sheet").innerHTML='<div class="grab"></div>'
@@ -3854,7 +3855,7 @@ async function posApMethod(saleId, method, balanceCents, reopen){
     +'<div class="sheet-body">'
     +'<div class="ck-hint" style="margin-bottom:11px">'+method+' doesn\'t carry the card-processing fee. Remove it? The balance becomes '+money((balanceCents-fee)/100)+'.</div>'
     +'<button class="addopt" onclick="posApRemoveFee(\''+saleId+'\','+fee+',\''+(reopen||'')+'\')">Yes - remove it</button>'
-    +'<button class="addopt" style="margin-top:8px" onclick="posAddPaymentSheet(\''+saleId+'\','+balanceCents+',\''+escAttr(posBuyerLabel(s.buyer_contact_id))+'\',\''+(reopen||'')+'\')">No - keep the fee</button>'
+    +'<button class="addopt" style="margin-top:8px" onclick="posAddPaymentSheet(\''+saleId+'\','+balanceCents+',\''+escJs(posBuyerLabel(s.buyer_contact_id))+'\',\''+(reopen||'')+'\')">No - keep the fee</button>'
     +'</div>';
 }
 async function posApRemoveFee(saleId, feeCents, reopen){
@@ -4252,7 +4253,7 @@ async function showInvoice(saleId, from){
   h += '<button class="iv-abtn" onclick="posPrintSaleFromDb(\''+s.id+'\')">'+IV_ICO.print+'<span>Print</span></button>';
   h += '<button class="iv-abtn" onclick="posEmailReceiptSheet(\''+s.id+'\')">'+IV_ICO.mail+'<span>Email</span></button>';
   h += '<button class="iv-abtn" onclick="posCopyInvoiceLink(\''+s.id+'\')">'+IV_ICO.link+'<span>Copy link</span></button>';
-  if(s.status==='unpaid' && balance>0) h += '<button class="iv-abtn" onclick="posAddPaymentSheet(\''+s.id+'\','+balance+',\''+escAttr(posBuyerLabel(s.buyer_contact_id))+'\',\'inv\')">'+IV_ICO.payadd+'<span>Add payment</span></button>';
+  if(s.status==='unpaid' && balance>0) h += '<button class="iv-abtn" onclick="posAddPaymentSheet(\''+s.id+'\','+balance+',\''+escJs(posBuyerLabel(s.buyer_contact_id))+'\',\'inv\')">'+IV_ICO.payadd+'<span>Add payment</span></button>';
   if(s.status==='paid' && paidNet>0) h += '<button class="iv-abtn" onclick="posRefundSheet(\''+s.id+'\','+paidNet+')">'+IV_ICO.refund+'<span>Refund</span></button>';
   if(s.status==='unpaid') h += '<button class="iv-abtn" onclick="posCloseInvoiceSheet(\''+s.id+'\','+balance+')">'+IV_ICO.close+'<span>Close</span></button>';
   if(s.status==='unpaid' && paidNet===0 && pays.length===0) h += '<button class="iv-abtn danger" onclick="posDeleteInvoiceSheet(\''+s.id+'\')">'+IV_ICO.trash+'<span>Delete</span></button>';
@@ -4554,6 +4555,11 @@ async function posDeleteInvoice(saleId){
   // Unwind provenance first (FKs would block the sale delete otherwise).
   const em = await sb.from('enrollments').delete().eq('sale_id', saleId).select('id');
   if(em.error){ toast('Could not remove enrollments: '+(em.error.message||em.error)); return; }
+  // An installment invoice must release its payment back to scheduled, or
+  // the row stays frozen with no way to bill it again.
+  const ri = await sb.from('membership_installments')
+    .update({ status:'scheduled', sale_id:null }).eq('sale_id', saleId).select('id');
+  if(ri.error){ toast('Could not release the scheduled payment: '+(ri.error.message||ri.error)); return; }
   const mm = await sb.from('memberships').delete().eq('sale_id', saleId).select('id');
   if(mm.error){ toast('Could not remove memberships: '+(mm.error.message||mm.error)); return; }
   const ds = await sb.from('pos_sales').delete().eq('id', saleId).select('id');
@@ -5048,10 +5054,19 @@ function calSetType(t){
   const n=$("#cs-name")?$("#cs-name").value:"";
   const dt=$("#cs-date")?$("#cs-date").value:"";
   const tm=$("#cs-time")?$("#cs-time").value:"";
+  // Keep the blackout scope toggles across a type switch, or a partial
+  // closure quietly saves as a full one.
+  const bo={};
+  ["classes","trials","privates"].forEach(function(k){
+    const el=$("#cs-bo-"+k); if(el) bo[k]=el.checked;
+  });
   calSchedType=t; calSchedSheet();
   if($("#cs-name"))$("#cs-name").value=n;
   if(dt&&$("#cs-date"))$("#cs-date").value=dt;
   if(t!=="blackout"&&tm&&$("#cs-time"))$("#cs-time").value=tm;
+  ["classes","trials","privates"].forEach(function(k){
+    const el=$("#cs-bo-"+k); if(el && bo[k]!==undefined) el.checked=bo[k];
+  });
 }
 function calSetPaid(v){
   const n=$("#cs-name")?$("#cs-name").value:"";
@@ -5784,23 +5799,31 @@ async function memSchedSave(){
       const v=el.value;
       if(v && v!==x.due_on) edits.push({x:x, field:"due_on", val:v, old:x.due_on, label:"installment "+x.seq+" due date"});
     } else {
-      const c=Math.round(parseFloat(el.value||"0")*100);
+      // A cleared box means "left it alone", never "make it free".
+      if(!String(el.value||"").trim()) return;
+      const c=Math.round(parseFloat(el.value)*100);
       if(isFinite(c)&&c>=0&&c!==x.amount_cents) edits.push({x:x, field:"amount_cents", val:c, old:x.amount_cents, label:"installment "+x.seq+" amount"});
     }
   });
   if(!edits.length){ closeSheet(); toast("Nothing changed"); return; }
   if(!reason){ toast("Say why - it goes on the record"); $("#sc-reason").focus(); return; }
   const who=(typeof currentEmail!=="undefined"&&currentEmail)?currentEmail:"staff";
+  // Record what actually landed. A failure partway through used to return
+  // early and skip the audit insert, leaving changed money with no trail.
+  const done=[]; let failed=null;
   for(const e of edits){
     const upd={}; upd[e.field]=e.val;
     const { error } = await sb.from("membership_installments").update(upd).eq("id", e.x.id);
-    if(error){ console.error("installment update", error); toast("Could not save installment "+e.x.seq); return; }
+    if(error){ console.error("installment update", error); failed=e; break; }
+    done.push(e);
   }
-  const trail=edits.map(e=>({ membership_id:ms.id, contact_id:ms.contact_id, field:e.label,
+  if(!done.length){ toast("Could not save installment "+(failed?failed.x.seq:"")); return; }
+  const trail=done.map(e=>({ membership_id:ms.id, contact_id:ms.contact_id, field:e.label,
     old_value:String(e.old==null?"":e.old), new_value:String(e.val==null?"":e.val), reason:reason, edited_by:who }));
   const { error:tErr } = await sb.from("membership_edits").insert(trail);
   if(tErr){ console.error("membership_edits", tErr); toast("Saved, but the change log did not record it"); }
-  else toast(edits.length+" change"+(edits.length===1?"":"s")+" saved");
+  else if(failed) toast("Saved "+done.length+", but installment "+failed.x.seq+" failed");
+  else toast(done.length+" change"+(done.length===1?"":"s")+" saved");
   closeSheet();
   if(ms.contact_id) loadProfileMemberships(ms.contact_id);
 }
@@ -5825,7 +5848,11 @@ async function memSchedAdd(){
   const lastAmt=insts.length?insts[insts.length-1].amount_cents:(ms.final_recurring_cents||0);
   let due=instToday();
   const lastDue=insts.length?insts[insts.length-1].due_on:null;
-  if(lastDue){ due=BTKDPricing.nextBillOn(lastDue, lastDue)||due; }
+  if(lastDue){
+    // One step at the membership's own cadence, not always a month.
+    const step=BTKDPricing.installmentSchedule({ firstDueOn:lastDue, frequency:ms.billing_frequency, amountCents:lastAmt, count:2 });
+    if(step.length===2) due=step[1].dueOn;
+  }
   const { error } = await sb.from("membership_installments").insert({
     membership_id:ms.id, contact_id:ms.contact_id, seq:maxSeq+1, due_on:due, amount_cents:lastAmt, status:"scheduled" });
   if(error){ console.error("installment add", error); toast("Could not add a payment"); return; }
@@ -5837,9 +5864,37 @@ async function memSchedAdd(){
  * belongs to the charging engine), no tax (a membership payment is a
  * service). Uses the same ledger rails as every other sale, so the pay link,
  * the receipt and the reports all just work. */
+let MEM_SCHED_BUSY = false;
 async function memSchedInvoice(id){
+  if(MEM_SCHED_BUSY) return;
   const x=SCHED.insts.find(r=>r.id===id); if(!x) return;
   const ms=SCHED.ms;
+  MEM_SCHED_BUSY = true;
+  try{
+  // Bill what is on the screen. If the staffer typed a new price into this
+  // row and tapped Bill now without saving first, that typed price is what
+  // they mean; persist it (audited) rather than billing the stale one.
+  const box=document.querySelector('#sheet [data-if="amt"][data-i="'+SCHED.insts.indexOf(x)+'"]');
+  if(box && !box.disabled){
+    const typed=Math.round(parseFloat(box.value||"NaN")*100);
+    if(isFinite(typed) && typed>=0 && typed!==x.amount_cents){
+      const why=(($("#sc-reason")&&$("#sc-reason").value)||"").trim();
+      if(!why){ toast("Say why the price changed before billing it"); $("#sc-reason").focus(); MEM_SCHED_BUSY=false; return; }
+      const up=await sb.from("membership_installments").update({ amount_cents:typed }).eq("id", x.id);
+      if(up.error){ console.error("installment reprice", up.error); toast("Could not save the new price"); MEM_SCHED_BUSY=false; return; }
+      await sb.from("membership_edits").insert({ membership_id:ms.id, contact_id:ms.contact_id,
+        field:"installment "+x.seq+" amount", old_value:String(x.amount_cents), new_value:String(typed),
+        reason:why, edited_by:(typeof currentEmail!=="undefined"&&currentEmail)?currentEmail:"staff" });
+      x.amount_cents=typed;
+    }
+  }
+  // Re-read the row: a double tap, or another device, may already have
+  // billed it. The cached copy cannot answer that.
+  const fresh=await sb.from("membership_installments").select("status,sale_id").eq("id", id).maybeSingle();
+  if(fresh.error){ toast("Could not check that payment"); MEM_SCHED_BUSY=false; return; }
+  if(!fresh.data || fresh.data.sale_id || fresh.data.status!=="scheduled"){
+    toast("That payment already has an invoice"); MEM_SCHED_BUSY=false; memSchedOpen(ms.id); return;
+  }
   let brand="btkd";
   try{ const c=await sb.from("contacts").select("brand").eq("id", ms.contact_id).maybeSingle(); if(c.data&&c.data.brand) brand=c.data.brand; }catch(e){}
   const who=(typeof currentEmail!=="undefined"&&currentEmail)?currentEmail:"staff";
@@ -5858,12 +5913,29 @@ async function memSchedInvoice(id){
     discount_cents:0, taxable:false, line_total_cents:x.amount_cents,
     student_contact_id:ms.contact_id, membership_id:ms.id
   });
-  if(lErr) console.error("installment invoice line", lErr);
-  const { error:uErr } = await sb.from("membership_installments").update({ status:"invoiced", sale_id:saleId }).eq("id", id);
-  if(uErr) console.error("installment link", uErr);
+  if(lErr){
+    console.error("installment invoice line", lErr);
+    await sb.from("pos_sales").delete().eq("id", saleId);
+    toast("Could not build that invoice - nothing was created");
+    MEM_SCHED_BUSY=false; return;
+  }
+  // The link is what stops this installment being billed twice. If it does
+  // not stick, the invoice must not survive either: unwind it rather than
+  // report a success that leaves the row billable again.
+  const { data:linked, error:uErr } = await sb.from("membership_installments")
+    .update({ status:"invoiced", sale_id:saleId })
+    .eq("id", id).is("sale_id", null).select("id");
+  if(uErr || !linked || !linked.length){
+    console.error("installment link", uErr);
+    await sb.from("pos_sale_lines").delete().eq("sale_id", saleId);
+    await sb.from("pos_sales").delete().eq("id", saleId);
+    toast("Could not bill that payment - nothing was created");
+    MEM_SCHED_BUSY=false; memSchedOpen(ms.id); return;
+  }
   toast("Invoice created");
   closeSheet();
   showInvoice(saleId, "profile");
+  } finally { MEM_SCHED_BUSY = false; }
 }
 function memSchedInvoiceView(saleId){ closeSheet(); showInvoice(saleId, "profile"); }
 
@@ -5893,7 +5965,20 @@ async function loadProfileMemberships(contactId){
     const { data:insts, error:iErr } = await sb.from('membership_installments')
       .select('membership_id,status,sale_id').in('membership_id', rows.map(r=>r.id));
     if(iErr) console.error('installments load', iErr);
-    else (insts||[]).forEach(x=>{ (instBy[x.membership_id]=instBy[x.membership_id]||[]).push(x); });
+    else {
+      // Paid-ness lives on the sale, so an invoiced installment only counts
+      // as done once its invoice is actually paid.
+      const sids=(insts||[]).map(x=>x.sale_id).filter(Boolean);
+      let paidSale={};
+      if(sids.length){
+        const { data:ss } = await sb.from('pos_sales').select('id,status').in('id', sids);
+        (ss||[]).forEach(r=>{ if(r.status==='paid') paidSale[r.id]=true; });
+      }
+      (insts||[]).forEach(x=>{
+        x.settled = x.status==='paid' || x.status==='waived' || x.status==='canceled' || (x.sale_id && paidSale[x.sale_id]);
+        (instBy[x.membership_id]=instBy[x.membership_id]||[]).push(x);
+      });
+    }
   }
   PROF_INST = instBy;
   // Card layout from the 2026-08-17 mocks: identity, price with the locked
@@ -5924,7 +6009,7 @@ async function loadProfileMemberships(contactId){
     }
     const instAll = PROF_INST[ms.id]||[];
     if(instAll.length){
-      const left = instAll.filter(x=>x.status==='scheduled'||x.status==='invoiced').length;
+      const left = instAll.filter(x=>!x.settled).length;
       terms.push(left+' of '+instAll.length+' payments remaining');
     }
     if(term==='session'){
@@ -5948,7 +6033,7 @@ async function loadProfileMemberships(contactId){
         + (ag.signed_at?' on '+escHtml(fmtDate(String(ag.signed_at).slice(0,10))):'')
         + '<br><button class="vc" onclick="agrView(\''+ag.id+'\')">View agreement</button></div>'
       : '<div class="memx-agr miss"><b>⚠ No agreement on file</b><br>'
-        + '<button class="vc" onclick="agrMissing(\''+escAttr(ms.program||'')+'\')">What to do</button></div>';
+        + '<button class="vc" onclick="agrMissing(\''+escJs(ms.program||'')+'\')">What to do</button></div>';
 
     h += '<div class="memx">'
       + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">'

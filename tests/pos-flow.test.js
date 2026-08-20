@@ -129,7 +129,7 @@ const FNS = [
   'posOpenMembershipFor',
   'openSheet', 'closeSheet', 'setNavActive', 'closeNav', 'showSection'
 ];
-const VARS = ['\\$', 'escHtml', 'escAttr', 'money', 'centsFromInput', 'dollarsFromCents', 'POS_ANON_CTX', 'POS_STUDENT_CTX', 'POS_ADD', 'PAY', 'PAY_DETAIL', 'IV_ICO',
+const VARS = ['\\$', 'escHtml', 'escAttr', 'escJs', 'money', 'centsFromInput', 'dollarsFromCents', 'POS_ANON_CTX', 'POS_STUDENT_CTX', 'POS_ADD', 'PAY', 'PAY_DETAIL', 'IV_ICO',
   'LEGAL_ENTITY', 'RECEIPT_BRANDS', 'POS_LAST_RECEIPT', 'INV_BANNER',
   'STAFF_DIR', 'STAFF_LIST', 'CURRENT_STAFF_EMAIL', 'POS_SERVER_SALES'];
 
