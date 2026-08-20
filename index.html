@@ -1717,7 +1717,7 @@ let TESTING = [
    settings singleton puts the public signup page live.
    Owner, 2026-08-19: "just a toggle for a page live/not live. ill set it open
    when i want" - nothing here is scheduled, computed, or auto-opened. */
-let TESTING_ROWS = [], TESTING_PAGE_LIVE = false;
+let TESTING_ROWS = [], TESTING_PAGE_LIVE = false, PRIVATE_PAGE_LIVE = false, PRIVATE_RATE_CENTS = 3500;
 const cpEsc = s => String(s == null ? "" : s).replace(/[&<>"']/g,
   c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -1729,11 +1729,15 @@ async function loadTesting(){
     sb.from('testing_dates')
       .select('id,label,test_date,start_time,fee_cents,signup_by,sort_order')
       .gte('test_date', today).order('sort_order'),
-    sb.from('settings').select('testing_page_live').limit(1).maybeSingle()
+    sb.from('settings').select('testing_page_live,private_page_live,private_rate_cents').limit(1).maybeSingle()
   ]);
   if(d.error){ console.error('testing dates load', d.error); } else { TESTING_ROWS = d.data || []; }
   if(st.error){ console.error('testing page switch load', st.error); }
-  else if(st.data){ TESTING_PAGE_LIVE = st.data.testing_page_live === true; }
+  else if(st.data){
+    TESTING_PAGE_LIVE = st.data.testing_page_live === true;
+    PRIVATE_PAGE_LIVE = st.data.private_page_live === true;
+    if(st.data.private_rate_cents != null) PRIVATE_RATE_CENTS = st.data.private_rate_cents;
+  }
 
   if(TESTING_ROWS.length){
     const c = await sb.from('testing_signups').select('testing_date_id')
@@ -1747,6 +1751,17 @@ async function loadTesting(){
 }
 
 /* The only thing standing between a parent and the signup page. */
+/* Same switch for private lessons. Availability comes off the class
+   schedule by itself, so there is nothing else to keep up to date here. */
+async function cpTogglePrivatePage(){
+  const next = !PRIVATE_PAGE_LIVE;
+  const { error } = await sb.from('settings').update({ private_page_live: next }).eq('id', true);
+  if(error){ console.error('private page toggle', error); toast('Could not change the page. Try again.'); return; }
+  PRIVATE_PAGE_LIVE = next;
+  renderCheckout();
+  toast(next ? 'Private lesson page is LIVE' : 'Private lesson page is off');
+}
+
 async function cpToggleTestingPage(){
   const next = !TESTING_PAGE_LIVE;
   const { error } = await sb.from('settings').update({ testing_page_live: next }).eq('id', true);
@@ -1819,6 +1834,20 @@ function renderCheckout(){
       + '<button class="prog-edit" onclick="cpToggleTestingPage()">' + (live ? 'Turn the page off' : 'Turn the page on') + '</button>'
       + '<button class="prog-edit ghost" onclick="window.open(\'https://www.barestkd.fit/testing-checkout/\',\'_blank\')">Open page ↗</button>'
       + '</div></div>';
+    const plive = PRIVATE_PAGE_LIVE;
+    html += '<div class="prog-card" style="margin-top:12px;border-color:' + (plive ? '#BFE6D6' : '#F0C9C9') + '">'
+      + '<div class="prog-top"><div>'
+      + '<div class="prog-name">Private lesson page</div>'
+      + '<div class="prog-ages">' + (plive
+          ? 'Anyone with the link can book and pay.'
+          : 'Dark. Nobody can book until you turn it on.') + '</div></div>'
+      + (plive ? '<span class="prog-count" style="background:#E4F5EE;color:var(--go)">Live</span>'
+               : '<span class="prog-count" style="background:#FBE9E9;color:var(--accent)">Off</span>')
+      + '</div><div class="ck-btns">'
+      + '<button class="prog-edit" onclick="cpTogglePrivatePage()">' + (plive ? 'Turn the page off' : 'Turn the page on') + '</button>'
+      + '<button class="prog-edit ghost" onclick="window.open(\'https://www.barestkd.fit/private-lesson/\',\'_blank\')">Open page ↗</button>'
+      + '</div></div>';
+    html += '<div class="ck-hint">Private lessons are ' + money(PRIVATE_RATE_CENTS) + ' for 30 minutes, or seven for the price of six. Open times are worked out from the class schedule, so they keep themselves right. Your standing Monday and Thursday lessons are already held back.</div>';
     html += '<div class="ck-hint">These are the groups a parent picks from, and a group leaves the page by itself once its date passes. The sign-up-by date is printed for parents, never enforced.</div>';
     if(!TESTING_ROWS.length){
       html += '<div class="proto-note">No testing dates coming up.</div>';
