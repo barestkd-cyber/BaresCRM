@@ -2595,6 +2595,30 @@ function agrResolve(line){
  * `ctx` comes either from a POS cart line (pre-sale) or from a saved
  * membership row (re-print). Everything it returns is plain data, so the same
  * object renders on screen, in print, and after a reload from the DB. */
+/* Append the add-on programs to a fee block. Kept in one place so the
+   options, monthly and session shapes all read identically.
+
+   ctx.addOns is [{ name, monthlyCents }]. Each becomes a priced row, and
+   the note gains one initial line covering all of them, tied back to the
+   authorization and cancellation terms already in the document rather than
+   inventing new ones. */
+function agrApplyAddOns(fees, ctx){
+  const add = (ctx.addOns||[]).filter(a=>a && a.name);
+  if(!add.length) return fees;
+  add.forEach(a=>fees.rows.push({
+    label: "Add-on: "+a.name,
+    terms: money((a.monthlyCents||0)/100)+" per month"
+  }));
+  const names = add.map(a=>a.name).join(" and ");
+  const total = add.reduce((t,a)=>t+(a.monthlyCents||0),0);
+  fees.note = (fees.note? fees.note+"\n\n" : "")
+    + "I am also enrolling in "+names+" for "+money(total/100)+" per month, "
+    + "billed on the agreed payment date above under the same payment "
+    + "authorization, and cancellable on the same notice.    Initials: "
+    + (ctx.addOnInitials||ctx.initials||"________");
+  return fees;
+}
+
 function agrBuildDoc(tpl, ctx){
   const F = BTKDAgreements.FIELD_LABELS;
   const fields = tpl.fields.map(k=>({ key:k, label:F[k], value: ctx[k]||'' }));
@@ -2626,6 +2650,8 @@ function agrBuildDoc(tpl, ctx){
       + money((ctx.recurringCents||ctx.pifCents||0)/100)+', due in full at enrollment.';
     fees.rows.push({ label:'Participant initials', terms: ctx.initials||'________' });
   }
+
+  agrApplyAddOns(fees, ctx);
 
   return {
     key: tpl.key, version: tpl.version, title: tpl.title, term: tpl.term,
