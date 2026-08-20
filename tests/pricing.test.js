@@ -647,6 +647,49 @@ test('39 no override means the ladder still runs untouched', function () {
   }), [5000, 3000, 1000]);
 });
 
+test('40 nextBillOn keeps the day of the month a membership already bills on', function () {
+  assert.strictEqual(P.nextBillOn('2026-05-20', '2026-08-20'), '2026-09-20');
+  assert.strictEqual(P.nextBillOn('2026-05-03', '2026-08-20'), '2026-09-03');
+  // A membership billing on the 31st must not skip February entirely.
+  assert.strictEqual(P.nextBillOn('2026-01-31', '2027-01-31'), '2027-02-28');
+});
+
+test('41 proration is measured against the REAL cycle, not an assumed 30 days', function () {
+  // Aug 20 to Sep 20 is 31 days. Joining on Sep 5 leaves 15 of them.
+  assert.strictEqual(
+    P.prorateCents({ monthlyCents: 4000, today: '2026-09-05', nextBillOn: '2026-09-20' }),
+    Math.round(4000 * 15 / 31));
+  // The cycle that ENDS on Mar 28 begins Feb 28, so it is only 28 days long.
+  // The same 15 days is a bigger slice of it, and must cost more.
+  const shortCycle = P.prorateCents({ monthlyCents: 4000, today: '2027-03-13', nextBillOn: '2027-03-28' });
+  assert.ok(shortCycle > Math.round(4000 * 15 / 31), 'a shorter cycle must charge more per day');
+});
+
+test('42 the edges: a full cycle, the last day, and the billing date itself', function () {
+  const m = 4000;
+  assert.strictEqual(P.prorateCents({ monthlyCents: m, today: '2026-08-20', nextBillOn: '2026-09-20' }), m);
+  assert.strictEqual(
+    P.prorateCents({ monthlyCents: m, today: '2026-09-19', nextBillOn: '2026-09-20' }),
+    Math.round(m * 1 / 31));
+  // Joining ON the billing date starts a whole cycle, so it owes a whole
+  // month. Returning zero here would give away a free month.
+  assert.strictEqual(P.prorateCents({ monthlyCents: m, today: '2026-09-20', nextBillOn: '2026-09-20' }), m);
+});
+
+test('43 a member never pays more to join late than the full month', function () {
+  for (let d = 1; d <= 28; d++) {
+    const day = String(d).padStart(2, '0');
+    const c = P.prorateCents({ monthlyCents: 8900, today: '2026-09-' + day, nextBillOn: '2026-09-28' });
+    assert.ok(c > 0 && c <= 8900, 'day ' + day + ' gave ' + c);
+  }
+});
+
+test('44 junk dates fall back to the full month, never to free', function () {
+  assert.strictEqual(P.prorateCents({ monthlyCents: 5000, today: 'nonsense', nextBillOn: '2026-09-20' }), 5000);
+  assert.strictEqual(P.prorateCents({ monthlyCents: 5000 }), 5000);
+  assert.strictEqual(P.nextBillOn('nonsense', '2026-08-20'), null);
+});
+
 // ─── summary ───────────────────────────────────────────────────────────────
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
