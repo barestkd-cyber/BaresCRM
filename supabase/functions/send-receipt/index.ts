@@ -211,6 +211,26 @@ Deno.serve(async (req) => {
     // exactly the line between "something noticed a payment" and "a human
     // asked for this", and only the former is suppressed. Re-sending a
     // receipt by hand must always work, including to a corrected address.
+    if (!to.length) {
+      // Resolution order, most-specific first:
+      //   1. the address the payer typed at Stripe checkout - they just chose
+      //      it and are expecting the receipt there, and for a WALK-IN it is
+      //      the only address that exists;
+      //   2. the buyer's address on file.
+      // Before this, a walk-in simply skipped and nobody was emailed at all.
+      const typed = String(s.stripe_email ?? "").trim().toLowerCase();
+      if (typed && EMAIL_RE.test(typed)) {
+        to.push(typed);
+      } else if (s.buyer_contact_id) {
+        const c = await admin.from("contacts").select("email").eq("id", s.buyer_contact_id).maybeSingle();
+        const onFile = (c.data?.email ?? "").trim().toLowerCase();
+        if (!onFile || !EMAIL_RE.test(onFile)) return json({ ok: false, skipped: "no email on file" }, 200, cors);
+        to.push(onFile);
+      } else {
+        return json({ ok: false, skipped: "walk-in sale with no checkout email, nobody to email" }, 200, cors);
+      }
+    }
+
     // CLAIM the send, do not merely check for it. Two callers land here 15
     // milliseconds apart in the real world (2026-08-20: the webhook and
     // lk-checkout both saw Lacy Musslewhite’s payment, and a read-then-write
@@ -231,26 +251,6 @@ Deno.serve(async (req) => {
       }
       if (!claim.data || !claim.data.length) {
         return json({ ok: true, skipped: "another process is already sending this receipt" }, 200, cors);
-      }
-    }
-
-    if (!to.length) {
-      // Resolution order, most-specific first:
-      //   1. the address the payer typed at Stripe checkout - they just chose
-      //      it and are expecting the receipt there, and for a WALK-IN it is
-      //      the only address that exists;
-      //   2. the buyer's address on file.
-      // Before this, a walk-in simply skipped and nobody was emailed at all.
-      const typed = String(s.stripe_email ?? "").trim().toLowerCase();
-      if (typed && EMAIL_RE.test(typed)) {
-        to.push(typed);
-      } else if (s.buyer_contact_id) {
-        const c = await admin.from("contacts").select("email").eq("id", s.buyer_contact_id).maybeSingle();
-        const onFile = (c.data?.email ?? "").trim().toLowerCase();
-        if (!onFile || !EMAIL_RE.test(onFile)) return json({ ok: false, skipped: "no email on file" }, 200, cors);
-        to.push(onFile);
-      } else {
-        return json({ ok: false, skipped: "walk-in sale with no checkout email, nobody to email" }, 200, cors);
       }
     }
 
