@@ -211,8 +211,27 @@ Deno.serve(async (req) => {
     // exactly the line between "something noticed a payment" and "a human
     // asked for this", and only the former is suppressed. Re-sending a
     // receipt by hand must always work, including to a corrected address.
-    if (internal && s.receipt_sent_at) {
-      return json({ ok: true, skipped: "receipt already sent for this sale" }, 200, cors);
+    // CLAIM the send, do not merely check for it. Two callers land here 15
+    // milliseconds apart in the real world (2026-08-20: the webhook and
+    // lk-checkout both saw Lacy Musslewhite’s payment, and a read-then-write
+    // guard let both through, so she got two receipts and emailed asking if
+    // she had paid twice). A conditional UPDATE is atomic: exactly one caller
+    // can flip receipt_sent_at from null, and that one owns the send.
+    //
+    // Only automatic sends claim. Race clicking Email in the CRM must always
+    // send, including a second copy to a corrected address.
+    if (internal) {
+      const claim = await admin.from("pos_sales")
+        .update({ receipt_sent_at: new Date().toISOString() })
+        .eq("id", saleId).is("receipt_sent_at", null)
+        .select("id");
+      if (claim.error) {
+        console.error("receipt claim failed", claim.error);
+        return json({ error: "could not claim the send" }, 500, cors);
+      }
+      if (!claim.data || !claim.data.length) {
+        return json({ ok: true, skipped: "another process is already sending this receipt" }, 200, cors);
+      }
     }
 
     if (!to.length) {
@@ -384,6 +403,12 @@ Deno.serve(async (req) => {
     if (!resendRes.ok) {
       const detail = await resendRes.text().catch(() => "");
       console.error("resend failed", resendRes.status, detail);
+      // Give the claim back. We stamped receipt_sent_at to win the race, but
+      // nothing was delivered, and leaving it stamped would mean this receipt
+      // is never retried and never sent by anyone.
+      if (internal) {
+        await admin.from("pos_sales").update({ receipt_sent_at: null }).eq("id", saleId);
+      }
       return json({ error: "Email send failed (" + resendRes.status + ")" }, 502, cors);
     }
 
@@ -430,9 +455,11 @@ Deno.serve(async (req) => {
     }
 
     // ── stamp the sale so the CRM shows it went out ────────────────────────
-    const upd = await admin.from("pos_sales")
-      .update({ receipt_email: to[0], receipt_sent_at: new Date().toISOString() })
-      .eq("id", saleId);
+    // An automatic send already claimed receipt_sent_at above; this fills in
+    // the address. A manual send stamps both, as it always did.
+    const stamp: Record<string, unknown> = { receipt_email: to[0] };
+    if (!internal) stamp.receipt_sent_at = new Date().toISOString();
+    const upd = await admin.from("pos_sales").update(stamp).eq("id", saleId);
     if (upd.error) console.error("receipt stamp failed", upd.error); // email DID send
 
     return json({ ok: true, to, bcc, paid }, 200, cors);
