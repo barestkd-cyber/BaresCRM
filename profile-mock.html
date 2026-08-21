@@ -1068,6 +1068,32 @@ body{margin:0;background:#fff}
 .mk-history-row{font-size:13.5px;line-height:1.5;margin-bottom:10px}
 .mk-history-row span{display:block;font-size:12px;color:var(--muted);margin-top:1px}
 
+/* ── add a membership ──────────────────────────────────────────────────── */
+.mk-addmem{width:100%;border:1.5px dashed var(--line);background:none;border-radius:14px;
+  padding:15px;font:800 15px/1 inherit;color:var(--muted);cursor:pointer;margin-top:14px}
+.mk-steps{display:flex;gap:5px;padding:0 18px 12px}
+.mk-steps i{flex:1;height:3px;border-radius:99px;background:var(--line)}
+.mk-steps i.on{background:var(--accent)}
+.mk-due{background:var(--surface);border-radius:11px;padding:14px;margin-bottom:14px;
+  font-size:15px;display:flex;justify-content:space-between;align-items:baseline}
+.mk-due b{font-size:21px}
+.mk-pick{display:flex;flex-direction:column;gap:9px}
+.mk-opt{display:flex;gap:11px;align-items:flex-start;border:1.5px solid var(--line);
+  border-radius:12px;padding:13px;cursor:pointer}
+.mk-opt.on{border-color:var(--accent);background:#FFF6F6}
+.mk-opt input{margin-top:3px;width:17px;height:17px;flex:none}
+.mk-opt b{display:block;font-size:14.5px}
+.mk-opt i{display:block;font-style:normal;font-size:12.5px;color:var(--muted);
+  line-height:1.5;margin-top:3px}
+.mk-done-note{background:#E4F5EE;color:#0B6B4A;border-radius:11px;padding:13px;
+  font-size:13.5px;line-height:1.55;margin-bottom:14px}
+.mk-unsigned{background:#FFF4F4;color:var(--accent);border:1px solid #EBC2C2;
+  border-radius:7px;padding:4px 10px;font-size:11.5px;font-weight:800;display:inline-block}
+/* An unsigned agreement is not a quiet thing. It sits above the tabs where it
+   cannot be missed, and the same flag would raise on the dashboard. */
+.mk-unsigned-bar{background:#FFF4F4;border:1px solid #EBC2C2;color:var(--accent);
+  border-radius:11px;padding:12px 14px;font-size:13.5px;font-weight:800;margin-top:16px}
+
 /* ── cards on file ─────────────────────────────────────────────────────── */
 .mk-cardrow{display:flex;align-items:center;gap:11px;padding:12px 0;
   border-bottom:1px solid var(--line);flex-wrap:wrap}
@@ -1225,6 +1251,7 @@ body{margin:0;background:#fff}
     <span class="mk-viewlink">View profile &rsaquo;</span>
   </div>
 
+  <div class="mk-unsigned-bar" id="mk-unsigned-bar" style="display:none"></div>
   <div class="mk-tabs"><button class="mk-tab on" data-tab="notes">Notes</button><button class="mk-tab" data-tab="membership">Membership</button><button class="mk-tab" data-tab="invoices">Invoices &amp; Payments</button><button class="mk-tab" data-tab="attendance">Attendance</button><button class="mk-tab dis">Documents <span class="mk-soonchip">COMING SOON</span></button><button class="mk-tab dis">History <span class="mk-soonchip">COMING SOON</span></button></div>
   <div id="mk-panels"><div class="mk-panel" data-tab="notes">
     <div class="mk-card">
@@ -1257,7 +1284,11 @@ body{margin:0;background:#fff}
         <button onclick="memSched()">Payment schedule</button>
         <button>View agreement</button>
       </div>
-    </div></div><div class="mk-panel" data-tab="invoices" style="display:none">
+    </div>
+
+    <div id="mk-more-mems"></div>
+
+    <button class="mk-addmem" onclick="addOpen()">+ Add a membership</button></div><div class="mk-panel" data-tab="invoices" style="display:none">
     <div class="mk-card">
       <h3>Payment methods
         <span class="mk-edit" onclick="cardLink()">&#128279; Send update link</span></h3>
@@ -1439,6 +1470,91 @@ body{margin:0;background:#fff}
   </div>
 </div>
 
+<!-- ── add a membership ─────────────────────────────────────────────────
+     Three steps, in the order the studio actually works: agree the terms,
+     take the money, then deal with the paperwork. Payment comes before the
+     signature on purpose (owner: "when they pay, they commit, so I don't
+     really wait on steps from them, I take money"), and skipping the
+     signature is allowed but never silent. -->
+<div class="mk-sheet" id="mk-add" role="dialog" aria-modal="true" aria-label="Add a membership">
+  <div class="mk-sheet-grab"></div>
+  <div class="mk-sheet-head">
+    <div>
+      <h3>Add a membership</h3>
+      <div class="mk-sheet-sub" id="mk-add-sub">Jamie Lee &middot; step 1 of 3</div>
+    </div>
+    <button class="mk-x" onclick="addClose()">&times;</button>
+  </div>
+
+  <div class="mk-steps"><i class="on"></i><i></i><i></i></div>
+
+  <div class="mk-sheet-body">
+
+    <!-- 1 ─ what they are joining -->
+    <div class="mk-step" data-step="1">
+      <label class="mk-f">
+        <span class="mk-f-l">Program</span>
+        <select id="mk-aprog" onchange="addProgram()"></select>
+        <span class="mk-f-h" id="mk-ahint"></span>
+      </label>
+      <label class="mk-f">
+        <span class="mk-f-l">Option</span>
+        <select id="mk-aopt" onchange="addOption()"></select>
+      </label>
+      <label class="mk-f">
+        <span class="mk-f-l">Price</span>
+        <span class="mk-money"><span class="mk-money-sym">$</span>
+          <input id="mk-aprice" type="number" step="0.01" min="0" oninput="addTotals()"></span>
+      </label>
+      <div class="mk-f">
+        <span class="mk-f-l">Billed</span>
+        <div class="mk-seg" id="mk-afreq">
+          <button class="on" onclick="memSeg(this)">Monthly</button>
+          <button onclick="memSeg(this)">Weekly</button>
+          <button onclick="memSeg(this)">Paid in full</button>
+        </div>
+      </div>
+      <label class="mk-f">
+        <span class="mk-f-l">Starts</span>
+        <input id="mk-astart" type="date" value="2026-08-21">
+      </label>
+    </div>
+
+    <!-- 2 ─ the money -->
+    <div class="mk-step" data-step="2" style="display:none">
+      <div class="mk-due" id="mk-adue"></div>
+      <div class="mk-pick" id="mk-apay"></div>
+      <div class="mk-f-h" style="margin-top:12px">An invoice sends a pay link and
+        leaves the membership owing until it is paid. Running a card takes the
+        money now.</div>
+    </div>
+
+    <!-- 3 ─ the paperwork -->
+    <div class="mk-step" data-step="3" style="display:none">
+      <div class="mk-done-note" id="mk-adone"></div>
+      <div class="mk-pick" id="mk-asign">
+        <label class="mk-opt on" data-sign="person"><input type="radio" name="asign" checked>
+          <span><b>Sign in person</b><i>Hand them this device now.</i></span></label>
+        <label class="mk-opt" data-sign="email"><input type="radio" name="asign">
+          <span><b>Send the agreement</b><i>Emails Pat Lee a page already filled
+            in. They review and sign, nothing to retype.</i></span></label>
+        <label class="mk-opt" data-sign="skip"><input type="radio" name="asign">
+          <span><b>Skip for now</b><i>Fine to do. The membership will be flagged
+            as unsigned until it is done.</i></span></label>
+      </div>
+      <div class="mk-warn" id="mk-askip">
+        This membership will show <b>Agreement not signed</b> on the profile until
+        somebody signs it.
+      </div>
+    </div>
+  </div>
+
+  <div class="mk-sheet-foot">
+    <button class="mk-btn ghost" id="mk-aback" onclick="addBack()">Cancel</button>
+    <button class="mk-btn" id="mk-anext" onclick="addNext()">Next</button>
+  </div>
+</div>
+
 <div class="mk-toast" id="mk-toast"></div>
 
 <script>
@@ -1541,9 +1657,11 @@ body{margin:0;background:#fff}
     memProgram(WAS.option);
   }
   function memClose() {
+    // The scrim is shared, so it closes whichever sheet is open.
     $('mk-scrim').classList.remove('on');
     $('mk-sheet').classList.remove('on');
     $('mk-sched').classList.remove('on');
+    $('mk-add').classList.remove('on');
   }
   function memSave() {
     var d = memDiff();
@@ -1559,6 +1677,147 @@ body{margin:0;background:#fff}
     WAS = now;
     memRefresh();
   }
+  /* ── add a membership ───────────────────────────────────────────────────
+     Three steps: terms, money, paperwork. The money comes before the
+     signature because that is how the studio runs ("when they pay, they
+     commit"), and skipping the signature is allowed but leaves a mark. */
+  var HAS = ['Taekwondo — Juniors'];          // what this student already holds
+  var PRICES = {
+    'Little Kickers': { 'Six-week session': 109 },
+    'Cubs': { 'Paid in full': 1199, 'Option B': 90, 'Option C': 105, 'Weekly': 27.95 },
+    'Taekwondo — Juniors': { 'Paid in full': 1400, 'Option B': 95, 'Option C': 110, 'Option D': 129, 'Weekly': 33.95 },
+    'Taekwondo — Teens/Adults': { 'Paid in full': 1400, 'Option B': 95, 'Option C': 110, 'Option D': 129, 'Weekly': 33.95 },
+    'Kickboxing': { 'Standalone': 99, 'Add-on to Taekwondo': 40 },
+    'Jiu Jitsu': { 'Standalone': 99, 'Add-on to Taekwondo': 40 },
+    "AMP'D": { 'Monthly': 50 }
+  };
+  var ADD = { step: 1, pay: 'card', sign: 'person' };
+
+  function hasTKD() {
+    return HAS.some(function (p) { return p.indexOf('Taekwondo') === 0; });
+  }
+  function addOpen() {
+    ADD = { step: 1, pay: 'card', sign: 'person' };
+    var avail = Object.keys(PRICES).filter(function (p) { return HAS.indexOf(p) === -1; });
+    $('mk-aprog').innerHTML = avail.map(function (p) { return '<option>' + p + '</option>'; }).join('');
+    addProgram();
+    addStep(1);
+    $('mk-scrim').classList.add('on');
+    $('mk-add').classList.add('on');
+  }
+  function addClose() {
+    $('mk-scrim').classList.remove('on');
+    $('mk-add').classList.remove('on');
+  }
+  function addProgram() {
+    // Knowing what they already train in changes what this costs: adding
+    // Kickboxing to a Taekwondo student is an add-on, not a second standalone.
+    var prog = $('mk-aprog').value;
+    var opts = Object.keys(PRICES[prog] || {});
+    var prefer = (hasTKD() && opts.indexOf('Add-on to Taekwondo') !== -1)
+      ? 'Add-on to Taekwondo' : opts[0];
+    $('mk-aopt').innerHTML = opts.map(function (o) {
+      return '<option' + (o === prefer ? ' selected' : '') + '>' + o + '</option>';
+    }).join('');
+    $('mk-ahint').textContent = (hasTKD() && opts.indexOf('Add-on to Taekwondo') !== -1)
+      ? 'Already trains in Taekwondo, so the add-on rate is offered.'
+      : '';
+    addOption();
+  }
+  function addOption() {
+    $('mk-aprice').value = (PRICES[$('mk-aprog').value] || {})[$('mk-aopt').value].toFixed(2);
+    addTotals();
+  }
+  function addTotals() {
+    var amt = (+$('mk-aprice').value || 0).toFixed(2);
+    $('mk-adue').innerHTML = '<span>Due today</span><b>$' + amt + '</b>';
+    $('mk-apay').innerHTML = CARDS.map(function (c, i) {
+      return '<label class="mk-opt' + (ADD.pay === c.id ? ' on' : (i === 0 && ADD.pay === 'card' ? ' on' : ''))
+        + '" data-pay="' + c.id + '"><input type="radio" name="apay"'
+        + ((ADD.pay === c.id || (i === 0 && ADD.pay === 'card')) ? ' checked' : '') + '>'
+        + '<span><b>Charge ' + c.brand + ' \u2022\u2022\u2022\u2022 ' + c.last4 + ' now</b>'
+        + '<i>Takes $' + amt + ' straight away.</i></span></label>';
+    }).join('')
+    + '<label class="mk-opt" data-pay="new"><input type="radio" name="apay">'
+    + '<span><b>Add a new card</b><i>Opens Stripe to collect it. The studio never'
+    + ' sees the number.</i></span></label>'
+    + '<label class="mk-opt" data-pay="invoice"><input type="radio" name="apay">'
+    + '<span><b>Send an invoice</b><i>Emails a pay link. The membership shows as'
+    + ' owing until it is paid.</i></span></label>';
+    $('mk-apay').querySelectorAll('.mk-opt').forEach(function (l) {
+      l.addEventListener('click', function () {
+        $('mk-apay').querySelectorAll('.mk-opt').forEach(function (x) { x.classList.remove('on'); });
+        l.classList.add('on'); l.querySelector('input').checked = true;
+        ADD.pay = l.getAttribute('data-pay');
+      });
+    });
+  }
+  function addStep(n) {
+    ADD.step = n;
+    document.querySelectorAll('#mk-add .mk-step').forEach(function (s) {
+      s.style.display = (+s.getAttribute('data-step') === n) ? '' : 'none';
+    });
+    document.querySelectorAll('.mk-steps i').forEach(function (d, i) {
+      d.classList.toggle('on', i < n);
+    });
+    $('mk-add-sub').textContent = 'Jamie Lee · step ' + n + ' of 3';
+    $('mk-aback').textContent = n === 1 ? 'Cancel' : 'Back';
+    $('mk-anext').textContent = n === 3 ? 'Finish' : (n === 2 ? 'Take payment' : 'Next');
+  }
+  function addBack() { if (ADD.step === 1) addClose(); else addStep(ADD.step - 1); }
+  function addNext() {
+    if (ADD.step === 1) { addTotals(); addStep(2); return; }
+    if (ADD.step === 2) {
+      var amt = (+$('mk-aprice').value || 0).toFixed(2);
+      $('mk-adone').innerHTML = ADD.pay === 'invoice'
+        ? 'Invoice for <b>$' + amt + '</b> sent to Pat Lee. The membership is'
+          + ' created and will show as owing until it is paid.'
+        : ADD.pay === 'new'
+          ? 'Card added and <b>$' + amt + '</b> charged.'
+          : '<b>$' + amt + '</b> charged to ' + cardLabel(ADD.pay === 'card' ? cardDefault() : ADD.pay) + '.';
+      addStep(3);
+      return;
+    }
+    addFinish();
+  }
+  function addFinish() {
+    var prog = $('mk-aprog').value, opt = $('mk-aopt').value;
+    var price = (+$('mk-aprice').value || 0).toFixed(2);
+    var freq = $('mk-afreq').querySelector('.on').textContent.trim();
+    var signed = ADD.sign !== 'skip';
+    HAS.push(prog);
+    var card = document.createElement('div');
+    card.className = 'mk-card';
+    card.innerHTML = '<div class="mk-mem-top"><div>'
+      + '<div class="mk-mem-name">' + prog + '</div>'
+      + '<div class="mk-mem-sub">' + opt + '</div></div>'
+      + '<span class="mk-pill ok">Active</span></div>'
+      + '<div class="mk-mem-terms"><span><b>$' + price + '</b> ' + freq.toLowerCase() + '</span>'
+      + '<span>Starts ' + $('mk-astart').value + '</span></div>'
+      + '<div class="mk-mem-who">Paid by <b>Pat Lee</b>'
+      + (signed ? '' : ' &middot; <span class="mk-unsigned">AGREEMENT NOT SIGNED</span>')
+      + '</div>'
+      + '<div class="mk-mem-acts"><button onclick="memEdit()">Edit membership</button>'
+      + '<button onclick="memSched()">Payment schedule</button>'
+      + '<button>' + (signed ? 'View agreement' : 'Send agreement') + '</button></div>';
+    $('mk-more-mems').appendChild(card);
+    addClose();
+    memToast(ADD.sign === 'person' ? 'Membership added. Hand them the device to sign.'
+      : ADD.sign === 'email' ? 'Membership added. Agreement sent to Pat Lee.'
+      : 'Membership added. Flagged as unsigned.');
+    profUnsigned();
+  }
+  function profUnsigned() {
+    // An unsigned agreement is not a quiet thing: it shows on the profile so
+    // it can be chased, and would raise the same flag on the dashboard.
+    var n = document.querySelectorAll('.mk-unsigned').length;
+    var bar = $('mk-unsigned-bar');
+    if (!bar) return;
+    bar.style.display = n ? '' : 'none';
+    bar.textContent = n === 1 ? '1 membership has no signed agreement'
+      : n + ' memberships have no signed agreement';
+  }
+
   /* ── cards on file ──────────────────────────────────────────────────────
      The list lives in Stripe. Removing one here removes it there, so a card
      that scheduled payments are pointed at cannot go quietly: those payments
@@ -1759,6 +2018,14 @@ body{margin:0;background:#fff}
     clearTimeout(toastT);
     toastT = setTimeout(function () { t.classList.remove('on'); }, 2600);
   }
+  document.querySelectorAll('#mk-asign .mk-opt').forEach(function (l) {
+    l.addEventListener('click', function () {
+      document.querySelectorAll('#mk-asign .mk-opt').forEach(function (x) { x.classList.remove('on'); });
+      l.classList.add('on'); l.querySelector('input').checked = true;
+      ADD.sign = l.getAttribute('data-sign');
+      $('mk-askip').classList.toggle('on', ADD.sign === 'skip');
+    });
+  });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') memClose(); });
   cardsDraw();
 </script>
