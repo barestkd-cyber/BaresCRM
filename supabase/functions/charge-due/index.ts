@@ -150,10 +150,24 @@ Deno.serve(async (req) => {
 
     for (const m of (dueMems.data ?? []) as Record<string, unknown>[]) {
       if (!Number(m.final_recurring_cents)) continue; // nothing to charge
+      // ANY installment on this date answers the question, including a
+      // waived or canceled one. Filtering those out let the engine re-create
+      // and charge a payment staff had deliberately written off.
       const exists = await admin.from("membership_installments")
-        .select("id").eq("membership_id", m.id).eq("due_on", m.next_bill_on)
-        .in("status", ["scheduled", "invoiced", "paid"]).limit(1);
-      if (exists.data && exists.data.length) continue;
+        .select("id,status").eq("membership_id", m.id).eq("due_on", m.next_bill_on).limit(1);
+      if (exists.data && exists.data.length) {
+        // A waiver settles the date but does not move the member forward, so
+        // advance them here or every run would reconsider the same date.
+        const st = String(exists.data[0].status);
+        if (live && (st === "waived" || st === "canceled")) {
+          const after = BTKDPricing.nextBillOn(String(m.next_bill_on), String(m.next_bill_on));
+          if (after) {
+            await admin.from("memberships").update({ next_bill_on: after }).eq("id", m.id);
+            report.lines.push("SKIPPED " + m.program + " " + m.next_bill_on + " (" + st + "), moved to " + after);
+          }
+        }
+        continue;
+      }
       if (!live) {
         // A dry run must not write. Report what WOULD be scheduled and move
         // on, rather than quietly leaving rows behind as the price of looking.

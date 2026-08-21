@@ -5873,6 +5873,18 @@ async function memSchedWaive(id){
   const who=(typeof currentEmail!=="undefined"&&currentEmail)?currentEmail:"staff";
   await sb.from("membership_edits").insert({ membership_id:SCHED.ms.id, contact_id:SCHED.ms.contact_id,
     field:"installment "+x.seq+" status", old_value:x.status, new_value:"waived", reason:reason, edited_by:who });
+  // Waiving settles that date, so move the member past it. Otherwise the
+  // membership still reads as due then, and the charging engine would keep
+  // reconsidering a date that has already been answered.
+  if(SCHED.ms.next_bill_on && x.due_on === SCHED.ms.next_bill_on){
+    const after = BTKDPricing.nextBillOn(x.due_on, x.due_on);
+    if(after){
+      await sb.from("memberships").update({ next_bill_on: after }).eq("id", SCHED.ms.id);
+      await sb.from("membership_edits").insert({ membership_id:SCHED.ms.id, contact_id:SCHED.ms.contact_id,
+        field:"next bills on", old_value:x.due_on, new_value:after,
+        reason:"installment "+x.seq+" waived: "+reason, edited_by:who });
+    }
+  }
   toast("Installment "+x.seq+" waived");
   memSchedOpen(SCHED.ms.id);
   if(SCHED.ms.contact_id) loadProfileMemberships(SCHED.ms.contact_id);
