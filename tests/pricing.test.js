@@ -750,6 +750,49 @@ test('53 junk settings fall back to the studio rate, never to free', function ()
   assert.ok(P.privateLessonCents({}) > 0, 'a private lesson is never free by accident');
 });
 
+test('54 lesson slots start when the door opens, not when class dictates', function () {
+  // Owner, 2026-08-20: "if im open at 230 on wednesday then lets start
+  // there". Wednesday class starts 4:15. Running backwards from class gave
+  // 3:15 and 3:45 and silently threw away his first 45 open minutes.
+  assert.deepStrictEqual(
+    P.privateSlotsForDay({ openMinutes: 14 * 60 + 30, firstClassMinutes: 16 * 60 + 15, durationMin: 30 }),
+    [14 * 60 + 30, 15 * 60, 15 * 60 + 30],
+    'must be 2:30, 3:00, 3:30 - starting at the open time');
+});
+
+test('55 the last slot must END by the time class starts, never overlap', function () {
+  var slots = P.privateSlotsForDay({ openMinutes: 15 * 60, firstClassMinutes: 16 * 60 + 15, durationMin: 30 });
+  var last = slots[slots.length - 1];
+  assert.ok(last + 30 <= 16 * 60 + 15,
+    'a lesson may not still be running when class begins');
+  assert.deepStrictEqual(slots, [15 * 60, 15 * 60 + 30]);
+});
+
+test('56 his standing 4:00 PM still fits before a 4:30 class', function () {
+  assert.deepStrictEqual(
+    P.privateSlotsForDay({ openMinutes: 15 * 60, firstClassMinutes: 16 * 60 + 30, durationMin: 30 }),
+    [15 * 60, 15 * 60 + 30, 16 * 60],
+    'the 4:00 PM lesson he already teaches must remain a real slot');
+});
+
+test('57 no room before class means no slots, never a negative one', function () {
+  assert.deepStrictEqual(P.privateSlotsForDay({ openMinutes: 16 * 60, firstClassMinutes: 16 * 60 + 15, durationMin: 30 }), [],
+    'fifteen minutes is not enough for a thirty minute lesson');
+  assert.deepStrictEqual(P.privateSlotsForDay({ openMinutes: 17 * 60, firstClassMinutes: 16 * 60, durationMin: 30 }), [],
+    'opening after class starts offers nothing');
+  assert.deepStrictEqual(P.privateSlotsForDay({}), []);
+});
+
+test('58 clock settings that cannot be read close the day, never open it wrongly', function () {
+  assert.strictEqual(P.minutesFromClock('2:30 PM'), 14 * 60 + 30);
+  assert.strictEqual(P.minutesFromClock('14:30'), 14 * 60 + 30);
+  assert.strictEqual(P.minutesFromClock('12:00 AM'), 0, 'midnight is zero, not noon');
+  assert.strictEqual(P.minutesFromClock('12:00 PM'), 12 * 60, 'noon is not midnight');
+  ['half two', '25:00', '3:70 PM', '', null].forEach(function (bad) {
+    assert.strictEqual(P.minutesFromClock(bad), null, JSON.stringify(bad) + ' must not parse');
+  });
+});
+
 // ─── summary ───────────────────────────────────────────────────────────────
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
