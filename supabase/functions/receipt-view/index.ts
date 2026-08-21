@@ -244,7 +244,7 @@ Deno.serve(async (req) => {
       '<div style="padding:8px 16px 2px">' +
       trow("Subtotal", s.subtotal_cents) +
       (s.discount_cents ? trow("Discount", s.discount_cents, true) : "") +
-      (s.admin_fee_cents ? trow("Admin fee", s.admin_fee_cents) : "") +
+      (s.admin_fee_cents ? trow("Card processing", s.admin_fee_cents) : "") +
       trow("Sales tax", s.tax_cents) +
       "</div>" +
       '<div class="iv-total"><span class="lbl">' + (closed ? "Closed · balance waived" : "Total due") + '</span><span class="amt">' + money(s.total_cents) + "</span></div>" +
