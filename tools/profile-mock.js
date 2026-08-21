@@ -144,10 +144,13 @@ body{margin:0;background:#fff}
    height that still reads at a glance, and they come first because that is
    what he looks for on opening a profile. */
 .mk-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-.mk-stat{background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 12px;
-  display:flex;align-items:baseline;gap:8px;min-width:0}
-.mk-stat .n{font-size:18px;font-weight:800;line-height:1.1;flex:none}
-.mk-stat .l{font-size:11.5px;color:var(--muted);font-weight:700;line-height:1.25;min-width:0}
+.mk-stat{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}
+.mk-stat .n{font-size:17px;font-weight:800;line-height:1.1;flex:none;white-space:nowrap}
+.mk-stat .l{font-size:11.5px;color:var(--muted);font-weight:700;line-height:1.2;min-width:0}
+/* The long label on a wide screen, the short one on a phone, so neither
+   wraps to a second line and doubles the height of a read-only bar. */
+.mk-stat .narrow{display:none}
 .mk-stat.owe{background:#FFF6F6;border-color:#F3D2D2}
 .mk-stat.owe .n{color:var(--accent)}
 
@@ -237,6 +240,8 @@ body{margin:0;background:#fff}
   .mk-wrap{padding:0 26px 60px}
 }
 @media (max-width:560px){
+  .mk-stat .wide{display:none}
+  .mk-stat .narrow{display:inline}
   /* Avatar stays BESIDE the name, per his reference. */
   .mk-head{padding:16px}
   .mk-head-top{gap:14px}
@@ -263,12 +268,14 @@ body{margin:0;background:#fff}
 
   <div class="mk-stats">
     <div class="mk-stat">
+      <div class="l"><span class="wide">Attendance, last 30 days</span>
+        <span class="narrow">Attendance 30d</span></div>
       <div class="n">${S.attendance30}</div>
-      <div class="l">Attendance<br>last 30 days</div>
     </div>
     <div class="mk-stat owe">
+      <div class="l"><span class="wide">Balance owed &middot; ${S.balanceCount}</span>
+        <span class="narrow">Balance owed</span></div>
       <div class="n">${S.balance}</div>
-      <div class="l">Balance owed<br>${S.balanceCount}</div>
     </div>
   </div>
 
