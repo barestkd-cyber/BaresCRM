@@ -265,8 +265,12 @@ body{margin:0;background:#fff}
 .mk-sheet{position:fixed;left:0;right:0;bottom:0;z-index:90;background:#fff;
   border-radius:18px 18px 0 0;box-shadow:0 -8px 40px rgba(0,0,0,.22);
   transform:translateY(100%);transition:transform .22s ease;
-  display:flex;flex-direction:column;max-height:92vh}
-.mk-sheet.on{transform:none}
+  display:flex;flex-direction:column;max-height:92vh;
+  /* A closed sheet must not catch clicks. On a phone it is pushed off screen
+     so it never did; on a desktop it sits centred at opacity 0, where it was
+     silently swallowing every click on the card underneath it. */
+  pointer-events:none}
+.mk-sheet.on{transform:none;pointer-events:auto}
 .mk-sheet-grab{width:38px;height:4px;border-radius:99px;background:var(--line);
   margin:9px auto 0}
 .mk-sheet-head{display:flex;align-items:flex-start;justify-content:space-between;
