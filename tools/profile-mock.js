@@ -140,16 +140,15 @@ body{margin:0;background:#fff}
 .mk-back{background:none;border:none;color:var(--accent);font:800 17px/1 inherit;
   cursor:pointer;padding:18px 0 12px;display:flex;align-items:center;gap:10px}
 
-/* stat strip: icon, number and label on one line */
-.mk-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
-.mk-stat{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;
-  display:flex;align-items:center;gap:13px;min-width:0}
-.mk-stat .ico{width:40px;height:40px;border-radius:11px;background:var(--surface);flex:none;
-  display:flex;align-items:center;justify-content:center;font-size:19px}
-.mk-stat .n{font-size:23px;font-weight:800;line-height:1;flex:none}
-.mk-stat .l{font-size:13px;color:var(--muted);font-weight:600;min-width:0}
+/* Two thin read-only bars. Nothing here is tappable, so they get the least
+   height that still reads at a glance, and they come first because that is
+   what he looks for on opening a profile. */
+.mk-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.mk-stat{background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 12px;
+  display:flex;align-items:baseline;gap:8px;min-width:0}
+.mk-stat .n{font-size:18px;font-weight:800;line-height:1.1;flex:none}
+.mk-stat .l{font-size:11.5px;color:var(--muted);font-weight:700;line-height:1.25;min-width:0}
 .mk-stat.owe{background:#FFF6F6;border-color:#F3D2D2}
-.mk-stat.owe .ico{background:#fff}
 .mk-stat.owe .n{color:var(--accent)}
 
 /* header */
@@ -238,9 +237,17 @@ body{margin:0;background:#fff}
   .mk-wrap{padding:0 26px 60px}
 }
 @media (max-width:560px){
-  .mk-head-top{flex-direction:column}
-  .mk-av{width:96px;height:96px;font-size:34px}
-  .mk-name{font-size:27px}
+  /* Avatar stays BESIDE the name, per his reference. */
+  .mk-head{padding:16px}
+  .mk-head-top{gap:14px}
+  .mk-av{width:74px;height:74px;font-size:26px;box-shadow:0 0 0 4px #15171C}
+  .mk-name{font-size:22px;gap:9px}
+  .mk-seg{font-size:12px;padding:4px 10px}
+  .mk-prog{font-size:14px;margin-top:3px}
+  .mk-beltname{font-size:14px}
+  .mk-beltsince{font-size:12.5px}
+  .mk-belt{margin-top:8px;gap:7px}
+  .mk-actions{margin-top:11px;padding:9px 13px;font-size:14px}
   .mk-facts{grid-template-columns:1fr;gap:0}
   .mk-facts > div + div{border-left:none;border-top:1px solid var(--line);
     padding-left:0;padding-top:14px;margin-top:14px}
@@ -256,14 +263,12 @@ body{margin:0;background:#fff}
 
   <div class="mk-stats">
     <div class="mk-stat">
-      <div class="ico">&#128197;</div>
       <div class="n">${S.attendance30}</div>
-      <div class="l">Attendance, last 30 days</div>
+      <div class="l">Attendance<br>last 30 days</div>
     </div>
     <div class="mk-stat owe">
-      <div class="ico">&#36;</div>
       <div class="n">${S.balance}</div>
-      <div class="l">Balance owed &middot; ${S.balanceCount}</div>
+      <div class="l">Balance owed<br>${S.balanceCount}</div>
     </div>
   </div>
 
