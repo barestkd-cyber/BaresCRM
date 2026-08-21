@@ -61,19 +61,20 @@ const panels = {
     <div class="mk-card">
       <div class="mk-mem-top">
         <div>
-          <div class="mk-mem-name">Little Kickers</div>
-          <div class="mk-mem-sub">6-week session &middot; paid in full</div>
+          <div class="mk-mem-name">Taekwondo &mdash; Juniors</div>
+          <div class="mk-mem-sub">Option C &middot; 12 months</div>
         </div>
         <span class="mk-pill ok">Active</span>
       </div>
       <div class="mk-mem-terms">
-        <span><b>$109.00</b></span>
-        <span>Started Aug 17, 2026</span>
-        <span>Ends Oct 21, 2026</span>
+        <span><b>$110.00</b> monthly</span>
+        <span>Next bills Sep 17</span>
+        <span>4 of 12 paid</span>
       </div>
+      <div class="mk-mem-who">Paid by <b>Pat Lee</b> &middot; Visa &bull;&bull;&bull;&bull; 4242</div>
       <div class="mk-mem-acts">
-        <button>Edit membership</button>
-        <button>Payment schedule</button>
+        <button onclick="memEdit()">Edit membership</button>
+        <button onclick="memSched()">Payment schedule</button>
         <button>View agreement</button>
       </div>
     </div>`,
@@ -239,6 +240,77 @@ body{margin:0;background:#fff}
 .mk-addnote{margin-top:14px;border:1.5px dashed var(--line);background:none;border-radius:11px;
   padding:12px 16px;font:700 14.5px/1 inherit;color:var(--muted);cursor:pointer;width:100%}
 .mk-soon{color:var(--muted);font-size:15px;text-align:center;padding:38px 18px}
+.mk-mem-who{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);
+  font-size:14px;color:var(--muted)}
+
+/* ── edit membership sheet ─────────────────────────────────────────────── */
+.mk-scrim{position:fixed;inset:0;background:rgba(10,12,15,.45);opacity:0;pointer-events:none;
+  transition:opacity .18s;z-index:80}
+.mk-scrim.on{opacity:1;pointer-events:auto}
+.mk-sheet{position:fixed;left:0;right:0;bottom:0;z-index:90;background:#fff;
+  border-radius:18px 18px 0 0;box-shadow:0 -8px 40px rgba(0,0,0,.22);
+  transform:translateY(100%);transition:transform .22s ease;
+  display:flex;flex-direction:column;max-height:92vh}
+.mk-sheet.on{transform:none}
+.mk-sheet-grab{width:38px;height:4px;border-radius:99px;background:var(--line);
+  margin:9px auto 0}
+.mk-sheet-head{display:flex;align-items:flex-start;justify-content:space-between;
+  gap:12px;padding:12px 18px 14px;border-bottom:1px solid var(--line)}
+.mk-sheet-head h3{margin:0;font-size:19px}
+.mk-sheet-sub{font-size:13.5px;color:var(--muted);margin-top:3px}
+.mk-x{border:none;background:none;font-size:27px;line-height:1;color:var(--muted);
+  cursor:pointer;padding:0 2px}
+.mk-sheet-body{padding:16px 18px 4px;overflow-y:auto}
+.mk-sheet-foot{display:flex;gap:10px;padding:14px 18px calc(14px + env(safe-area-inset-bottom));
+  border-top:1px solid var(--line);background:#fff}
+.mk-btn{flex:1;border:none;border-radius:12px;background:var(--accent);color:#fff;
+  padding:14px;font:800 15.5px/1 inherit;cursor:pointer}
+.mk-btn.ghost{background:none;border:1.5px solid var(--line);color:var(--ink);flex:0 0 34%}
+.mk-btn[disabled]{opacity:.45;cursor:default}
+
+.mk-locked{background:var(--surface);border-radius:10px;padding:11px 13px;
+  font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:16px}
+.mk-f{display:block;margin-bottom:16px}
+.mk-f-l{display:block;font-size:13px;font-weight:800;margin-bottom:6px}
+.mk-req{background:#FBE9E9;color:var(--accent);border-radius:5px;padding:2px 7px;
+  font-size:10.5px;letter-spacing:.04em;margin-left:6px}
+.mk-f input,.mk-f select{width:100%;font:inherit;font-size:15.5px;padding:12px 13px;
+  border:1.5px solid var(--line);border-radius:11px;background:#fff;color:inherit}
+.mk-f-h{display:block;font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:6px}
+.mk-money{display:flex;align-items:center;border:1.5px solid var(--line);border-radius:11px;
+  background:#fff;overflow:hidden}
+.mk-money-sym{padding:0 4px 0 13px;font-weight:800;color:var(--muted)}
+.mk-money input{border:none;border-radius:0}
+.mk-seg{display:flex;gap:6px;flex-wrap:wrap}
+.mk-seg button{flex:1;min-width:92px;border:1.5px solid var(--line);background:#fff;
+  border-radius:11px;padding:11px 8px;font:700 14px/1 inherit;cursor:pointer;color:var(--muted)}
+.mk-seg button.on{border-color:var(--accent);color:var(--accent);background:#FFF6F6}
+
+.mk-warn{display:none;background:#FFFBEF;border:1px solid #EBD9A6;border-radius:10px;
+  padding:11px 13px;font-size:13px;line-height:1.55;margin:-8px 0 16px}
+.mk-warn.on{display:block}
+.mk-changed{display:none;background:#F4F6F8;border-radius:10px;padding:12px 13px;
+  font-size:13px;line-height:1.7;margin-bottom:16px}
+.mk-changed.on{display:block}
+.mk-changed b{font-weight:800}
+
+.mk-history{border-top:1px solid var(--line);padding-top:14px;margin-bottom:6px}
+.mk-history-h{font-size:12px;font-weight:800;color:var(--muted);letter-spacing:.05em;
+  text-transform:uppercase;margin-bottom:10px}
+.mk-history-row{font-size:13.5px;line-height:1.5;margin-bottom:10px}
+.mk-history-row span{display:block;font-size:12px;color:var(--muted);margin-top:1px}
+
+.mk-toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);
+  background:#15171C;color:#fff;padding:12px 18px;border-radius:11px;font:700 14px/1.4 inherit;
+  opacity:0;pointer-events:none;transition:all .2s;z-index:120;max-width:88vw;text-align:center}
+.mk-toast.on{opacity:1;transform:translate(-50%,0)}
+
+@media (min-width:700px){
+  .mk-sheet{left:50%;right:auto;bottom:auto;top:50%;transform:translate(-50%,-46%) scale(.98);
+    width:520px;border-radius:18px;opacity:0;max-height:88vh}
+  .mk-sheet.on{transform:translate(-50%,-50%) scale(1);opacity:1}
+  .mk-sheet-grab{display:none}
+}
 
 @media (min-width:900px){
   .mk-wrap{padding:0 26px 60px}
@@ -339,6 +411,105 @@ body{margin:0;background:#fff}
 
 </div>
 
+<!-- ── edit membership ──────────────────────────────────────────────────
+     Program and plan are deliberately NOT here. Those are what the signed
+     agreement is about; changing one is a different contract, not an edit.
+     What can move is the money, the dates, who pays, and whether it is
+     still running. Every change wants a reason, and the reason is asked
+     for BEFORE the save, not after. -->
+<div class="mk-scrim" id="mk-scrim" onclick="memClose()"></div>
+<div class="mk-sheet" id="mk-sheet" role="dialog" aria-modal="true" aria-label="Edit membership">
+  <div class="mk-sheet-grab"></div>
+  <div class="mk-sheet-head">
+    <div>
+      <h3 id="mk-sheet-title">Edit membership</h3>
+      <div class="mk-sheet-sub" id="mk-sheet-sub">Taekwondo &mdash; Juniors &middot; Option C</div>
+    </div>
+    <button class="mk-x" onclick="memClose()">&times;</button>
+  </div>
+
+  <div class="mk-sheet-body" id="mk-sheet-body">
+
+    <div class="mk-locked">
+      Program and plan cannot be changed here. A different program is a new
+      agreement, not an edit to this one.
+    </div>
+
+    <label class="mk-f">
+      <span class="mk-f-l">Price</span>
+      <span class="mk-money">
+        <span class="mk-money-sym">$</span>
+        <input id="mk-price" type="number" step="0.01" min="0" value="110.00" oninput="memDrift()">
+      </span>
+    </label>
+    <div class="mk-warn" id="mk-warn">
+      The signed agreement says <b>$110.00</b> a month. Changing it here does not
+      change the agreement.
+    </div>
+
+    <div class="mk-f">
+      <span class="mk-f-l">Billed</span>
+      <div class="mk-seg" id="mk-freq">
+        <button class="on" onclick="memSeg(this)">Monthly</button>
+        <button onclick="memSeg(this)">Weekly</button>
+        <button onclick="memSeg(this)">Paid in full</button>
+      </div>
+    </div>
+
+    <label class="mk-f">
+      <span class="mk-f-l">Next bills on</span>
+      <input id="mk-next" type="date" value="2026-09-17">
+    </label>
+
+    <label class="mk-f">
+      <span class="mk-f-l">Who pays</span>
+      <select id="mk-payer">
+        <option>Pat Lee &middot; Visa &bull;&bull;&bull;&bull; 4242</option>
+        <option>Jamie Lee &middot; no card on file</option>
+        <option>Someone else&hellip;</option>
+      </select>
+      <span class="mk-f-h">The card charged for this membership. For a child that
+        is usually a parent, not the student.</span>
+    </label>
+
+    <div class="mk-f">
+      <span class="mk-f-l">Status</span>
+      <div class="mk-seg" id="mk-status">
+        <button class="on" onclick="memSeg(this)">Active</button>
+        <button onclick="memSeg(this)">Paused</button>
+        <button onclick="memSeg(this)">Ended</button>
+      </div>
+      <span class="mk-f-h" id="mk-status-h">Paused stops the billing but keeps
+        the place on the mat.</span>
+    </div>
+
+    <label class="mk-f">
+      <span class="mk-f-l">Why <span class="mk-req">required</span></span>
+      <input id="mk-reason" maxlength="200" placeholder="Family discount agreed at the desk"
+        oninput="memReason()">
+      <span class="mk-f-h">Goes on the record with what changed, so the next
+        person to look knows why it is not what the agreement says.</span>
+    </label>
+
+    <div class="mk-changed" id="mk-changed"></div>
+
+    <div class="mk-history">
+      <div class="mk-history-h">Earlier changes</div>
+      <div class="mk-history-row"><b>Price</b> $119.00 &rarr; $110.00
+        <span>Jul 02 &middot; Mr. Race Bares &middot; sibling discount</span></div>
+      <div class="mk-history-row"><b>Next bills on</b> Jun 17 &rarr; Jun 24
+        <span>Jun 10 &middot; Mr. Race Bares &middot; asked to move a week after payday</span></div>
+    </div>
+  </div>
+
+  <div class="mk-sheet-foot">
+    <button class="mk-btn ghost" onclick="memClose()">Cancel</button>
+    <button class="mk-btn" id="mk-save" onclick="memSave()">Save changes</button>
+  </div>
+</div>
+
+<div class="mk-toast" id="mk-toast"></div>
+
 <script>
   document.querySelectorAll('.mk-tab[data-tab]').forEach(function (b) {
     b.addEventListener('click', function () {
@@ -350,6 +521,91 @@ body{margin:0;background:#fff}
       });
     });
   });
+
+  /* ── edit membership ────────────────────────────────────────────────────
+     What the membership was when the sheet opened. Every comparison is
+     against this, so "what changed" is answered by the data rather than by
+     watching keystrokes. */
+  var WAS = { price: '110.00', freq: 'Monthly', next: '2026-09-17',
+              payer: 'Pat Lee · Visa •••• 4242', status: 'Active' };
+  var AGREEMENT_PRICE = '110.00';
+  var $ = function (id) { return document.getElementById(id); };
+
+  function memNow() {
+    return {
+      price: $('mk-price').value.trim(),
+      freq: $('mk-freq').querySelector('.on').textContent.trim(),
+      next: $('mk-next').value,
+      payer: $('mk-payer').value.trim(),
+      status: $('mk-status').querySelector('.on').textContent.trim()
+    };
+  }
+  function memDiff() {
+    var now = memNow(), out = [];
+    var label = { price: 'Price', freq: 'Billed', next: 'Next bills on',
+                  payer: 'Who pays', status: 'Status' };
+    Object.keys(label).forEach(function (k) {
+      var a = String(WAS[k]), b = String(now[k]);
+      if (k === 'price') { a = (+a).toFixed(2); b = (+b || 0).toFixed(2); }
+      if (a !== b) out.push({ what: label[k], from: a, to: b });
+    });
+    return out;
+  }
+  function memDrift() {
+    // Say so the moment the price leaves the agreement, not after saving.
+    var off = (+$('mk-price').value || 0).toFixed(2) !== (+AGREEMENT_PRICE).toFixed(2);
+    $('mk-warn').classList.toggle('on', off);
+    memRefresh();
+  }
+  function memSeg(btn) {
+    Array.prototype.forEach.call(btn.parentNode.children, function (b) { b.classList.remove('on'); });
+    btn.classList.add('on');
+    memRefresh();
+  }
+  function memReason() { memRefresh(); }
+  function memRefresh() {
+    var d = memDiff(), box = $('mk-changed');
+    if (d.length) {
+      box.innerHTML = '<b>About to change</b><br>' + d.map(function (c) {
+        return c.what + ': ' + c.from + ' &rarr; <b>' + c.to + '</b>';
+      }).join('<br>');
+      box.classList.add('on');
+    } else {
+      box.classList.remove('on');
+    }
+    // Nothing to save with no changes, and nothing saves without a reason.
+    $('mk-save').disabled = !d.length || !$('mk-reason').value.trim();
+  }
+  function memEdit() {
+    $('mk-scrim').classList.add('on');
+    $('mk-sheet').classList.add('on');
+    memRefresh();
+  }
+  function memClose() {
+    $('mk-scrim').classList.remove('on');
+    $('mk-sheet').classList.remove('on');
+  }
+  function memSave() {
+    var d = memDiff();
+    memClose();
+    memToast(d.length + (d.length === 1 ? ' change saved' : ' changes saved'));
+    // The card reflects it, the way the real one would.
+    var now = memNow();
+    document.querySelector('.mk-mem-terms').innerHTML =
+      '<span><b>$' + (+now.price).toFixed(2) + '</b> ' + now.freq.toLowerCase() + '</span>'
+      + '<span>Next bills ' + now.next + '</span><span>4 of 12 paid</span>';
+    WAS = now;
+    memRefresh();
+  }
+  function memSched() { memToast('Payment schedule is next, once this is right.'); }
+  var toastT;
+  function memToast(msg) {
+    var t = $('mk-toast');
+    t.textContent = msg; t.classList.add('on');
+    clearTimeout(toastT);
+    toastT = setTimeout(function () { t.classList.remove('on'); }, 2600);
+  }
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') memClose(); });
 </script>
 </body></html>`;
 
