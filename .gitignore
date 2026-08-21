@@ -4,3 +4,4 @@ supabase/.temp/
 # OS noise
 Thumbs.db
 .DS_Store
+tools/profile-mock.html
