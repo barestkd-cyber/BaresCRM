@@ -283,8 +283,6 @@ body{margin:0;background:#fff}
 .mk-btn.ghost{background:none;border:1.5px solid var(--line);color:var(--ink);flex:0 0 34%}
 .mk-btn[disabled]{opacity:.45;cursor:default}
 
-.mk-locked{background:var(--surface);border-radius:10px;padding:11px 13px;
-  font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:16px}
 .mk-f{display:block;margin-bottom:16px}
 .mk-f-l{display:block;font-size:13px;font-weight:800;margin-bottom:6px}
 .mk-req{background:#FBE9E9;color:var(--accent);border-radius:5px;padding:2px 7px;
@@ -304,6 +302,8 @@ body{margin:0;background:#fff}
 .mk-warn{display:none;background:#FFFBEF;border:1px solid #EBD9A6;border-radius:10px;
   padding:11px 13px;font-size:13px;line-height:1.55;margin:-8px 0 16px}
 .mk-warn.on{display:block}
+/* The agreement note reads differently from the price one on purpose. */
+.mk-warn.agr{background:#FFF4F4;border-color:#EBC2C2}
 .mk-changed{display:none;background:#F4F6F8;border-radius:10px;padding:12px 13px;
   font-size:13px;line-height:1.7;margin-bottom:16px}
 .mk-changed.on{display:block}
@@ -476,9 +476,28 @@ body{margin:0;background:#fff}
 
   <div class="mk-sheet-body" id="mk-sheet-body">
 
-    <div class="mk-locked">
-      Program and plan cannot be changed here. A different program is a new
-      agreement, not an edit to this one.
+    <label class="mk-f">
+      <span class="mk-f-l">Program</span>
+      <select id="mk-program" onchange="memProgram()">
+        <option>Little Kickers</option>
+        <option>Cubs</option>
+        <option selected>Taekwondo &mdash; Juniors</option>
+        <option>Taekwondo &mdash; Teens/Adults</option>
+        <option>Kickboxing</option>
+        <option>Jiu Jitsu</option>
+        <option>AMP'D</option>
+      </select>
+    </label>
+
+    <label class="mk-f">
+      <span class="mk-f-l">Option</span>
+      <select id="mk-option" onchange="memDrift()"></select>
+    </label>
+
+    <div class="mk-warn agr" id="mk-warn-agr">
+      The signed agreement is for <b>Taekwondo &mdash; Juniors, Option C</b>.
+      Changing it here does not change the agreement, so the paperwork and the
+      record will disagree until a new one is signed.
     </div>
 
     <label class="mk-f">
@@ -606,13 +625,28 @@ body{margin:0;background:#fff}
      What the membership was when the sheet opened. Every comparison is
      against this, so "what changed" is answered by the data rather than by
      watching keystrokes. */
-  var WAS = { price: '110.00', freq: 'Monthly', next: '2026-09-17',
+  // Which options belong to which program, so the second list follows the first.
+  var OPTIONS = {
+    'Little Kickers': ['Six-week session'],
+    'Cubs': ['Paid in full', 'Option B', 'Option C', 'Weekly'],
+    'Taekwondo — Juniors': ['Paid in full', 'Option B', 'Option C', 'Option D', 'Weekly'],
+    'Taekwondo — Teens/Adults': ['Paid in full', 'Option B', 'Option C', 'Option D', 'Weekly'],
+    'Kickboxing': ['Standalone', 'Add-on to Taekwondo'],
+    'Jiu Jitsu': ['Standalone', 'Add-on to Taekwondo'],
+    "AMP'D": ['Monthly']
+  };
+  var WAS = { program: 'Taekwondo — Juniors', option: 'Option C',
+              price: '110.00', freq: 'Monthly', next: '2026-09-17',
               payer: 'Pat Lee · Visa •••• 4242', status: 'Active' };
-  var AGREEMENT_PRICE = '110.00';
+  // What the signed paperwork says, which is a different question from what
+  // the membership currently says.
+  var AGREEMENT = { program: 'Taekwondo — Juniors', option: 'Option C', price: '110.00' };
   var $ = function (id) { return document.getElementById(id); };
 
   function memNow() {
     return {
+      program: $('mk-program').value.trim(),
+      option: $('mk-option').value.trim(),
       price: $('mk-price').value.trim(),
       freq: $('mk-freq').querySelector('.on').textContent.trim(),
       next: $('mk-next').value,
@@ -622,7 +656,8 @@ body{margin:0;background:#fff}
   }
   function memDiff() {
     var now = memNow(), out = [];
-    var label = { price: 'Price', freq: 'Billed', next: 'Next bills on',
+    var label = { program: 'Program', option: 'Option', price: 'Price',
+                  freq: 'Billed', next: 'Next bills on',
                   payer: 'Who pays', status: 'Status' };
     Object.keys(label).forEach(function (k) {
       var a = String(WAS[k]), b = String(now[k]);
@@ -631,10 +666,22 @@ body{margin:0;background:#fff}
     });
     return out;
   }
+  function memProgram(keep) {
+    // The option list belongs to the program, so it follows it.
+    var list = OPTIONS[$('mk-program').value.trim()] || ['Monthly'];
+    var want = keep && list.indexOf(keep) !== -1 ? keep : list[0];
+    $('mk-option').innerHTML = list.map(function (o) {
+      return '<option' + (o === want ? ' selected' : '') + '>' + o + '</option>';
+    }).join('');
+    memDrift();
+  }
   function memDrift() {
-    // Say so the moment the price leaves the agreement, not after saving.
-    var off = (+$('mk-price').value || 0).toFixed(2) !== (+AGREEMENT_PRICE).toFixed(2);
+    // Say so the moment it leaves the agreement, not after saving.
+    var off = (+$('mk-price').value || 0).toFixed(2) !== (+AGREEMENT.price).toFixed(2);
     $('mk-warn').classList.toggle('on', off);
+    var planOff = $('mk-program').value.trim() !== AGREEMENT.program
+      || $('mk-option').value.trim() !== AGREEMENT.option;
+    $('mk-warn-agr').classList.toggle('on', planOff);
     memRefresh();
   }
   function memSeg(btn) {
@@ -659,7 +706,7 @@ body{margin:0;background:#fff}
   function memEdit() {
     $('mk-scrim').classList.add('on');
     $('mk-sheet').classList.add('on');
-    memRefresh();
+    memProgram(WAS.option);
   }
   function memClose() {
     $('mk-scrim').classList.remove('on');
@@ -672,6 +719,8 @@ body{margin:0;background:#fff}
     memToast(d.length + (d.length === 1 ? ' change saved' : ' changes saved'));
     // The card reflects it, the way the real one would.
     var now = memNow();
+    document.querySelector('.mk-mem-name').innerHTML = now.program;
+    document.querySelector('.mk-mem-sub').innerHTML = now.option + ' &middot; 12 months';
     document.querySelector('.mk-mem-terms').innerHTML =
       '<span><b>$' + (+now.price).toFixed(2) + '</b> ' + now.freq.toLowerCase() + '</span>'
       + '<span>Next bills ' + now.next + '</span><span>4 of 12 paid</span>';
