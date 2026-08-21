@@ -11,7 +11,8 @@
  *   - Actions sits inside the header card, under the belt line
  *   - the header's fact row is two columns: dates left, CREDITS right
  *   - Contact, Guardian and Household are ONE card, not two
- *   - four tabs: Membership, Invoices & Payments, History, Documents
+ *   - six tabs, Notes first: Notes, Invoices & Payments, Membership,
+ *     Attendance, History, Documents
  *
  * The BODY here is hand-written and free to redesign. The STYLES are pulled
  * live from index.html at build time, so this looks like the CRM and porting
@@ -43,12 +44,17 @@ const S = {
 };
 
 /* ── tabs ───────────────────────────────────────────────────────────────── */
+// Notes first: it is what he reaches for mid-conversation with a parent.
+// Then the money. Then the rest in the order they were already in.
 const TABS = [
-  { key: 'membership', label: 'Membership' },
+  { key: 'notes', label: 'Notes' },
   { key: 'invoices', label: 'Invoices &amp; Payments' },
+  { key: 'membership', label: 'Membership' },
+  { key: 'attendance', label: 'Attendance' },
   { key: 'history', label: 'History', soon: true },
   { key: 'docs', label: 'Documents', soon: true },
 ];
+const FIRST_TAB = 'notes';
 
 const panels = {
   membership: `
@@ -82,16 +88,39 @@ const panels = {
         </tbody>
       </table>
     </div>`,
+  attendance: `
+    <div class="mk-card np">
+      <table class="mk-table">
+        <thead><tr><th>Date</th><th>Class</th><th class="r">Status</th></tr></thead>
+        <tbody>
+          <tr><td>Aug 19, 2026</td><td>Little Kickers 4:00 PM</td><td class="r"><span class="mk-pill ok">Present</span></td></tr>
+          <tr><td>Aug 12, 2026</td><td>Little Kickers 4:00 PM</td><td class="r"><span class="mk-pill ok">Present</span></td></tr>
+          <tr><td>Aug 05, 2026</td><td>Little Kickers 4:00 PM</td><td class="r"><span class="mk-pill">Missed</span></td></tr>
+        </tbody>
+      </table>
+    </div>`,
+  notes: `
+    <div class="mk-card">
+      <div class="mk-note">
+        <div class="mk-note-meta">Aug 18, 2026 &middot; Mr. Race Bares</div>
+        Loves the obstacle course. Shy with new partners, warms up after about ten minutes.
+      </div>
+      <div class="mk-note">
+        <div class="mk-note-meta">Aug 03, 2026 &middot; Mr. Race Bares</div>
+        Mum asked about moving to the Tuesday class in the autumn.
+      </div>
+      <button class="mk-addnote">+ Add a note</button>
+    </div>`,
   history: `<div class="mk-card mk-soon">History is not built yet.</div>`,
   docs: `<div class="mk-card mk-soon">Documents are not built yet.</div>`,
 };
 
 const tabBtns = TABS.map((t) => t.soon
   ? `<button class="mk-tab dis">${t.label} <span class="mk-soonchip">COMING SOON</span></button>`
-  : `<button class="mk-tab${t.key === 'membership' ? ' on' : ''}" data-tab="${t.key}">${t.label}</button>`).join('');
+  : `<button class="mk-tab${t.key === FIRST_TAB ? ' on' : ''}" data-tab="${t.key}">${t.label}</button>`).join('');
 
 const panelDivs = TABS.map((t) =>
-  `<div class="mk-panel" data-tab="${t.key}"${t.key === 'membership' ? '' : ' style="display:none"'}>${panels[t.key]}</div>`).join('');
+  `<div class="mk-panel" data-tab="${t.key}"${t.key === FIRST_TAB ? '' : ' style="display:none"'}>${panels[t.key]}</div>`).join('');
 
 /* ── the page ───────────────────────────────────────────────────────────── */
 const page = `<!doctype html>
@@ -198,6 +227,11 @@ body{margin:0;background:#fff}
 .mk-table td{padding:14px 16px;border-bottom:1px solid var(--line)}
 .mk-table tr:last-child td{border-bottom:none}
 .mk-table .r{text-align:right}
+.mk-note{padding:13px 0;border-bottom:1px solid var(--line);font-size:15px;line-height:1.6}
+.mk-note:first-of-type{padding-top:0}
+.mk-note-meta{font-size:12.5px;color:var(--muted);font-weight:700;margin-bottom:5px}
+.mk-addnote{margin-top:14px;border:1.5px dashed var(--line);background:none;border-radius:11px;
+  padding:12px 16px;font:700 14.5px/1 inherit;color:var(--muted);cursor:pointer;width:100%}
 .mk-soon{color:var(--muted);font-size:15px;text-align:center;padding:38px 18px}
 
 @media (min-width:900px){
