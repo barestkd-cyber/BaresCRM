@@ -80,6 +80,58 @@ async function verifyStripeSignature(raw: string, header: string, secret: string
  *  `notify_owner` BCCs the owner so a payment that lands while nobody is at
  *  the desk still reaches a human - previously an online payment by a walk-in
  *  notified nobody at all. */
+/** Everything a paid sale should have made real: the membership becomes
+ *  active, the roster place becomes active, the private lesson becomes a real
+ *  booking and reaches the wall calendar.
+ *
+ *  This used to live ONLY inside each checkout's finalize branch, and only ran
+ *  when finalize was the one that flipped the sale to paid. This webhook races
+ *  the browser and can win, in which case finalize skipped the whole block. On
+ *  2026-08-20 that left a paid private lesson pending, and the hold-expiry
+ *  sweep then canceled a lesson somebody had already paid for.
+ *
+ *  So it runs whenever a sale is paid, not once at the moment it flips, and
+ *  every step is idempotent. */
+async function reconcilePaidSale(
+  admin: { from: (t: string) => any },
+  saleId: string,
+): Promise<void> {
+  try {
+    // Online enrollments are written pending so an abandoned checkout leaves
+    // no active member behind. Paid means active.
+    await admin.from("memberships").update({ status: "active" })
+      .eq("sale_id", saleId).eq("status", "pending");
+    await admin.from("enrollments").update({ status: "active" })
+      .eq("sale_id", saleId).eq("status", "pending");
+
+    // A lesson hold becomes a real booking, even if the expiry sweep already
+    // canceled it: the money says otherwise.
+    const lessons = await admin.from("private_lessons")
+      .update({ status: "booked", notes: null })
+      .eq("sale_id", saleId).in("status", ["pending", "canceled"])
+      .select("starts_at,student_name");
+    for (const row of (lessons.data ?? []) as Record<string, unknown>[]) {
+      const at = new Date(String(row.starts_at));
+      const ymd = at.toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+      const hm = at.toLocaleTimeString("en-US", {
+        timeZone: "America/Chicago", hour: "numeric", minute: "2-digit", hour12: true,
+      });
+      const already = await admin.from("calendar_events").select("id")
+        .eq("type", "private").eq("event_date", ymd).eq("event_time", hm).limit(1);
+      if (!already.data || !already.data.length) {
+        await admin.from("calendar_events").insert({
+          type: "private",
+          title: "Private · " + (row.student_name || "Private lesson"),
+          event_date: ymd, event_time: hm,
+          created_by: "private-checkout@website",
+        });
+      }
+    }
+  } catch (e) {
+    console.error("reconcile failed for", saleId, e);
+  }
+}
+
 async function sendReceipt(saleId: string): Promise<void> {
   try {
     const url = Deno.env.get("SUPABASE_URL")!;
@@ -217,9 +269,11 @@ Deno.serve(async (req) => {
             confirmed_at: new Date().toISOString(), stripe_payment_intent: pi,
           }).eq("id", saleId);
           if (upd.error) console.error("mark paid failed", upd.error);
-          else await sendReceipt(saleId);
+          else { await reconcilePaidSale(admin, saleId); await sendReceipt(saleId); }
         } else if (sale.data.status === "paid") {
-          console.warn("payment recorded against an already-paid invoice", saleId, obj.id);
+          // The browser got there first. Reconcile anyway: whoever loses this
+          // race must not leave a paid membership or lesson unfinished.
+          await reconcilePaidSale(admin, saleId);
         }
       }
     } else if (event.type === "checkout.session.async_payment_failed") {
@@ -259,7 +313,7 @@ Deno.serve(async (req) => {
               status: "paid", tender_method: "card",
               confirmed_at: new Date().toISOString(), stripe_payment_intent: obj.id,
             }).eq("id", saleId);
-            if (!upd.error) await sendReceipt(saleId);
+            if (!upd.error) { await reconcilePaidSale(admin, saleId); await sendReceipt(saleId); }
           }
         }
       }

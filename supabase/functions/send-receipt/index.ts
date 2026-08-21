@@ -426,14 +426,22 @@ Deno.serve(async (req) => {
         const dob = c.data.dob ? "DOB " + fmtDate(String(c.data.dob)) : "";
         return [nm, dob, bits].filter(Boolean).join("<br>");
       })();
-      const internal = String(s.notes ?? "").trim();
+      // What was actually bought, and when. customer_note is the line written
+      // FOR a human ("Private lesson for Hunter, Wednesday, August 26 at 3:30
+      // PM"); notes is the terse internal one ("Private lesson from the
+      // website, 2026-08-26"). The owner was getting the terse one, so his
+      // notification carried no lesson time at all.
+      const internal = String(s.customer_note ?? "").trim()
+        || String(s.notes ?? "").trim();
       const ownerHtml =
         `<div style="font-family:Arial,Helvetica,sans-serif;color:#111;max-width:460px;margin:0 auto;padding:18px 14px">
           <p style="font-size:12px;letter-spacing:.08em;color:#777;margin:0 0 4px">PAYMENT RECEIVED</p>
           <p style="font-size:26px;font-weight:bold;margin:0 0 14px">${money(s.total_cents)}</p>
           <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="font-size:14px;line-height:1.6">
             <tr><td style="color:#777;padding-right:12px;vertical-align:top">Who</td><td>${buyerName}</td></tr>
-            <tr><td style="color:#777;padding-right:12px;vertical-align:top">Receipt to</td><td>${esc(to.join(", "))}</td></tr>
+            ${to.some((a) => !String(buyerName).toLowerCase().includes(String(a).toLowerCase()))
+              ? `<tr><td style="color:#777;padding-right:12px;vertical-align:top">Receipt to</td><td>${esc(to.join(", "))}</td></tr>`
+              : ""}
             ${internal ? `<tr><td style="color:#777;padding-right:12px;vertical-align:top">Details</td><td style="white-space:pre-wrap">${esc(internal)}</td></tr>` : ""}
             <tr><td style="color:#777;padding-right:12px;vertical-align:top">Invoice</td><td>${shortId} · ${fmtDate(s.sale_date)}</td></tr>
           </table>
