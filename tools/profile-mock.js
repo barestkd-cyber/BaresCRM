@@ -48,11 +48,11 @@ const S = {
 // Then the money. Then the rest in the order they were already in.
 const TABS = [
   { key: 'notes', label: 'Notes' },
-  { key: 'invoices', label: 'Invoices &amp; Payments' },
   { key: 'membership', label: 'Membership' },
+  { key: 'invoices', label: 'Invoices &amp; Payments' },
   { key: 'attendance', label: 'Attendance' },
-  { key: 'history', label: 'History', soon: true },
   { key: 'docs', label: 'Documents', soon: true },
+  { key: 'history', label: 'History', soon: true },
 ];
 const FIRST_TAB = 'notes';
 
