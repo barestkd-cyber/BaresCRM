@@ -101,6 +101,31 @@ async function sendReceipt(saleId: string): Promise<void> {
   }
 }
 
+/** Move a membership to its next billing date, or end it if the agreed number
+  * of payments is complete. Advancing from the INSTALLMENT keeps a membership
+  * that is already ahead from skipping a cycle. */
+async function advanceMembership(
+  admin: ReturnType<typeof createClient>,
+  mem: Record<string, unknown>,
+  r: Record<string, unknown>,
+  today: string,
+) {
+  const paid = await admin.from("membership_installments")
+    .select("id", { count: "exact", head: true })
+    .eq("membership_id", mem.id).eq("status", "paid");
+  const total = Number(mem.payment_count) || 0;
+  if (total > 0 && Number(paid.count ?? 0) >= total) {
+    // The term is complete. Stop billing rather than manufacturing a payment
+    // nobody agreed to.
+    await admin.from("memberships")
+      .update({ next_bill_on: null, ended_on: today }).eq("id", mem.id);
+    return;
+  }
+  await admin.from("memberships")
+    .update({ next_bill_on: nextDue(String(r.due_on), String(mem.billing_frequency)) })
+    .eq("id", mem.id);
+}
+
 Deno.serve(async (req) => {
   const admin = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -109,7 +134,7 @@ Deno.serve(async (req) => {
   );
 
   const setRow = await admin.from("settings")
-    .select("billing_engine_live, billing_max_per_run, billing_retry_days, billing_max_attempts, billing_token")
+    .select("billing_engine_live, billing_max_per_run, billing_retry_days, billing_max_attempts, billing_token, billing_paused, billing_max_back_cycles")
     .limit(1).maybeSingle();
   const S = setRow.data ?? {};
 
@@ -121,8 +146,16 @@ Deno.serve(async (req) => {
   }
 
   const url = new URL(req.url);
-  const live = S.billing_engine_live === true && url.searchParams.get("dry") !== "1";
-  const cap = Math.max(1, Math.min(Number(S.billing_max_per_run) || 25, 200));
+  // Paused beats live. Two switches, and the safer one always wins.
+  const live = S.billing_engine_live === true
+    && S.billing_paused !== true
+    && url.searchParams.get("dry") !== "1";
+  // An emergency brake has to be able to say ZERO. `Number(x) || 25` turned
+  // 0 into 25, so the one value an owner would reach for in a panic was the
+  // one value that did nothing.
+  const rawCap = Number(S.billing_max_per_run);
+  const cap = Math.min(Number.isFinite(rawCap) ? Math.max(0, rawCap) : 25, 200);
+  const maxBackCycles = Math.max(0, Number(S.billing_max_back_cycles) || 1);
   const retryDays = Math.max(1, Number(S.billing_retry_days) || 3);
   const maxAttempts = Math.max(1, Number(S.billing_max_attempts) || 4);
   const today = todayCT();
@@ -131,6 +164,7 @@ Deno.serve(async (req) => {
   const report = {
     ran_at: new Date().toISOString(), today, live,
     considered: 0, charged: 0, declined: 0, skipped: 0,
+    gave_up: 0, needs_review: 0, settled_by_hand: 0,
     charged_cents: 0,
     lines: [] as string[],
   };
@@ -190,9 +224,23 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── 2. everything that is due and not yet settled ─────────────────────
+    // ── 2. anything a previous run left mid-charge ────────────────────────
+    // A run that died between claiming and answering leaves a row in
+    // "charging". That is SAFE, because nobody else can claim it, so it can
+    // never become a second charge. But it must never be silent: the money
+    // may or may not have left the card, and only a human can tell.
+    const stuck = await admin.from("membership_installments")
+      .select("id,seq,due_on,amount_cents,last_attempt_at").eq("status", "charging");
+    for (const x of (stuck.data ?? []) as Record<string, unknown>[]) {
+      report.needs_review++;
+      report.lines.push("NEEDS A HUMAN: installment " + x.seq + " due " + x.due_on
+        + " " + money(Number(x.amount_cents)) + " was mid-charge when a run stopped."
+        + " Check Stripe before touching it.");
+    }
+
+    // ── 3. everything due and still unsettled ─────────────────────────────
     const due = await admin.from("membership_installments")
-      .select("id,membership_id,contact_id,seq,due_on,amount_cents,attempts,last_attempt_at")
+      .select("id,membership_id,contact_id,seq,due_on,amount_cents,attempts,last_attempt_at,sale_id")
       .eq("status", "scheduled")
       .lte("due_on", today)
       .order("due_on", { ascending: true })
@@ -203,27 +251,67 @@ Deno.serve(async (req) => {
 
     for (const r of rows) {
       const attempts = Number(r.attempts) || 0;
-      // Back off between tries rather than hammering a card that just failed.
+      const amount = Number(r.amount_cents) || 0;
+
+      // Give up LOUDLY and leave the queue. Left "scheduled", a dead row
+      // sorts to the front of every future run and eats the per-run cap,
+      // silently starving everyone behind it.
+      if (attempts >= maxAttempts) {
+        await admin.from("membership_installments")
+          .update({ status: "failed" }).eq("id", r.id).eq("status", "scheduled");
+        report.gave_up++;
+        report.lines.push("GAVE UP after " + attempts + " tries: installment "
+          + r.seq + " due " + r.due_on + " " + money(amount) + ". Needs a call.");
+        continue;
+      }
       if (attempts > 0 && r.last_attempt_at) {
         const since = (Date.now() - new Date(String(r.last_attempt_at)).getTime()) / 86400000;
         if (since < retryDays) { report.skipped++; continue; }
       }
-      if (attempts >= maxAttempts) {
+      if (amount <= 0) {
+        await admin.from("membership_installments")
+          .update({ status: "failed", last_error: "nothing to charge" })
+          .eq("id", r.id).eq("status", "scheduled");
         report.skipped++;
-        report.lines.push("GAVE UP after " + attempts + " tries: installment " + r.seq + " due " + r.due_on);
+        report.lines.push("NOTHING TO CHARGE on installment " + r.seq + " due " + r.due_on);
         continue;
       }
 
       const mem = await admin.from("memberships")
-        .select("id,program,contact_id,billing_frequency,next_bill_on,status").eq("id", r.membership_id).maybeSingle();
+        .select("id,program,contact_id,sale_id,billing_frequency,next_bill_on,status,payment_count,ended_on")
+        .eq("id", r.membership_id).maybeSingle();
       if (!mem.data || mem.data.status !== "active") { report.skipped++; continue; }
+      if (mem.data.ended_on && String(mem.data.ended_on) < today) {
+        report.skipped++;
+        report.lines.push("MEMBERSHIP ENDED " + mem.data.program + ", not charging " + r.due_on);
+        continue;
+      }
 
+      // How far behind is this? Back-billing every missed cycle at once is
+      // never what anyone wants to discover on their statement.
+      const behind = Math.floor((new Date(today + "T00:00:00Z").getTime()
+        - new Date(String(r.due_on) + "T00:00:00Z").getTime()) / 86400000);
+      const cycleDays = String(mem.data.billing_frequency) === "weekly" ? 7 : 28;
+      if (behind > maxBackCycles * cycleDays) {
+        report.needs_review++;
+        report.lines.push("TOO FAR BEHIND to bill automatically: installment " + r.seq
+          + " due " + r.due_on + " is " + behind + " days old. Charge it by hand if it is owed.");
+        continue;
+      }
+
+      // The card belongs to whoever BOUGHT the membership, which for a child
+      // is a parent, not the student the membership is filed under.
+      let payerId = String(r.contact_id);
+      if (mem.data.sale_id) {
+        const origin = await admin.from("pos_sales")
+          .select("buyer_contact_id").eq("id", mem.data.sale_id).maybeSingle();
+        if (origin.data?.buyer_contact_id) payerId = String(origin.data.buyer_contact_id);
+      }
       const person = await admin.from("contacts")
-        .select("id,first_name,last_name,email,brand,stripe_customer_id").eq("id", r.contact_id).maybeSingle();
+        .select("id,first_name,last_name,email,brand,stripe_customer_id").eq("id", payerId).maybeSingle();
       const who = person.data
         ? [person.data.first_name, person.data.last_name].filter(Boolean).join(" ")
         : "unknown";
-      const amount = Number(r.amount_cents) || 0;
       const label = who + " · " + mem.data.program + " · " + money(amount) + " due " + r.due_on;
 
       if (!live) {
@@ -231,58 +319,83 @@ Deno.serve(async (req) => {
         report.charged_cents += amount;
         continue;
       }
+
+      // ── the claim ────────────────────────────────────────────────────────
+      // This is the only thing standing between one charge and two. A
+      // conditional update is atomic: exactly one caller can move this row
+      // out of "scheduled", and that caller owns the charge. A check-then-act
+      // cannot win this race; only the database can decide it.
+      const claim = await admin.from("membership_installments")
+        .update({ status: "charging", last_attempt_at: new Date().toISOString() })
+        .eq("id", r.id).eq("status", "scheduled").select("id");
+      if (!claim.data || !claim.data.length) { report.skipped++; continue; }
+
+      // Reuse this installment's invoice rather than minting a new one per
+      // attempt. A fresh invoice each decline leaves a trail of orphans with
+      // live pay links, and if a member pays one of them by hand the engine
+      // still thinks the month is owed.
+      let saleId = r.sale_id ? String(r.sale_id) : "";
+      if (saleId) {
+        const prior = await admin.from("pos_sales").select("status").eq("id", saleId).maybeSingle();
+        if (prior.data?.status === "paid") {
+          // They already paid the link. Settle it and move on: charging now
+          // would take the month twice.
+          await admin.from("membership_installments")
+            .update({ status: "paid", last_error: null }).eq("id", r.id).eq("status", "charging");
+          await advanceMembership(admin, mem.data, r, today);
+          report.settled_by_hand++;
+          report.lines.push("ALREADY PAID BY LINK " + label);
+          continue;
+        }
+      } else {
+        saleId = crypto.randomUUID();
+        const sale = await admin.from("pos_sales").insert({
+          id: saleId, buyer_contact_id: payerId, sale_date: today,
+          staff_email: "charge-due@auto", brand: person.data?.brand || "btkd",
+          tender_method: null, status: "unpaid",
+          subtotal_cents: amount, discount_cents: 0, admin_fee_cents: 0, tax_cents: 0,
+          total_cents: amount,
+          receipt_email: person.data?.email,
+          customer_note: mem.data.program + " membership, payment due " + r.due_on + ".",
+          notes: "Automatic membership payment, installment " + r.seq,
+        }).select("id").single();
+        if (sale.error) {
+          await admin.from("membership_installments")
+            .update({ status: "scheduled" }).eq("id", r.id).eq("status", "charging");
+          report.skipped++;
+          console.error("[charge-due] invoice failed", r.id, sale.error.message);
+          continue;
+        }
+        await admin.from("pos_sale_lines").insert({
+          sale_id: saleId, kind: "mem",
+          label: mem.data.program + " membership (" + r.due_on + ")",
+          qty: 1, unit_cents: amount, discount_cents: 0, taxable: false,
+          line_total_cents: amount, student_contact_id: r.contact_id,
+          membership_id: r.membership_id,
+        });
+        await admin.from("membership_installments").update({ sale_id: saleId }).eq("id", r.id);
+      }
+
       if (!secretKey || !person.data?.stripe_customer_id) {
-        report.skipped++;
-        report.lines.push("NO CARD ON FILE " + label);
         await admin.from("membership_installments").update({
-          attempts: attempts + 1, last_attempt_at: new Date().toISOString(),
-          last_error: "no saved card",
-        }).eq("id", r.id);
+          status: "scheduled", attempts: attempts + 1, last_error: "no saved card",
+        }).eq("id", r.id).eq("status", "charging");
+        report.declined++;
+        report.lines.push("NO CARD ON FILE " + label + " (invoice raised, send the link)");
         continue;
       }
 
-      // ── the invoice comes first, so the money always has a home ─────────
-      const saleId = crypto.randomUUID();
-      const sale = await admin.from("pos_sales").insert({
-        id: saleId, buyer_contact_id: r.contact_id, sale_date: today,
-        staff_email: "charge-due@auto", brand: person.data.brand || "btkd",
-        tender_method: null, status: "unpaid",
-        subtotal_cents: amount, discount_cents: 0, admin_fee_cents: 0, tax_cents: 0,
-        total_cents: amount,
-        receipt_email: person.data.email,
-        customer_note: mem.data.program + " membership, payment due " + r.due_on + ".",
-        notes: "Automatic membership payment, installment " + r.seq,
-      }).select("view_token").single();
-      if (sale.error) {
-        report.skipped++;
-        console.error("[charge-due] invoice failed", r.id, sale.error.message);
-        continue;
-      }
-      await admin.from("pos_sale_lines").insert({
-        sale_id: saleId, kind: "mem",
-        label: mem.data.program + " membership (" + r.due_on + ")",
-        qty: 1, unit_cents: amount, discount_cents: 0, taxable: false,
-        line_total_cents: amount, student_contact_id: r.contact_id,
-        membership_id: r.membership_id,
-      });
-      await admin.from("membership_installments")
-        .update({ status: "invoiced", sale_id: saleId }).eq("id", r.id);
-
-      // ── charge the card the member already put on file ─────────────────
       const pmList = await stripe(
         "payment_methods?customer=" + encodeURIComponent(String(person.data.stripe_customer_id)) + "&type=card&limit=1",
         secretKey, undefined, "GET",
       );
       const pm = pmList.body?.data?.[0]?.id;
       if (!pm) {
-        report.declined++;
-        report.lines.push("NO SAVED CARD " + label);
         await admin.from("membership_installments").update({
-          status: "scheduled", sale_id: null,
-          attempts: attempts + 1, last_attempt_at: new Date().toISOString(),
-          last_error: "customer has no saved card",
-        }).eq("id", r.id);
-        await admin.from("pos_sales").update({ notes: "Automatic payment: no saved card" }).eq("id", saleId);
+          status: "scheduled", attempts: attempts + 1, last_error: "customer has no saved card",
+        }).eq("id", r.id).eq("status", "charging");
+        report.declined++;
+        report.lines.push("NO SAVED CARD " + label + " (invoice raised, send the link)");
         continue;
       }
 
@@ -296,14 +409,17 @@ Deno.serve(async (req) => {
       f.set("description", mem.data.program + " membership - " + who);
       f.set("metadata[sale_id]", saleId);
       f.set("metadata[source]", "auto-billing");
-      // The idempotency key below IS the installment id, so a retried run
-      // cannot create a second charge for the same scheduled payment.
+      // Key AND body are now stable per installment, because the invoice is
+      // reused. The first cut minted a new sale_id every attempt, so the body
+      // changed and Stripe answered a retry with an idempotency error, which
+      // the code then recorded as a card decline.
       const pi = await stripe("payment_intents", secretKey, f, "POST", "inst_" + String(r.id));
 
+      const errCode = String(pi.body?.error?.code ?? "");
+      const declined = pi.body?.error?.type === "card_error"
+        || pi.body?.status === "requires_payment_method";
+
       if (pi.ok && pi.body?.status === "succeeded") {
-        report.charged++;
-        report.charged_cents += amount;
-        report.lines.push("CHARGED " + label);
         await admin.from("pos_payments").insert({
           sale_id: saleId, kind: "charge", amount_cents: amount, method: "card",
           stripe_object_id: pi.body.id, note: "Card payment (automatic membership billing)",
@@ -312,34 +428,40 @@ Deno.serve(async (req) => {
           status: "paid", tender_method: "card",
           confirmed_at: new Date().toISOString(), stripe_payment_intent: pi.body.id,
         }).eq("id", saleId);
-        await admin.from("membership_installments").update({
-          status: "paid", attempts: attempts + 1,
-          last_attempt_at: new Date().toISOString(), last_error: null,
-        }).eq("id", r.id);
-        // Only now does the member move forward. A decline leaves them due.
-        const advanceFrom = String(mem.data.next_bill_on || r.due_on);
-        await admin.from("memberships").update({
-          next_bill_on: nextDue(advanceFrom, String(mem.data.billing_frequency)),
-        }).eq("id", r.membership_id);
+        const settled = await admin.from("membership_installments").update({
+          status: "paid", attempts: attempts + 1, last_error: null,
+        }).eq("id", r.id).eq("status", "charging").select("id");
+        report.charged++;
+        report.charged_cents += amount;
+        report.lines.push("CHARGED " + label);
+        // Advance from THIS installment's date, not the membership's, so a
+        // membership already ahead of the row cannot skip a month.
+        if (settled.data && settled.data.length) await advanceMembership(admin, mem.data, r, today);
         await sendReceipt(saleId);
-      } else {
-        report.declined++;
-        const why = pi.body?.error?.message || pi.body?.last_payment_error?.message
-          || ("status " + (pi.body?.status ?? "unknown"));
-        report.lines.push("DECLINED " + label + " - " + why);
-        // The invoice stays, unpaid, so Race can send a pay link. The
-        // installment goes back to scheduled so it is retried.
+      } else if (declined) {
+        const why = pi.body?.error?.message || ("status " + (pi.body?.status ?? "unknown"));
         await admin.from("membership_installments").update({
-          status: "scheduled", sale_id: saleId,
-          attempts: attempts + 1, last_attempt_at: new Date().toISOString(),
+          status: "scheduled", attempts: attempts + 1,
           last_error: String(why).slice(0, 400),
-        }).eq("id", r.id);
+        }).eq("id", r.id).eq("status", "charging");
         await admin.from("pos_sales").update({
           notes: "Automatic payment declined: " + String(why).slice(0, 200),
         }).eq("id", saleId);
+        report.declined++;
+        report.lines.push("DECLINED " + label + " - " + why);
+      } else {
+        // NOT a decline: a 5xx, a timeout, an idempotency collision. We do
+        // not know whether the money moved, so we do not guess. The row stays
+        // claimed, which blocks any retry, and a human is told.
+        const why = pi.body?.error?.message || errCode || "no answer from Stripe";
+        await admin.from("membership_installments").update({
+          last_error: "INDETERMINATE: " + String(why).slice(0, 380),
+        }).eq("id", r.id);
+        report.needs_review++;
+        report.lines.push("NO CLEAR ANSWER for " + label + " - " + why
+          + ". Left claimed so nothing retries it. Check Stripe.");
       }
     }
-
     console.log("[charge-due]", JSON.stringify(report));
     return new Response(JSON.stringify(report, null, 1), {
       headers: { "Content-Type": "application/json" },
