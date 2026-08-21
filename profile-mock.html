@@ -1064,6 +1064,37 @@ body{margin:0;background:#fff}
 .mk-history-row{font-size:13.5px;line-height:1.5;margin-bottom:10px}
 .mk-history-row span{display:block;font-size:12px;color:var(--muted);margin-top:1px}
 
+/* ── payment schedule ──────────────────────────────────────────────────── */
+.mk-sum{background:var(--surface);border-radius:10px;padding:11px 13px;font-size:13.5px;
+  font-weight:700;margin-bottom:14px;display:flex;justify-content:space-between;gap:10px}
+.mk-sum span{color:var(--muted);font-weight:600}
+.mk-row2{border:1.5px solid var(--line);border-radius:12px;margin-bottom:8px;overflow:hidden}
+.mk-row2.settled{background:var(--surface);border-style:dashed}
+.mk-row2-top{display:flex;align-items:center;gap:11px;padding:12px 13px;cursor:pointer}
+.mk-row2.settled .mk-row2-top{cursor:default}
+.mk-row2-n{width:22px;font-weight:800;color:var(--muted);flex:none;font-size:13px}
+.mk-row2-d{font-weight:700;font-size:14.5px;flex:1;min-width:0}
+.mk-row2-a{font-weight:800;font-size:14.5px;white-space:nowrap}
+.mk-row2-s{font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+  border-radius:5px;padding:3px 7px;white-space:nowrap}
+.mk-row2-s.paid{background:#E4F5EE;color:var(--go)}
+.mk-row2-s.sched{background:var(--surface);color:var(--muted)}
+.mk-row2-s.waived{background:#FBE9E9;color:var(--accent)}
+.mk-row2-note{font-size:12px;color:var(--muted);padding:0 13px 11px;margin-top:-4px}
+.mk-row2-body{display:none;padding:0 13px 13px;border-top:1px solid var(--line);margin-top:2px}
+.mk-row2.open .mk-row2-body{display:block}
+.mk-row2-fields{display:flex;gap:9px;margin-top:12px}
+.mk-row2-fields label{flex:1;min-width:0}
+.mk-row2-fields .mk-f-l{font-size:11.5px;margin-bottom:4px}
+.mk-row2-fields input{width:100%;font:inherit;font-size:14.5px;padding:10px 11px;
+  border:1.5px solid var(--line);border-radius:10px;background:#fff;color:inherit}
+.mk-row2-acts{display:flex;gap:8px;margin-top:11px}
+.mk-row2-acts button{flex:1;border:1.5px solid var(--line);background:#fff;border-radius:10px;
+  padding:11px 8px;font:700 13.5px/1 inherit;cursor:pointer;color:var(--ink)}
+.mk-row2-acts button.bill{border-color:var(--accent);color:var(--accent);background:#FFF6F6}
+.mk-addrow{width:100%;border:1.5px dashed var(--line);background:none;border-radius:12px;
+  padding:13px;font:700 14px/1 inherit;color:var(--muted);cursor:pointer;margin-top:4px}
+
 .mk-toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);
   background:#15171C;color:#fff;padding:12px 18px;border-radius:11px;font:700 14px/1.4 inherit;
   opacity:0;pointer-events:none;transition:all .2s;z-index:120;max-width:88vw;text-align:center}
@@ -1323,6 +1354,40 @@ body{margin:0;background:#fff}
   </div>
 </div>
 
+<!-- ── payment schedule ─────────────────────────────────────────────────
+     One row per payment. A row that has settled is read-only, because
+     rewriting history is not editing. A scheduled row opens to reveal its
+     date and amount, and the two things you can do to it: waive it, or
+     bill it now. -->
+<div class="mk-sheet" id="mk-sched" role="dialog" aria-modal="true" aria-label="Payment schedule">
+  <div class="mk-sheet-grab"></div>
+  <div class="mk-sheet-head">
+    <div>
+      <h3>Payment schedule</h3>
+      <div class="mk-sheet-sub">Taekwondo &mdash; Juniors &middot; $110.00 monthly</div>
+    </div>
+    <button class="mk-x" onclick="schedClose()">&times;</button>
+  </div>
+
+  <div class="mk-sheet-body">
+    <div class="mk-sum" id="mk-sum"></div>
+    <div id="mk-rows"></div>
+    <button class="mk-addrow" onclick="schedAdd()">+ Add a payment</button>
+
+    <label class="mk-f" style="margin-top:18px">
+      <span class="mk-f-l">Why <span class="mk-req">required</span></span>
+      <input id="mk-sreason" maxlength="200" placeholder="She asked to be billed two weeks late in October"
+        oninput="schedRefresh()">
+    </label>
+    <div class="mk-changed" id="mk-schanged"></div>
+  </div>
+
+  <div class="mk-sheet-foot">
+    <button class="mk-btn ghost" onclick="schedClose()">Cancel</button>
+    <button class="mk-btn" id="mk-ssave" onclick="schedSave()">Save changes</button>
+  </div>
+</div>
+
 <div class="mk-toast" id="mk-toast"></div>
 
 <script>
@@ -1399,6 +1464,7 @@ body{margin:0;background:#fff}
   function memClose() {
     $('mk-scrim').classList.remove('on');
     $('mk-sheet').classList.remove('on');
+    $('mk-sched').classList.remove('on');
   }
   function memSave() {
     var d = memDiff();
@@ -1412,7 +1478,117 @@ body{margin:0;background:#fff}
     WAS = now;
     memRefresh();
   }
-  function memSched() { memToast('Payment schedule is next, once this is right.'); }
+  /* ── payment schedule ───────────────────────────────────────────────────
+     A settled payment is read-only: rewriting history is not editing. A
+     scheduled one opens to reveal its date, its amount, and the two things
+     you can do to it. */
+  var SCHED = [{"n":1,"due":"2026-06-17","amount":110,"status":"paid"},{"n":2,"due":"2026-07-17","amount":110,"status":"paid"},{"n":3,"due":"2026-08-17","amount":110,"status":"paid"},{"n":4,"due":"2026-09-17","amount":110,"status":"scheduled"},{"n":5,"due":"2026-10-31","amount":90,"status":"scheduled","note":"moved and repriced"},{"n":6,"due":"2026-11-17","amount":110,"status":"scheduled"},{"n":7,"due":"2026-12-17","amount":110,"status":"waived","note":"injured, owner waived"},{"n":8,"due":"2027-01-17","amount":110,"status":"scheduled"}];
+  var SCHED_WAS = JSON.stringify(SCHED);
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  function prettyDue(ymd) {
+    var p = String(ymd).split('-').map(Number);
+    if (p.length !== 3) return ymd;
+    return MONTHS[p[1] - 1] + ' ' + p[2] + ', ' + p[0];
+  }
+  function schedDraw() {
+    var live = SCHED.filter(function (r) { return r.status !== 'waived'; });
+    var left = live.filter(function (r) { return r.status !== 'paid'; });
+    var owed = left.reduce(function (t, r) { return t + r.amount; }, 0);
+    $('mk-sum').innerHTML =
+      '<div>' + (live.length - left.length) + ' paid <span>&middot; ' + left.length + ' to go</span></div>'
+      + '<div>$' + owed.toFixed(2) + ' <span>remaining</span></div>';
+
+    $('mk-rows').innerHTML = SCHED.map(function (r, i) {
+      var settled = r.status !== 'scheduled';
+      var chip = r.status === 'paid' ? '<span class="mk-row2-s paid">Paid</span>'
+        : r.status === 'waived' ? '<span class="mk-row2-s waived">Waived</span>'
+        : '<span class="mk-row2-s sched">Scheduled</span>';
+      return '<div class="mk-row2' + (settled ? ' settled' : '') + '" data-i="' + i + '">'
+        + '<div class="mk-row2-top"' + (settled ? '' : ' onclick="schedToggle(' + i + ')"') + '>'
+        + '<span class="mk-row2-n">' + r.n + '</span>'
+        + '<span class="mk-row2-d">' + prettyDue(r.due) + '</span>'
+        + '<span class="mk-row2-a">$' + r.amount.toFixed(2) + '</span>'
+        + chip + '</div>'
+        + (r.note ? '<div class="mk-row2-note">' + r.note + '</div>' : '')
+        + (settled ? '' :
+          '<div class="mk-row2-body">'
+          + '<div class="mk-row2-fields">'
+          + '<label><span class="mk-f-l">Due</span>'
+          + '<input type="date" value="' + r.due + '" onchange="schedSet(' + i + ',\'due\',this.value)"></label>'
+          + '<label><span class="mk-f-l">Amount</span>'
+          + '<input type="number" step="0.01" min="0" value="' + r.amount.toFixed(2)
+          + '" oninput="schedSet(' + i + ',\'amount\',this.value)"></label>'
+          + '</div>'
+          + '<div class="mk-row2-acts">'
+          + '<button onclick="schedWaive(' + i + ')">Waive this one</button>'
+          + '<button class="bill" onclick="schedBill(' + i + ')">Bill now</button>'
+          + '</div></div>')
+        + '</div>';
+    }).join('');
+    schedRefresh();
+  }
+  function schedToggle(i) {
+    var el = document.querySelector('.mk-row2[data-i="' + i + '"]');
+    var wasOpen = el.classList.contains('open');
+    document.querySelectorAll('.mk-row2').forEach(function (x) { x.classList.remove('open'); });
+    if (!wasOpen) el.classList.add('open');
+  }
+  function schedSet(i, key, val) {
+    SCHED[i][key] = key === 'amount' ? (+val || 0) : val;
+    // Redrawing would collapse the row mid-edit, so only the summary moves.
+    var live = SCHED.filter(function (r) { return r.status !== 'waived'; });
+    var left = live.filter(function (r) { return r.status !== 'paid'; });
+    var owed = left.reduce(function (t, r) { return t + r.amount; }, 0);
+    $('mk-sum').innerHTML =
+      '<div>' + (live.length - left.length) + ' paid <span>&middot; ' + left.length + ' to go</span></div>'
+      + '<div>$' + owed.toFixed(2) + ' <span>remaining</span></div>';
+    schedRefresh();
+  }
+  function schedWaive(i) {
+    if (!$('mk-sreason').value.trim()) {
+      memToast('Say why first. A waived payment needs a reason.');
+      $('mk-sreason').focus();
+      return;
+    }
+    SCHED[i].status = 'waived';
+    SCHED[i].note = $('mk-sreason').value.trim();
+    schedDraw();
+  }
+  function schedBill(i) {
+    memToast('Would raise an invoice for $' + SCHED[i].amount.toFixed(2)
+      + ' and email the pay link.');
+  }
+  function schedAdd() {
+    var last = SCHED[SCHED.length - 1];
+    var p = last.due.split('-').map(Number);
+    var d = new Date(Date.UTC(p[0], p[1], p[2]));  // one month on
+    SCHED.push({ n: last.n + 1, due: d.toISOString().slice(0, 10),
+                 amount: last.amount, status: 'scheduled' });
+    schedDraw();
+  }
+  function schedRefresh() {
+    var changed = JSON.stringify(SCHED) !== SCHED_WAS;
+    var box = $('mk-schanged');
+    box.classList.toggle('on', changed);
+    if (changed) box.innerHTML = '<b>Unsaved changes to the schedule.</b>';
+    $('mk-ssave').disabled = !changed || !$('mk-sreason').value.trim();
+  }
+  function memSched() {
+    $('mk-scrim').classList.add('on');
+    $('mk-sched').classList.add('on');
+    schedDraw();
+  }
+  function schedClose() {
+    $('mk-scrim').classList.remove('on');
+    $('mk-sched').classList.remove('on');
+  }
+  function schedSave() {
+    schedClose();
+    SCHED_WAS = JSON.stringify(SCHED);
+    memToast('Schedule saved');
+    schedRefresh();
+  }
   var toastT;
   function memToast(msg) {
     var t = $('mk-toast');
