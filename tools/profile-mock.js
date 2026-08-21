@@ -112,6 +112,7 @@ const page = `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
 <title>Student profile mock</title>
 <style>${styles}</style>
 <style>
@@ -304,6 +305,8 @@ body{margin:0;background:var(--bg)}
 </script>
 </body></html>`;
 
-const out = path.join(__dirname, 'profile-mock.html');
+// Written to the repo root so Pages serves it at
+// https://crm.barestkd.fit/profile-mock.html , reachable from a phone.
+const out = path.join(ROOT, 'profile-mock.html');
 fs.writeFileSync(out, page);
 console.log('wrote ' + path.relative(ROOT, out) + '  (' + Math.round(page.length / 1024) + ' kb)');
