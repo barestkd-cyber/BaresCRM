@@ -224,6 +224,50 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── ?cards=1 : a read-only answer to "who can we actually charge" ─────
+    if (url.searchParams.get("cards") === "1") {
+      const people = await admin.from("contacts")
+        .select("id,first_name,last_name,email,stripe_customer_id")
+        .not("stripe_customer_id", "is", null);
+      const out: Record<string, unknown>[] = [];
+      for (const c of (people.data ?? []) as Record<string, unknown>[]) {
+        let card = "NO CARD SAVED";
+        if (secretKey) {
+          const pm = await stripe(
+            "payment_methods?customer=" + encodeURIComponent(String(c.stripe_customer_id))
+              + "&type=card&limit=1",
+            secretKey, undefined, "GET",
+          );
+          const d = pm.body?.data?.[0];
+          if (d) {
+            card = String(d.card?.brand ?? "card") + " ending " + String(d.card?.last4 ?? "????")
+              + ", expires " + String(d.card?.exp_month ?? "?") + "/" + String(d.card?.exp_year ?? "?");
+          }
+        }
+        // What could actually be billed to it, so a saved card with nothing
+        // attached does not read as a ready customer.
+        const mems = await admin.from("memberships")
+          .select("program,billing_frequency,final_recurring_cents,next_bill_on,status")
+          .eq("contact_id", c.id).eq("status", "active");
+        const billable = ((mems.data ?? []) as Record<string, unknown>[])
+          .filter((m) => m.billing_frequency !== "one_time" && Number(m.final_recurring_cents) > 0)
+          .map((m) => m.program + " " + money(Number(m.final_recurring_cents))
+            + " " + m.billing_frequency
+            + (m.next_bill_on ? " next " + m.next_bill_on : " NO BILLING DATE SET"));
+        out.push({
+          who: [c.first_name, c.last_name].filter(Boolean).join(" "),
+          email: c.email ?? "no email",
+          card,
+          billable: billable.length ? billable : ["nothing recurring"],
+        });
+      }
+      return new Response(JSON.stringify({
+        checked_at: new Date().toISOString(),
+        note: "Read only. Nothing was charged.",
+        people: out,
+      }, null, 1), { headers: { "Content-Type": "application/json" } });
+    }
+
     // ── 2. anything a previous run left mid-charge ────────────────────────
     // A run that died between claiming and answering leaves a row in
     // "charging". That is SAFE, because nobody else can claim it, so it can
@@ -278,7 +322,7 @@ Deno.serve(async (req) => {
       }
 
       const mem = await admin.from("memberships")
-        .select("id,program,contact_id,sale_id,billing_frequency,next_bill_on,status,payment_count,ended_on")
+        .select("id,program,contact_id,sale_id,payer_contact_id,billing_frequency,next_bill_on,status,payment_count,ended_on")
         .eq("id", r.membership_id).maybeSingle();
       if (!mem.data || mem.data.status !== "active") { report.skipped++; continue; }
       if (mem.data.ended_on && String(mem.data.ended_on) < today) {
@@ -301,8 +345,10 @@ Deno.serve(async (req) => {
 
       // The card belongs to whoever BOUGHT the membership, which for a child
       // is a parent, not the student the membership is filed under.
-      let payerId = String(r.contact_id);
-      if (mem.data.sale_id) {
+      // Explicit payer wins. Then whoever bought it. The student last,
+      // because a child holding the membership rarely holds the card.
+      let payerId = String(mem.data.payer_contact_id || r.contact_id);
+      if (!mem.data.payer_contact_id && mem.data.sale_id) {
         const origin = await admin.from("pos_sales")
           .select("buyer_contact_id").eq("id", mem.data.sale_id).maybeSingle();
         if (origin.data?.buyer_contact_id) payerId = String(origin.data.buyer_contact_id);
