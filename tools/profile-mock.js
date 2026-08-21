@@ -43,6 +43,15 @@ const S = {
   balance: '$109.04', balanceCount: '2 invoices',
 };
 
+/* ── cards on file ──────────────────────────────────────────────────────
+   These live in Stripe; the CRM only ever shows the last four. Removing one
+   here means removing it there, which is why a card a scheduled payment
+   depends on cannot go quietly. */
+const CARDS = [
+  { id: 'pm_1', brand: 'Visa', last4: '4242', exp: '02/27', owner: 'Pat Lee', def: true },
+  { id: 'pm_2', brand: 'Mastercard', last4: '1925', exp: '07/30', owner: 'Pat Lee', def: false },
+];
+
 /* ── the payment schedule ───────────────────────────────────────────────
    Twelve monthly payments, four behind us. The one that was moved and
    repriced is there on purpose: it is the case the whole screen exists for
@@ -53,7 +62,8 @@ const SCHEDULE = [
   { n: 3, due: '2026-08-17', amount: 110, status: 'paid' },
   { n: 4, due: '2026-09-17', amount: 110, status: 'scheduled' },
   { n: 5, due: '2026-10-31', amount: 90, status: 'scheduled', note: 'moved and repriced' },
-  { n: 6, due: '2026-11-17', amount: 110, status: 'scheduled' },
+  { n: 6, due: '2026-11-17', amount: 110, status: 'scheduled', card: 'pm_2',
+    note: 'asked to put this one on the other card' },
   { n: 7, due: '2026-12-17', amount: 110, status: 'waived', note: 'injured, owner waived' },
   { n: 8, due: '2027-01-17', amount: 110, status: 'scheduled' },
 ];
@@ -94,6 +104,14 @@ const panels = {
       </div>
     </div>`,
   invoices: `
+    <div class="mk-card">
+      <h3>Payment methods
+        <span class="mk-edit" onclick="cardLink()">&#128279; Send update link</span></h3>
+      <div id="mk-cards"></div>
+      <div class="mk-cardnote">Cards live in Stripe. The studio never sees the
+        full number, only the last four.</div>
+    </div>
+
     <div class="mk-card np">
       <table class="mk-table">
         <thead><tr><th>Date</th><th>For</th><th class="r">Amount</th><th class="r">Status</th></tr></thead>
@@ -319,7 +337,27 @@ body{margin:0;background:#fff}
 .mk-history-row{font-size:13.5px;line-height:1.5;margin-bottom:10px}
 .mk-history-row span{display:block;font-size:12px;color:var(--muted);margin-top:1px}
 
+/* ── cards on file ─────────────────────────────────────────────────────── */
+.mk-cardrow{display:flex;align-items:center;gap:11px;padding:12px 0;
+  border-bottom:1px solid var(--line);flex-wrap:wrap}
+.mk-cardrow:last-of-type{border-bottom:none}
+.mk-brand{font-weight:800;font-size:14.5px}
+.mk-dots{color:var(--muted);font-weight:700}
+.mk-exp{font-size:13px;color:var(--muted);font-weight:600}
+.mk-def{background:#E4F5EE;color:var(--go);border-radius:5px;padding:3px 8px;
+  font-size:10.5px;font-weight:800;letter-spacing:.04em}
+.mk-cardacts{margin-left:auto;display:flex;gap:7px}
+.mk-cardacts button{border:1.5px solid var(--line);background:#fff;border-radius:9px;
+  padding:8px 11px;font:700 12.5px/1 inherit;cursor:pointer;color:var(--ink);white-space:nowrap}
+.mk-cardacts button.danger{color:var(--accent);border-color:#EBC2C2}
+.mk-cardnote{font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:12px}
+.mk-inuse{font-size:12px;color:var(--muted);width:100%;margin-top:-2px}
+
 /* ── payment schedule ──────────────────────────────────────────────────── */
+.mk-rowcard{margin-top:11px}
+.mk-rowcard select{width:100%;font:inherit;font-size:14px;padding:10px 11px;
+  border:1.5px solid var(--line);border-radius:10px;background:#fff;color:inherit}
+.mk-row2-card{font-size:12px;color:var(--muted);padding:0 13px 11px;margin-top:-4px}
 .mk-sum{background:var(--surface);border-radius:10px;padding:11px 13px;font-size:13.5px;
   font-weight:700;margin-bottom:14px;display:flex;justify-content:space-between;gap:10px}
 .mk-sum span{color:var(--muted);font-weight:600}
@@ -731,10 +769,73 @@ body{margin:0;background:#fff}
     WAS = now;
     memRefresh();
   }
+  /* ── cards on file ──────────────────────────────────────────────────────
+     The list lives in Stripe. Removing one here removes it there, so a card
+     that scheduled payments are pointed at cannot go quietly: those payments
+     would have nothing to charge. */
+  var CARDS = ${JSON.stringify(CARDS)};
+  function cardLabel(id) {
+    var c = CARDS.filter(function (x) { return x.id === id; })[0];
+    return c ? c.brand + ' \\u2022\\u2022\\u2022\\u2022 ' + c.last4 : 'card removed';
+  }
+  function cardDefault() {
+    var d = CARDS.filter(function (c) { return c.def; })[0];
+    return d ? d.id : (CARDS[0] && CARDS[0].id);
+  }
+  function cardUsedBy(id) {
+    // A payment with no card of its own rides on the membership default.
+    return SCHED.filter(function (r) {
+      return r.status === 'scheduled' && (r.card || cardDefault()) === id;
+    });
+  }
+  function cardsDraw() {
+    var box = $('mk-cards');
+    if (!box) return;
+    box.innerHTML = CARDS.map(function (c) {
+      var uses = cardUsedBy(c.id).length;
+      return '<div class="mk-cardrow">'
+        + '<span class="mk-brand">' + c.brand + '</span>'
+        + '<span class="mk-dots">\\u2022\\u2022\\u2022\\u2022 ' + c.last4 + '</span>'
+        + '<span class="mk-exp">exp ' + c.exp + '</span>'
+        + (c.def ? '<span class="mk-def">DEFAULT</span>' : '')
+        + '<span class="mk-cardacts">'
+        + (c.def ? '' : '<button onclick="cardMakeDefault(\\'' + c.id + '\\')">Make default</button>')
+        + '<button class="danger" onclick="cardRemove(\\'' + c.id + '\\')">Remove</button>'
+        + '</span>'
+        + (uses ? '<span class="mk-inuse">' + uses + ' scheduled payment'
+            + (uses === 1 ? '' : 's') + ' will be charged to this card</span>' : '')
+        + '</div>';
+    }).join('') || '<div class="mk-cardnote">No card on file.</div>';
+  }
+  function cardMakeDefault(id) {
+    CARDS.forEach(function (c) { c.def = c.id === id; });
+    cardsDraw();
+    memToast(cardLabel(id) + ' is now the default');
+  }
+  function cardRemove(id) {
+    var uses = cardUsedBy(id);
+    var msg = uses.length
+      ? 'Remove ' + cardLabel(id) + ' from Stripe?\\n\\n' + uses.length + ' scheduled payment'
+        + (uses.length === 1 ? '' : 's') + ' point at it and would have nothing to charge.'
+      : 'Remove ' + cardLabel(id) + ' from Stripe? This cannot be undone.';
+    if (!confirm(msg)) return;
+    var wasDefault = CARDS.filter(function (c) { return c.id === id; })[0].def;
+    CARDS = CARDS.filter(function (c) { return c.id !== id; });
+    if (wasDefault && CARDS.length) CARDS[0].def = true;
+    // Anything pointed at the dead card falls back to the default rather than
+    // silently keeping a reference to a card that no longer exists.
+    SCHED.forEach(function (r) { if (r.card === id) delete r.card; });
+    cardsDraw();
+    memToast('Card removed from Stripe');
+  }
+  function cardLink() {
+    memToast('Would email Pat Lee a Stripe link to add or replace a card.');
+  }
+
   /* ── payment schedule ───────────────────────────────────────────────────
      A settled payment is read-only: rewriting history is not editing. A
-     scheduled one opens to reveal its date, its amount, and the two things
-     you can do to it. */
+     scheduled one opens to reveal its date, its amount, which card it will be
+     charged to, and the two things you can do to it. */
   var SCHED = ${JSON.stringify(SCHEDULE)};
   var SCHED_WAS = JSON.stringify(SCHED);
   var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -745,6 +846,7 @@ body{margin:0;background:#fff}
     return MONTHS[p[1] - 1] + ' ' + p[2] + ', ' + p[0];
   }
   function schedDraw() {
+    cardsDraw();
     var live = SCHED.filter(function (r) { return r.status !== 'waived'; });
     var left = live.filter(function (r) { return r.status !== 'paid'; });
     var owed = left.reduce(function (t, r) { return t + r.amount; }, 0);
@@ -764,6 +866,8 @@ body{margin:0;background:#fff}
         + '<span class="mk-row2-a">$' + r.amount.toFixed(2) + '</span>'
         + chip + '</div>'
         + (r.note ? '<div class="mk-row2-note">' + r.note + '</div>' : '')
+        + (settled ? '' : '<div class="mk-row2-card">Charged to ' + cardLabel(r.card || cardDefault())
+            + (r.card ? '' : ' (the membership card)') + '</div>')
         + (settled ? '' :
           '<div class="mk-row2-body">'
           + '<div class="mk-row2-fields">'
@@ -773,6 +877,17 @@ body{margin:0;background:#fff}
           + '<input type="number" step="0.01" min="0" value="' + r.amount.toFixed(2)
           + '" oninput="schedSet(' + i + ',\\'amount\\',this.value)"></label>'
           + '</div>'
+          // Every payment inherits the membership card. Any single one can be
+          // pointed somewhere else: "put this month on my other card."
+          + '<div class="mk-rowcard"><span class="mk-f-l">Charge to</span>'
+          + '<select onchange="schedCard(' + i + ',this.value)">'
+          + '<option value=""' + (r.card ? '' : ' selected') + '>Membership card &mdash; '
+          + cardLabel(cardDefault()) + '</option>'
+          + CARDS.map(function (c) {
+              return '<option value="' + c.id + '"' + (r.card === c.id ? ' selected' : '') + '>'
+                + c.brand + ' \\u2022\\u2022\\u2022\\u2022 ' + c.last4 + '</option>';
+            }).join('')
+          + '</select></div>'
           + '<div class="mk-row2-acts">'
           + '<button onclick="schedWaive(' + i + ')">Waive this one</button>'
           + '<button class="bill" onclick="schedBill(' + i + ')">Bill now</button>'
@@ -780,6 +895,11 @@ body{margin:0;background:#fff}
         + '</div>';
     }).join('');
     schedRefresh();
+  }
+  function schedCard(i, id) {
+    if (id) SCHED[i].card = id; else delete SCHED[i].card;
+    schedDraw();
+    schedToggle(i);   // keep the row he was working in open
   }
   function schedToggle(i) {
     var el = document.querySelector('.mk-row2[data-i="' + i + '"]');
@@ -850,6 +970,7 @@ body{margin:0;background:#fff}
     toastT = setTimeout(function () { t.classList.remove('on'); }, 2600);
   }
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') memClose(); });
+  cardsDraw();
 </script>
 </body></html>`;
 
