@@ -373,7 +373,22 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .pact-it.dis{color:var(--muted);cursor:default}
 .pact-it.dis:hover{background:none}
 .pact-chip{font-size:9px;font-weight:800;letter-spacing:.4px;background:#EDEFF2;color:#6A727E;border-radius:5px;padding:2.5px 6px;margin-left:auto}
-.ptabs{display:none}
+/* Phone: the section strip lives at the bottom of the screen and scrolls
+   sideways, so any section is two taps away instead of a long scroll. */
+.ptabs{position:sticky;bottom:0;z-index:30;display:flex;gap:2px;overflow-x:auto;
+  -webkit-overflow-scrolling:touch;scrollbar-width:none;background:var(--bg);
+  border-top:2px solid var(--line);padding:4px 10px calc(4px + env(safe-area-inset-bottom));
+  margin-top:14px}
+.ptabs::-webkit-scrollbar{display:none}
+.ptab{flex:0 0 auto;white-space:nowrap;padding:11px 14px;font-weight:700;font-size:13px;
+  color:var(--muted);border:none;background:none;cursor:pointer;font-family:inherit;
+  border-bottom:2.5px solid transparent}
+.ptab.on{color:var(--accent);border-color:var(--accent)}
+.ptab.dis{color:#B9BEC9;cursor:default}
+/* Rendered above the sections, but on a phone it belongs under them. */
+.pbody{display:flex;flex-direction:column}
+.pbody > .ptabs{order:2}
+.pbody > .psections{order:1}
 .fchip{border:1.5px solid var(--line);background:#fff;color:var(--ink);font-weight:700;font-size:12.5px;border-radius:99px;padding:6px 14px;cursor:pointer;font-family:inherit}
 .fchip.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .invx-scroll{overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:12px}
@@ -411,7 +426,10 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
   .phead-body{flex:1;min-width:0}
   .phead .pseg{margin-top:0;margin-left:10px;vertical-align:middle}
   .pact{margin-top:0;flex:0 0 auto}
-  .ptabs{display:flex;gap:2px;margin:16px 26px 0;border-bottom:2px solid var(--line);flex-wrap:wrap}
+  .ptabs{position:static;display:flex;gap:2px;margin:16px 26px 0;border-top:none;
+    border-bottom:2px solid var(--line);flex-wrap:wrap;padding:0;background:none}
+  .pbody > .ptabs{order:1}
+  .pbody > .psections{order:2}
   .ptab{padding:12px 15px;font-weight:700;font-size:13.5px;color:var(--muted);border:none;background:none;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-2px;font-family:inherit;display:flex;align-items:center;gap:7px}
   .ptab.on{color:var(--accent);border-color:var(--accent)}
   .ptab.dis{color:#B9BEC9;cursor:default}
@@ -5219,6 +5237,7 @@ function renderProfile(){
   const tab = (key,label,dis) => dis
     ? '<button class="ptab dis">'+label+' <span class="pact-chip">COMING SOON</span></button>'
     : '<button class="ptab'+(PROF_TAB===key?' on':'')+'" onclick="profSetTab(\''+key+'\')">'+label+'</button>';
+  html += '<div class="pbody">';
   html += '<div class="ptabs">'
     + tab('overview','Overview') + tab('invoices','Invoices and Payments')
     + tab('memberships','Memberships and Agreements') + tab('attendance','Attendance')
@@ -5315,7 +5334,7 @@ function renderProfile(){
   html += acc("Rank &amp; testing history", "Pulled from the testing app. Full belt progression and test results live there and surface here.");
   html += acc("Attendance log", "Pulled from the class plan app. Class-by-class check-ins surface here.");
   html += acc("Timeline", "Every touch across the system in one feed: payments, classes, messages, rank changes.");
-  html += '</div></div><div class="spacer"></div>';
+  html += '</div></div></div><div class="spacer"></div>';
 
   $("#view-profile").innerHTML = html;
   loadProfileAttendance(m.id);
@@ -5337,9 +5356,9 @@ let PROF_TAB = 'overview';
  * Sections carry data-ptab and this just toggles visibility, so the async
  * loaders never re-run on a tab switch. */
 function profApplyTab(){
-  const desktop = window.matchMedia('(min-width:900px)').matches;
+  // A tab shows its own section, on a phone exactly as on a desktop.
   document.querySelectorAll('#psections > .sec').forEach(s=>{
-    s.style.display = (!desktop || (s.dataset.ptab||'overview')===PROF_TAB) ? '' : 'none';
+    s.style.display = (s.dataset.ptab||'overview')===PROF_TAB ? '' : 'none';
   });
 }
 function profSetTab(t){
