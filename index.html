@@ -4586,6 +4586,13 @@ async function posDeleteInvoice(saleId){
   if(em.error){ toast('Could not remove enrollments: '+(em.error.message||em.error)); return; }
   // An installment invoice must release its payment back to scheduled, or
   // the row stays frozen with no way to bill it again.
+  // A deleted private-lesson invoice must release its slot too, or the
+  // lesson stays booked forever with no sale behind it.
+  const rp = await sb.from('private_lessons')
+    .update({ status:'canceled', notes:'invoice deleted' }).eq('sale_id', saleId).select('id');
+  if(rp.error){ toast('Could not release the lesson: '+(rp.error.message||rp.error)); return; }
+  const rk = await sb.from('private_lesson_packs').delete().eq('sale_id', saleId).select('id');
+  if(rk.error){ toast('Could not remove the lesson pack: '+(rk.error.message||rk.error)); return; }
   const ri = await sb.from('membership_installments')
     .update({ status:'scheduled', sale_id:null }).eq('sale_id', saleId).select('id');
   if(ri.error){ toast('Could not release the scheduled payment: '+(ri.error.message||ri.error)); return; }
