@@ -162,6 +162,7 @@ body{margin:0;background:#fff}
 .mk-av{width:108px;height:108px;border-radius:50%;flex:none;
   display:flex;align-items:center;justify-content:center;font:800 38px/1 inherit;
   box-shadow:0 0 0 5px #15171C}
+.mk-avcol{flex:none;display:flex;flex-direction:column;align-items:center;gap:12px}
 .mk-hbody{flex:1;min-width:0}
 .mk-name{font-size:31px;font-weight:800;letter-spacing:-.02em;display:flex;
   align-items:center;gap:12px;flex-wrap:wrap;line-height:1.15}
@@ -173,8 +174,9 @@ body{margin:0;background:#fff}
   box-shadow:inset 0 0 0 1px rgba(0,0,0,.18)}
 .mk-beltname{font-size:16px;font-weight:800}
 .mk-beltsince{font-size:14px;color:var(--muted);font-weight:600}
-.mk-actions{margin-top:14px;border:1.5px solid var(--line);background:#fff;border-radius:11px;
-  padding:11px 16px;font:700 15px/1 inherit;cursor:pointer;display:inline-flex;align-items:center;gap:9px}
+.mk-actions{border:1.5px solid var(--line);background:#fff;border-radius:11px;
+  padding:10px 14px;font:700 14.5px/1 inherit;cursor:pointer;display:inline-flex;
+  align-items:center;gap:8px;white-space:nowrap}
 
 /* header facts: dates left, credits right */
 .mk-facts{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:18px;
@@ -254,7 +256,7 @@ body{margin:0;background:#fff}
   .mk-beltname{font-size:14px}
   .mk-beltsince{font-size:12.5px}
   .mk-belt{margin-top:8px;gap:7px}
-  .mk-actions{margin-top:11px;padding:9px 13px;font-size:14px}
+  .mk-actions{padding:9px 12px;font-size:13.5px}
   .mk-facts{grid-template-columns:1fr;gap:0}
   .mk-facts > div + div{border-left:none;border-top:1px solid var(--line);
     padding-left:0;padding-top:14px;margin-top:14px}
@@ -276,14 +278,17 @@ body{margin:0;background:#fff}
     </div>
     <div class="mk-stat owe">
       <div class="l"><span class="wide">Balance owed &middot; ${S.balanceCount}</span>
-        <span class="narrow">Balance owed</span></div>
+        <span class="narrow">Balance</span></div>
       <div class="n">${S.balance}</div>
     </div>
   </div>
 
   <div class="mk-head">
     <div class="mk-head-top">
-      <div class="mk-av" style="background:${S.beltHex};color:${S.beltInk}">${S.initials}</div>
+      <div class="mk-avcol">
+        <div class="mk-av" style="background:${S.beltHex};color:${S.beltInk}">${S.initials}</div>
+        <button class="mk-actions">Actions &#9662;</button>
+      </div>
       <div class="mk-hbody">
         <div class="mk-name">${S.first} ${S.last} <span class="mk-seg">${S.segment}</span></div>
         <div class="mk-prog">${S.program}</div>
@@ -292,13 +297,12 @@ body{margin:0;background:#fff}
           <span class="mk-beltname">${S.belt}</span>
           <span class="mk-beltsince">earned ${S.rankDate}</span>
         </div>
-        <button class="mk-actions">Actions &#9662;</button>
       </div>
     </div>
 
     <div class="mk-facts">
       <div>
-        <div class="mk-fl">Born</div>
+        <div class="mk-fl">DOB</div>
         <div class="mk-fv">${S.born} (age ${S.age})</div>
         <div class="mk-fl">Member since</div>
         <div class="mk-fv">${S.since}</div>
