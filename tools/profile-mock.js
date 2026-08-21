@@ -341,6 +341,23 @@ body{margin:0;background:#fff}
 .mk-history-row{font-size:13.5px;line-height:1.5;margin-bottom:10px}
 .mk-history-row span{display:block;font-size:12px;color:var(--muted);margin-top:1px}
 
+/* ── the dashboard version of the unsigned flag ────────────────────────── */
+.mk-dashwrap{max-width:980px;margin:0 auto;padding:18px 16px 0}
+.mk-dashlabel{font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.06em;
+  text-transform:uppercase;margin-bottom:8px}
+.mk-dash{border:1px solid #EBC2C2;background:#FFF8F8;border-radius:14px;padding:15px 16px}
+.mk-dash-top{display:flex;align-items:baseline;gap:10px}
+.mk-dash-n{font-size:26px;font-weight:800;color:var(--accent);line-height:1}
+.mk-dash-l{font-size:14px;font-weight:700;color:var(--accent)}
+.mk-dash-list{margin-top:12px;border-top:1px solid #EBC2C2;padding-top:4px}
+.mk-dash-row{display:flex;align-items:center;gap:9px;padding:9px 0;font-size:13.5px;
+  color:var(--muted);border-bottom:1px solid #F3DEDE;flex-wrap:wrap}
+.mk-dash-row:last-child{border-bottom:none}
+.mk-dash-row b{color:var(--ink);font-size:14.5px}
+.mk-dash-row span{margin-left:auto;color:var(--accent);font-weight:800;cursor:pointer;
+  white-space:nowrap}
+.mk-due i{font-style:normal;font-size:12.5px;color:var(--muted);font-weight:600}
+
 /* ── add a membership ──────────────────────────────────────────────────── */
 .mk-addmem{width:100%;border:1.5px dashed var(--line);background:none;border-radius:14px;
   padding:15px;font:800 15px/1 inherit;color:var(--muted);cursor:pointer;margin-top:14px}
@@ -455,6 +472,28 @@ body{margin:0;background:#fff}
 </head><body>
 
 <div class="mk-note-bar">PROFILE MOCK &middot; made-up student &middot; not connected to any data</div>
+
+<!-- ── how the same flag reads on the dashboard ─────────────────────────
+     Shown here so it can be judged without a second mock. One profile at a
+     time is no way to find unsigned agreements; this is the list view of the
+     same fact. -->
+<div class="mk-dashwrap">
+  <div class="mk-dashlabel">On the dashboard</div>
+  <div class="mk-dash">
+    <div class="mk-dash-top">
+      <span class="mk-dash-n">3</span>
+      <span class="mk-dash-l">memberships with no signed agreement</span>
+    </div>
+    <div class="mk-dash-list">
+      <div class="mk-dash-row"><b>Jamie Lee</b> Kickboxing &middot; added today
+        <span>Send agreement</span></div>
+      <div class="mk-dash-row"><b>Rowan Diaz</b> Cubs &middot; 6 days
+        <span>Send agreement</span></div>
+      <div class="mk-dash-row"><b>Theo Nguyen</b> Teens/Adults &middot; 19 days
+        <span>Send agreement</span></div>
+    </div>
+  </div>
+</div>
 
 <div class="mk-wrap">
 
@@ -712,7 +751,12 @@ body{margin:0;background:#fff}
         <select id="mk-aopt" onchange="addOption()"></select>
       </label>
       <label class="mk-f">
-        <span class="mk-f-l">Price</span>
+        <span class="mk-f-l">Down payment</span>
+        <span class="mk-money"><span class="mk-money-sym">$</span>
+          <input id="mk-adown" type="number" step="0.01" min="0" oninput="addTotals()"></span>
+      </label>
+      <label class="mk-f">
+        <span class="mk-f-l">Then each period</span>
         <span class="mk-money"><span class="mk-money-sym">$</span>
           <input id="mk-aprice" type="number" step="0.01" min="0" oninput="addTotals()"></span>
       </label>
@@ -892,15 +936,44 @@ body{margin:0;background:#fff}
      signature because that is how the studio runs ("when they pay, they
      commit"), and skipping the signature is allowed but leaves a mark. */
   var HAS = ['Taekwondo — Juniors'];          // what this student already holds
+  /* down = the joining payment, monthly = what recurs. Due today is down PLUS
+     the first month, which is what the checkout pages charge: Option B is
+     $359 + $95 = $454, not $95. A paid-in-full plan is all of it, once. */
   var PRICES = {
-    'Little Kickers': { 'Six-week session': 109 },
-    'Cubs': { 'Paid in full': 1199, 'Option B': 90, 'Option C': 105, 'Weekly': 27.95 },
-    'Taekwondo — Juniors': { 'Paid in full': 1400, 'Option B': 95, 'Option C': 110, 'Option D': 129, 'Weekly': 33.95 },
-    'Taekwondo — Teens/Adults': { 'Paid in full': 1400, 'Option B': 95, 'Option C': 110, 'Option D': 129, 'Weekly': 33.95 },
-    'Kickboxing': { 'Standalone': 99, 'Add-on to Taekwondo': 40 },
-    'Jiu Jitsu': { 'Standalone': 99, 'Add-on to Taekwondo': 40 },
-    "AMP'D": { 'Monthly': 50 }
+    'Little Kickers': { 'Six-week session': { down: 109, monthly: 0, once: true } },
+    'Cubs': {
+      'Paid in full': { down: 1199, monthly: 0, once: true },
+      'Option B': { down: 199, monthly: 90 },
+      'Option C': { down: 99, monthly: 105 },
+      'Weekly': { down: 0, monthly: 27.95, weekly: true }
+    },
+    'Taekwondo — Juniors': {
+      'Paid in full': { down: 1400, monthly: 0, once: true },
+      'Option B': { down: 359, monthly: 95 },
+      'Option C': { down: 259, monthly: 110 },
+      'Option D': { down: 129, monthly: 129 },
+      'Weekly': { down: 0, monthly: 33.95, weekly: true }
+    },
+    'Taekwondo — Teens/Adults': {
+      'Paid in full': { down: 1400, monthly: 0, once: true },
+      'Option B': { down: 359, monthly: 95 },
+      'Option C': { down: 259, monthly: 110 },
+      'Option D': { down: 129, monthly: 129 },
+      'Weekly': { down: 0, monthly: 33.95, weekly: true }
+    },
+    'Kickboxing': {
+      'Standalone': { down: 0, monthly: 99 },
+      'Add-on to Taekwondo': { down: 0, monthly: 40 }
+    },
+    'Jiu Jitsu': {
+      'Standalone': { down: 0, monthly: 99 },
+      'Add-on to Taekwondo': { down: 0, monthly: 40 }
+    },
+    "AMP'D": { 'Monthly': { down: 0, monthly: 50 } }
   };
+  function addPlan() {
+    return (PRICES[$('mk-aprog').value] || {})[$('mk-aopt').value] || { down: 0, monthly: 0 };
+  }
   var ADD = { step: 1, pay: 'card', sign: 'person' };
 
   function hasTKD() {
@@ -935,12 +1008,33 @@ body{margin:0;background:#fff}
     addOption();
   }
   function addOption() {
-    $('mk-aprice').value = (PRICES[$('mk-aprog').value] || {})[$('mk-aopt').value].toFixed(2);
+    var p = addPlan();
+    $('mk-adown').value = p.down.toFixed(2);
+    $('mk-aprice').value = p.monthly.toFixed(2);
+    // A paid-in-full plan has nothing recurring; a weekly one has no joining fee.
+    $('mk-aprice').closest('.mk-f').style.display = p.once ? 'none' : '';
+    $('mk-adown').closest('.mk-f').style.display = p.down || !p.once ? '' : 'none';
+    var seg = $('mk-afreq');
+    var want = p.once ? 'Paid in full' : p.weekly ? 'Weekly' : 'Monthly';
+    Array.prototype.forEach.call(seg.children, function (b) {
+      b.classList.toggle('on', b.textContent.trim() === want);
+    });
     addTotals();
   }
   function addTotals() {
-    var amt = (+$('mk-aprice').value || 0).toFixed(2);
-    $('mk-adue').innerHTML = '<span>Due today</span><b>$' + amt + '</b>';
+    var down = +$('mk-adown').value || 0;
+    var monthly = +$('mk-aprice').value || 0;
+    var p = addPlan();
+    // Joining costs the down payment AND the first month, the same as the
+    // checkout pages charge. Only a paid-in-full plan is a single number.
+    var due = p.once ? down : down + monthly;
+    var parts = p.once ? 'Paid in full'
+      : (down ? 'Down $' + down.toFixed(2) + ' + first ' + (p.weekly ? 'week' : 'month')
+                + ' $' + monthly.toFixed(2)
+              : 'First ' + (p.weekly ? 'week' : 'month'));
+    $('mk-adue').innerHTML = '<span>Due today<br><i>' + parts + '</i></span><b>$'
+      + due.toFixed(2) + '</b>';
+    var amt = due.toFixed(2);
     $('mk-apay').innerHTML = CARDS.map(function (c, i) {
       return '<label class="mk-opt' + (ADD.pay === c.id ? ' on' : (i === 0 && ADD.pay === 'card' ? ' on' : ''))
         + '" data-pay="' + c.id + '"><input type="radio" name="apay"'
