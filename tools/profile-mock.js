@@ -158,7 +158,7 @@ body{margin:0;background:#fff}
 
 /* header */
 .mk-head{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px;margin-top:14px}
-.mk-head-top{display:flex;gap:20px;align-items:flex-start}
+.mk-head-top{display:flex;gap:20px;align-items:center}
 .mk-av{width:108px;height:108px;border-radius:50%;flex:none;
   display:flex;align-items:center;justify-content:center;font:800 38px/1 inherit;
   box-shadow:0 0 0 5px #15171C}
