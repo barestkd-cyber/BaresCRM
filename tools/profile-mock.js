@@ -94,6 +94,7 @@ const panels = {
       <div class="mk-mem-terms">
         <span><b>$110.00</b> monthly</span>
         <span>Next bills Sep 17</span>
+        <span>Ends Jun 16, 2027</span>
         <span>4 of 12 paid</span>
       </div>
       <div class="mk-mem-who">Paid by <b>Pat Lee</b> &middot; Visa &bull;&bull;&bull;&bull; 4242</div>
@@ -106,7 +107,30 @@ const panels = {
 
     <div id="mk-more-mems"></div>
 
-    <button class="mk-addmem" onclick="addOpen()">+ Add a membership</button>`,
+    <button class="mk-addmem" onclick="addOpen()">+ Add a membership</button>
+
+    <!-- A renewal is its own membership with its own dates, so the finished
+         ones stay on the record rather than being overwritten. They are
+         folded away because the current one is what anyone came to see. -->
+    <details class="mk-past">
+      <summary>2 past memberships</summary>
+      <div class="mk-pastrow">
+        <div>
+          <b>Taekwondo &mdash; Juniors</b>
+          <span>Option C &middot; $110.00 monthly</span>
+        </div>
+        <div class="mk-pastdates">Jun 17, 2025 &ndash; Jun 16, 2026
+          <span class="mk-pill">Completed</span></div>
+      </div>
+      <div class="mk-pastrow">
+        <div>
+          <b>Little Kickers</b>
+          <span>Six-week session &middot; $109.00</span>
+        </div>
+        <div class="mk-pastdates">Mar 04, 2025 &ndash; Apr 15, 2025
+          <span class="mk-pill">Completed</span></div>
+      </div>
+    </details>`,
   invoices: `
     <div class="mk-card">
       <h3>Payment methods
@@ -340,6 +364,23 @@ body{margin:0;background:#fff}
   text-transform:uppercase;margin-bottom:10px}
 .mk-history-row{font-size:13.5px;line-height:1.5;margin-bottom:10px}
 .mk-history-row span{display:block;font-size:12px;color:var(--muted);margin-top:1px}
+
+/* ── finished memberships, folded away ─────────────────────────────────── */
+.mk-past{margin-top:16px;border:1px solid var(--line);border-radius:12px;
+  background:var(--surface);overflow:hidden}
+.mk-past summary{cursor:pointer;padding:13px 15px;font-weight:800;font-size:14px;
+  color:var(--muted);list-style:none}
+.mk-past summary::-webkit-details-marker{display:none}
+.mk-past summary::after{content:'▾';float:right;transition:transform .15s}
+.mk-past[open] summary::after{transform:rotate(180deg)}
+.mk-pastrow{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  padding:13px 15px;border-top:1px solid var(--line);background:#fff}
+.mk-pastrow b{display:block;font-size:14.5px}
+.mk-pastrow span{display:block;font-size:12.5px;color:var(--muted);margin-top:2px}
+.mk-pastdates{font-size:13px;color:var(--muted);text-align:right;white-space:nowrap}
+.mk-pastdates .mk-pill{display:block;margin-top:5px}
+.mk-tiny{border:1.5px solid var(--line);background:#fff;border-radius:8px;
+  padding:5px 9px;font:700 11.5px/1 inherit;cursor:pointer;color:var(--ink);margin-left:6px}
 
 /* ── the dashboard version of the unsigned flag ────────────────────────── */
 .mk-dashwrap{max-width:980px;margin:0 auto;padding:18px 16px 0}
@@ -639,6 +680,15 @@ body{margin:0;background:#fff}
     </label>
 
     <label class="mk-f">
+      <span class="mk-f-l">Ends on</span>
+      <input id="mk-ends" type="date" value="2027-06-16" oninput="memRefresh()">
+      <span class="mk-f-h">Move this out to extend a term you have agreed
+        verbally, without making anyone sign a fresh year.
+        <button type="button" class="mk-tiny" onclick="memExtend(3)">+3 months</button>
+        <button type="button" class="mk-tiny" onclick="memExtend(1)">+1 month</button></span>
+    </label>
+
+    <label class="mk-f">
       <span class="mk-f-l">Who pays</span>
       <select id="mk-payer">
         <option>Pat Lee &middot; Visa &bull;&bull;&bull;&bull; 4242</option>
@@ -838,7 +888,7 @@ body{margin:0;background:#fff}
     "AMP'D": ['Monthly']
   };
   var WAS = { program: 'Taekwondo — Juniors', option: 'Option C',
-              price: '110.00', freq: 'Monthly', next: '2026-09-17',
+              price: '110.00', freq: 'Monthly', next: '2026-09-17', ends: '2027-06-16',
               payer: 'Pat Lee · Visa •••• 4242', status: 'Active' };
   // What the signed paperwork says, which is a different question from what
   // the membership currently says.
@@ -852,6 +902,7 @@ body{margin:0;background:#fff}
       price: $('mk-price').value.trim(),
       freq: $('mk-freq').querySelector('.on').textContent.trim(),
       next: $('mk-next').value,
+      ends: $('mk-ends').value,
       payer: $('mk-payer').value.trim(),
       status: $('mk-status').querySelector('.on').textContent.trim()
     };
@@ -859,7 +910,7 @@ body{margin:0;background:#fff}
   function memDiff() {
     var now = memNow(), out = [];
     var label = { program: 'Program', option: 'Option', price: 'Price',
-                  freq: 'Billed', next: 'Next bills on',
+                  freq: 'Billed', next: 'Next bills on', ends: 'Ends on',
                   payer: 'Who pays', status: 'Status' };
     Object.keys(label).forEach(function (k) {
       var a = String(WAS[k]), b = String(now[k]);
@@ -889,6 +940,15 @@ body{margin:0;background:#fff}
   function memSeg(btn) {
     Array.prototype.forEach.call(btn.parentNode.children, function (b) { b.classList.remove('on'); });
     btn.classList.add('on');
+    memRefresh();
+  }
+  function memExtend(months) {
+    var p = ($('mk-ends').value || '').split('-').map(Number);
+    if (p.length !== 3) return;
+    var d = new Date(Date.UTC(p[0], p[1] - 1 + months, p[2]));
+    // Keep the day of the month across a short one: Nov 31 becomes Nov 30.
+    if (d.getUTCDate() !== p[2]) d.setUTCDate(0);
+    $('mk-ends').value = d.toISOString().slice(0, 10);
     memRefresh();
   }
   function memReason() { memRefresh(); }
@@ -927,7 +987,8 @@ body{margin:0;background:#fff}
     document.querySelector('.mk-mem-sub').innerHTML = now.option + ' &middot; 12 months';
     document.querySelector('.mk-mem-terms').innerHTML =
       '<span><b>$' + (+now.price).toFixed(2) + '</b> ' + now.freq.toLowerCase() + '</span>'
-      + '<span>Next bills ' + now.next + '</span><span>4 of 12 paid</span>';
+      + '<span>Next bills ' + now.next + '</span><span>Ends ' + now.ends + '</span>'
+      + '<span>4 of 12 paid</span>';
     WAS = now;
     memRefresh();
   }
