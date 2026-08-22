@@ -696,6 +696,20 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .pm-acts button.danger{color:var(--accent);border-color:#EBC2C2}
 .pm-inuse{flex-basis:100%;font-size:12px;color:var(--muted)}
 .pm-note{font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:12px}
+/* an unsigned agreement is not a quiet thing */
+.unsg{border:1.5px solid #EBC2C2;background:#FFF8F8;border-radius:12px;padding:14px 16px;margin-bottom:16px}
+.unsg-top{display:flex;align-items:baseline;gap:10px}
+.unsg-n{font-size:25px;font-weight:800;color:var(--accent);line-height:1}
+.unsg-l{font-size:14px;font-weight:700;color:var(--accent)}
+.unsg-list{margin-top:11px;border-top:1px solid #EBC2C2;padding-top:2px}
+.unsg-row{display:flex;align-items:center;gap:9px;padding:9px 0;font-size:13px;color:var(--muted);border-bottom:1px solid #F3DEDE;flex-wrap:wrap}
+.unsg-row:last-child{border-bottom:none}
+.unsg-row b{color:var(--ink);font-size:14px}
+.unsg-row .go{margin-left:auto;display:flex;gap:7px}
+.unsg-row .go button{border:1.5px solid #EBC2C2;background:#fff;color:var(--accent);border-radius:8px;padding:5px 11px;font:inherit;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
+.unsg-more{font-size:12.5px;color:var(--muted);padding-top:9px}
+/* the same fact on one profile */
+.punsg{border:1.5px solid #EBC2C2;background:#FFF8F8;color:var(--accent);border-radius:11px;padding:12px 14px;font-size:13.5px;font-weight:800;margin-bottom:14px}
 .pm-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:2px}
 .pm-link{border:none;background:none;font:inherit;font-size:12.5px;font-weight:700;color:var(--go);cursor:pointer;padding:0}
 /* which card a single scheduled payment goes on */
@@ -1501,6 +1515,7 @@ function renderDashboard(){
   ];
   let html = '<div class="dash">'
     + '<div class="dash-hd"><h2>Dashboard</h2><div class="ds">'+active+' active members · '+leads+' leads in the pipeline</div></div>'
+    + '<div id="dash-unsigned"></div>'
     + '<div id="dash-unpaid"></div>'
     + '<div class="dash-sub">Needs you today</div><div class="dcards">';
   cards.forEach(cd=>{
@@ -1520,6 +1535,68 @@ function renderDashboard(){
   $("#view-dashboard").innerHTML = html;
   dashLoadUnpaid();
   dashLoadExpiring();
+  dashLoadUnsigned();
+}
+
+/* Memberships with no signed agreement. He takes money before the paperwork
+ * on purpose - "when they pay, they commit" - so this is not an error state,
+ * it is a to-do list. It counts ACTIVE memberships only: a canceled one that
+ * was never papered is history, not homework.
+ *
+ * The count is of memberships, not people, because two unpapered memberships
+ * on one student are two documents to chase. */
+async function dashLoadUnsigned(){
+  const box = document.getElementById('dash-unsigned'); if(!box) return;
+  const { data:mems, error } = await sb.from('memberships')
+    .select('id,contact_id,program,plan_code,started_on,created_at')
+    .eq('status','active').order('created_at', { ascending:true });
+  if(error){ console.error('dash unsigned', error); return; }
+  const rows = mems||[];
+  if(!rows.length){ box.innerHTML=''; return; }
+  const { data:ags, error:aErr } = await sb.from('membership_agreements')
+    .select('membership_id').eq('status','signed').in('membership_id', rows.map(r=>r.id));
+  // Without the agreement list every membership would look unsigned, which
+  // would put a false alarm at the top of the dashboard. Say nothing instead.
+  if(aErr){ console.error('dash agreements', aErr); box.innerHTML=''; return; }
+  const papered = {};
+  (ags||[]).forEach(a=>{ if(a.membership_id) papered[a.membership_id]=true; });
+  const miss = rows.filter(r=>!papered[r.id]);
+  if(!miss.length){ box.innerHTML=''; return; }
+
+  const today = attYMD();
+  const shown = miss.slice(0, 8);
+  let h = '<div class="unsg"><div class="unsg-top">'
+    + '<span class="unsg-n">'+miss.length+'</span>'
+    + '<span class="unsg-l">membership'+(miss.length===1?'':'s')+' with no signed agreement</span>'
+    + '</div><div class="unsg-list">';
+  shown.forEach(r=>{
+    const who = MEMBERS.find(x=>x.id===r.contact_id);
+    const name = who ? (who.first+' '+who.last).trim() : 'Unknown member';
+    const since = r.started_on ? daysBetweenYMD(r.started_on, today) : null;
+    const age = since==null ? '' : (since<=0 ? 'started today'
+      : since===1 ? '1 day' : since+' days');
+    h += '<div class="unsg-row"><b>'+escHtml(name)+'</b> '+escHtml(r.program||'')
+      + (age?' · '+escHtml(age):'')
+      + '<span class="go">'
+      + '<button onclick="agrSignMembership(\''+escJs(r.id)+'\')">Sign now</button>'
+      + '<button onclick="openProfile(\''+escJs(r.contact_id)+'\')">Profile</button>'
+      + '</span></div>';
+  });
+  h += '</div>';
+  // Never let a cap read as "that is all of them".
+  if(miss.length > shown.length){
+    h += '<div class="unsg-more">and '+(miss.length-shown.length)+' more, oldest first</div>';
+  }
+  box.innerHTML = h + '</div>';
+}
+
+/* Whole days between two studio-local dates. Both are plain YYYY-MM-DD, so
+ * this compares dates and never drifts an hour either way. */
+function daysBetweenYMD(from, to){
+  const a = new Date(from+'T00:00:00Z').getTime();
+  const b = new Date(to+'T00:00:00Z').getTime();
+  if(!isFinite(a) || !isFinite(b)) return null;
+  return Math.round((b-a)/86400000);
 }
 
 /* Expiring-memberships tile: ACTIVE memberships with an end date inside the
@@ -3089,6 +3166,71 @@ function agrOpenSign(lineIdx){
   agrRenderSheet();
 }
 
+/* Sign against a saved membership. The document is built from the FROZEN
+ * membership row, not from today's catalog, so what gets signed is the deal
+ * that was actually sold even after prices move.
+ *
+ * Every agreement here carries a membership_id, which is what makes the
+ * unsigned flag mean anything: a membership either has a signed row pointing
+ * at it or it does not. */
+async function agrSignMembership(membershipId){
+  const { data:ms, error } = await sb.from('memberships')
+    .select('id,contact_id,payer_contact_id,program,plan_code,billing_frequency,final_down_cents,final_recurring_cents,started_on,sale_id')
+    .eq('id', membershipId).single();
+  if(error||!ms){ toast('Could not open that membership'); return; }
+
+  // Already papered? Signing twice would leave two live agreements for one
+  // membership and no way to say which is the deal.
+  const { data:have } = await sb.from('membership_agreements')
+    .select('id').eq('membership_id', membershipId).eq('status','signed').maybeSingle();
+  if(have){ toast('That membership already has a signed agreement'); return; }
+
+  const res = agrResolve({ program: ms.program, calc:{ program: ms.program, planCode: ms.plan_code } });
+  if(res.reason){ agrShowBlocked(res.reason); return; }
+
+  await loadCatalog();
+  const student = MEMBERS.find(x=>x.id===ms.contact_id);
+  const payer   = ms.payer_contact_id ? MEMBERS.find(x=>x.id===ms.payer_contact_id) : null;
+  const buyerIsOther = !!(payer && payer.id !== ms.contact_id);
+  const isMinor = !!(student && student.age > 0 && student.age < 18);
+  const guardian = (isMinor || buyerIsOther) && payer ? (payer.first+' '+payer.last).trim() : '';
+  const start = ms.started_on || attYMD();
+  const oneTime = ms.billing_frequency === 'one_time';
+  const pl = planByCode(ms.plan_code);
+
+  const ctx = {
+    program: ms.program||'',
+    planCode: ms.plan_code||'', planName: (pl && pl.name) || ms.plan_code || '',
+    participant: student ? (student.first+' '+student.last) : '',
+    dob: student && student.dob ? fmtDate(student.dob) : '',
+    guardian: guardian,
+    // Signed TODAY, for a membership that started when it started. Backdating
+    // a signature to the sale would be a false statement about a contract.
+    today: fmtDate(attYMD()),
+    start: fmtDate(start),
+    sessionStart: fmtDate(start),
+    sessionEnd: (pl && pl.duration_weeks) ? fmtDate(addWeeksYMD(start, pl.duration_weeks)) : '',
+    downCents: ms.final_down_cents||0,
+    recurringCents: ms.final_recurring_cents||0,
+    pifCents: oneTime ? (ms.final_recurring_cents||0) : null,
+    agreedPaymentDate: '', initials: '',
+    isMinor: isMinor, buyerIsOther: buyerIsOther,
+    participantId: ms.contact_id,
+    participantName: student ? (student.first+' '+student.last) : '',
+    dobYMD: (student && student.dob) ? String(student.dob).slice(0,10) : '',
+    dobWasOnFile: !!(student && student.dob),
+    buyerId: payer ? payer.id : ms.contact_id,
+    buyerName: payer ? (payer.first+' '+payer.last).trim() : (student ? (student.first+' '+student.last) : ''),
+    buyerEmail: payer ? (payer.email||'') : (student ? (student.email||'') : ''),
+    guardianOnFile: !!(student && student.guardians && student.guardians.length),
+    catalogRows: PLAN_ROWS.filter(p=>p.program===ms.program && p.sellable!==false)
+                          .sort((a,b)=>(a.display_order||0)-(b.display_order||0))
+  };
+  AGR = { membershipId: ms.id, saleId: ms.sale_id||null, tpl: res.template, ctx: ctx,
+          doc: agrBuildDoc(res.template, ctx) };
+  agrRenderSheet();
+}
+
 function agrShowBlockedFor(i){
   const l = posSale.lines[i]; if(!l) return;
   const r = agrResolve(l);
@@ -3197,12 +3339,14 @@ async function agrAccept(){
   // rely on later, so it is a hard stop rather than a warning.
   if(AGR.ctx.isMinor && !guard){ toast('Name the parent or guardian - '+(AGR.ctx.participantName||'this student')+' is under 18'); return; }
   if(!cv || !cv.__dirty || !cv.__dirty()){ toast('Signature is empty - sign in the box'); return; }
-  const line = posSale.lines[AGR.lineIdx];
-  if(!line){ toast('That line is gone - re-add it and sign again'); closeSheet(); return; }
+  // A cart line holds the agreement until checkout writes it; a saved
+  // membership has nowhere to hold it, so it goes straight to the table.
+  const line = AGR.membershipId ? null : posSale.lines[AGR.lineIdx];
+  if(!AGR.membershipId && !line){ toast('That line is gone - re-add it and sign again'); closeSheet(); return; }
   AGR.ctx.guardian = guard;
   AGR.doc = agrBuildDoc(AGR.tpl, AGR.ctx);   // whatever was just typed is what gets frozen
   await agrSaveBackToProfile(AGR.ctx);
-  line.__agreement = {
+  const signed = {
     template_key: AGR.doc.key, template_version: AGR.doc.version, document_title: AGR.doc.title,
     program: AGR.doc.program, plan_code: AGR.doc.planCode,
     body_json: AGR.doc, body_text: agrDocText(AGR.doc),
@@ -3214,6 +3358,21 @@ async function agrAccept(){
     signed_with_staff: posSale.staff || myStaffName(),
     user_agent: navigator.userAgent.slice(0,300)
   };
+  if(AGR.membershipId){
+    const who = AGR.ctx.participantId, mid = AGR.membershipId;
+    const ins = await sb.from('membership_agreements').insert(Object.assign({}, signed, {
+      membership_id: mid, contact_id: who, sale_id: AGR.saleId || null
+    }));
+    // The signature only exists in this browser until the insert lands, so
+    // a failure has to keep the sheet open rather than lose it.
+    if(ins.error){ console.error('agreement insert', ins.error); toast('Could not save it - do not close this, try again'); return; }
+    AGR = null; closeSheet();
+    toast('Agreement signed');
+    if(selectedId === who) loadProfileMemberships(who);
+    if(document.getElementById('dash-unsigned')) dashLoadUnsigned();
+    return;
+  }
+  line.__agreement = signed;
   AGR = null; closeSheet(); renderPOS();
   toast('Agreement signed - attached to this membership');
 }
@@ -5630,6 +5789,7 @@ function renderProfile(){
   html += '</div></div>';  // last section, then .psections
 
   // The strip and its panel live below the overview, which never moves.
+  html += '<div id="prof-unsigned"></div>';
   html += '<div class="ptabs">'
     + tab('notes','Notes') + tab('memberships','Membership')
     + tab('invoices','Invoices and Payments') + tab('attendance','Attendance')
@@ -6785,7 +6945,8 @@ async function loadProfileMemberships(contactId){
         + (ag.signed_at?' on '+escHtml(fmtDate(studioYmd(ag.signed_at))):'')
         + '<br><button class="vc" onclick="agrView(\''+ag.id+'\')">View agreement</button></div>'
       : '<div class="memx-agr miss"><b>⚠ No agreement on file</b><br>'
-        + '<button class="vc" onclick="agrMissing(\''+escJs(ms.program||'')+'\')">What to do</button></div>';
+        + '<button class="vc" onclick="agrSignMembership(\''+escJs(ms.id)+'\')">Sign it now</button>'
+        + ' <button class="vc" onclick="agrMissing(\''+escJs(ms.program||'')+'\')">What to do</button></div>';
 
     h += '<div class="memx">'
       + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">'
@@ -6812,6 +6973,14 @@ async function loadProfileMemberships(contactId){
   });
   h += '<div class="ccg-sub" style="margin-top:2px">Agreement status is required for all memberships.</div>';
   box.innerHTML = h;
+  // The same fact where it cannot be missed: above the tabs, so it does not
+  // depend on him being on the membership tab to see it.
+  const bar = document.getElementById('prof-unsigned');
+  if(bar){
+    const n = rows.filter(r=>(r.status||'active')==='active' && !agrBy[r.id]).length;
+    bar.innerHTML = n ? '<div class="punsg">⚠ '+n+' membership'+(n===1?'':'s')
+      +' with no signed agreement</div>' : '';
+  }
   profFillMemCards(rows, contactId);
 }
 let PROF_INST = {};
