@@ -112,7 +112,7 @@ const FNS = [
   'posQuote', 'posMemDueCents', 'posMemLineDueCents', 'posMemRecurringNote', 'posProgramBuckets',
   'posSuggestedAdminFeeCents', 'posSaveAmount',
   'posPayOpen', 'posPayTab', 'posPayRender', 'posPayChange', 'posPayEffectiveCents', 'posPayQuick',
-  'posPayFeePrompt', 'posPayFeeAnswer', 'posPayAskClose', 'posPayRestoreFee', 'posPaySubmit', 'posPayClose',
+  'posPayFeePrompt', 'posPayFeeAnswer', 'posPayAskClose', 'posPayRestoreFee', 'posPaySubmit', 'posPayClose', 'pmHasBuyer',
   'posAutoReceipt',
   // keyed-card entry: lifted so posPayRender's mount call resolves
   'pmCardMount', 'pmCardErr', 'pmLoadStripeJs', 'pmChargeCard',
@@ -135,6 +135,7 @@ const VARS = ['\\$', 'escHtml', 'escAttr', 'escJs', 'money', 'centsFromInput', '
 
 // ── minimal DOM ──────────────────────────────────────────────────────────────
 const registry = {};
+let tmpN = 0;
 function ensureEl(id) {
   if (!registry[id]) {
     const el = {
@@ -180,11 +181,13 @@ const documentShim = {
   getElementById: id => ensureEl(id),
   querySelector: sel => sel === 'main' ? ensureEl('__main__') : ensureEl(sel.replace(/^#/, '')),
   querySelectorAll: () => ({ forEach() {} }),
+  createElement: () => ensureEl('__tmp' + (++tmpN)),
   body: { style: {} }
 };
 
 // ── Supabase shim ────────────────────────────────────────────────────────────
 const SB_CALLS = [];
+const ALL_CALLS = [];   // never reset: suite-wide invariants read this
 const SB_SELECT = {};   // table -> rows returned by a bare select/eq/in chain
 const SB_INSERT_ERROR = {};  // table -> error to return from insert
 const SB_INSERT_RESULT = {}; // table -> single row returned after .insert().select().single()
@@ -197,11 +200,11 @@ function qb(table, opts) {
     eq() { return self; },
     in() { return self; },
     insert(rows) {
-      SB_CALLS.push({ table, op: 'insert', rows });
+      SB_CALLS.push({ table, op: 'insert', rows }); ALL_CALLS.push({ table, op: 'insert', rows });
       return qb(table, { lastOp: 'insert', err: SB_INSERT_ERROR[table] || null, resultRow: SB_INSERT_RESULT[table] || null });
     },
     update(patch) {
-      SB_CALLS.push({ table, op: 'update', patch });
+      SB_CALLS.push({ table, op: 'update', patch }); ALL_CALLS.push({ table, op: 'update', patch });
       return qb(table, { lastOp: 'insert', err: null, resultRow: null });  // resolves like any write
     },
     single() {
@@ -217,13 +220,49 @@ function qb(table, opts) {
 // Edge Function calls are recorded, not made. RECEIPTS holds every
 // send-receipt invocation so tests can assert automatic receipts fire.
 const RECEIPTS = [];
+// pos-charge is scripted per test: CHARGE decides whether the intent or the
+// finalize fails; CHARGES records every call so tests can assert order.
+const CHARGES = [];
+const CHARGE = { intentError: null, finalizeError: null, amount: null, receiptSent: true };
+let LAST_INTENT_AMOUNT = 0;
 const sbShim = {
   from: table => qb(table),
   functions: {
     invoke: (name, opts) => {
-      if (name === 'send-receipt') RECEIPTS.push((opts && opts.body) || {});
-      return Promise.resolve({ data: { ok: true, to: ['buyer@test'] }, error: null });
+      const body = (opts && opts.body) || {};
+      if (name === 'send-receipt') { RECEIPTS.push(body); return Promise.resolve({ data: { ok: true, to: ['buyer@test'] }, error: null }); }
+      if (name === 'pos-charge') {
+        if (body.action === 'config') { CHARGES.push(body); return Promise.resolve({ data: { publishable_key: 'pk_test_x', live: false }, error: null }); }
+        if (body.action === 'intent') {
+          // the amount is the LEDGER's: the sale row must already exist
+          const sale = ALL_CALLS.filter(c => c.table === 'pos_sales' && c.op === 'insert' && c.rows && c.rows.id === body.sale_id).pop();
+          CHARGES.push(Object.assign({}, body, { saleKnown: !!sale }));
+          if (CHARGE.intentError) return Promise.resolve({ data: { error: CHARGE.intentError }, error: null });
+          LAST_INTENT_AMOUNT = CHARGE.amount != null ? CHARGE.amount : (sale ? sale.rows.total_cents : 0);
+          return Promise.resolve({ data: { client_secret: 'cs_test_' + body.sale_id, amount_cents: LAST_INTENT_AMOUNT, id: 'pi_' + body.sale_id }, error: null });
+        }
+        if (body.action === 'finalize') {
+          CHARGES.push(body);
+          if (CHARGE.finalizeError) return Promise.resolve({ data: { error: CHARGE.finalizeError }, error: null });
+          return Promise.resolve({ data: { ok: true, amount_cents: LAST_INTENT_AMOUNT, paid_in_full: true, receipt_sent: CHARGE.receiptSent }, error: null });
+        }
+      }
+      return Promise.resolve({ data: { ok: true }, error: null });
     }
+  }
+};
+// Stripe.js stand-in: Elements that mount, a PaymentMethod that is created
+// (or refused), and a confirm that approves or declines, all scripted.
+const STRIPE_STUB = {
+  confirm: 'succeeded', pmError: null,
+  elements() { return { create() { return { mount() {}, on() {} }; } }; },
+  async createPaymentMethod() {
+    return STRIPE_STUB.pmError ? { error: { message: STRIPE_STUB.pmError } } : { paymentMethod: { id: 'pm_test' } };
+  },
+  async confirmCardPayment(cs) {
+    return STRIPE_STUB.confirm === 'succeeded'
+      ? { paymentIntent: { id: 'pi_' + String(cs).replace('cs_test_', ''), status: 'succeeded' } }
+      : { error: { message: 'Your card was declined.' } };
   }
 };
 
@@ -255,6 +294,8 @@ const sandbox = {
   ],
   HH_ROWS: [], HH_LINKS: [], HH_LOADED: true, CATALOG_LOADED: true,
   PRODUCTS: [], PACKETS: [], EVENTS: [],
+  PM_STRIPE: null, PM_CARD: null, PM_ELEMENTS: null, PM_LIVE: false,
+  CATALOG: { products: 'ready', events: 'ready' },
   MEMBERS: [
     { id: 'kidA', first: 'Jamie', last: 'Lee', age: 9, role: '', segment: 'Active', rank: '', memberships: [], guardians: [] },
     { id: 'kidB', first: 'Sam', last: 'Lee', age: 11, role: '', segment: 'Active', rank: '', memberships: [], guardians: [] },
@@ -277,7 +318,7 @@ const sandbox = {
   showInvoice: (id, from) => { sandboxNav.push({ id, from }); },
   // ONE window only — a second `window:` key in this literal silently wins and
   // would leave agrResolve believing the templates never loaded.
-  window: { open: () => null, BTKDAgreements: A, devicePixelRatio: 1 },
+  window: { open: () => null, BTKDAgreements: A, devicePixelRatio: 1, Stripe: () => STRIPE_STUB },
   navigator: { userAgent: 'test-agent/1.0' },   // stamped onto signed agreements
 };
 const sandboxNav = [];
@@ -753,6 +794,181 @@ await test('15 a membership cannot tender unsigned; a signed one files its agree
   assert.ok(row.body_text.length > 8000, 'the stored document looks truncated');
   assert.ok(row.body_json && row.body_json.title === 'Cubs Membership Agreement',
     'the frozen render was not stored');
+});
+
+
+/* ── Card at the desk on a NEW sale (2026-08-21) ──────────────────────────
+ * The membership never waits for the money: the sale is saved exactly as
+ * "Save unpaid" saves it, then the invoice is charged through pos-charge.
+ * The client records nothing about the card; the server does, after Stripe
+ * confirms, and the server sends the receipt. */
+function cardSale() {
+  sandbox.PRICE_SETTINGS.admin_fee_bps = 0;
+  sandbox.PRICE_SETTINGS.admin_fee_flat_cents = 0;
+  sandbox.posSale = sandbox.posBlank();
+  sandbox.posSale.memberId = 'parentP';
+  sandbox.posSale.lines.push({ kind: 'prod', label: 'Beginner uniform', amount: 82.25, qty: 1, taxable: true });
+  run('renderPOS()');
+  STRIPE_STUB.confirm = 'succeeded'; STRIPE_STUB.pmError = null;
+  CHARGE.intentError = null; CHARGE.finalizeError = null; CHARGE.amount = null;
+  SB_CALLS.length = 0; CHARGES.length = 0; RECEIPTS.length = 0; sandboxNav.length = 0;
+}
+async function openCard() {
+  await call("posPayOpen({mode:'sale'})");
+  assert.strictEqual(run('PAY.method'), 'Card', 'the modal opens on Card');
+  sandbox.PM_STRIPE = STRIPE_STUB; sandbox.PM_CARD = { stub: true };
+}
+const saleInsert = () => SB_CALLS.find(c => c.table === 'pos_sales' && c.op === 'insert');
+const clientCardRow = () => SB_CALLS.find(c => c.table === 'pos_payments' && c.op === 'insert' && c.rows && c.rows.method === 'card');
+const paidFlip = () => SB_CALLS.find(c => c.table === 'pos_sales' && c.op === 'update' && c.patch && c.patch.status === 'paid');
+
+await test('16 new sale + Card: saved UNPAID with membership and roster, then charged; nothing paid until Stripe says so', async () => {
+  cardSale();
+  SB_SELECT['memberships'] = []; SB_SELECT['enrollments'] = [];
+  await call('posAddMembership(null)');
+  run("posPickProgram('Cubs')");
+  run("posAddMemLine('cubs_option_a')");
+  const i = sandbox.posSale.lines.length - 1;
+  await call('posPickStudentForLine(' + i + ", 'kidA', true)");
+  sandbox.posSale.lines[i].__agreementWaived = true;   // documented "continue without signing" path, as in test 7
+  SB_CALLS.length = 0;
+  await openCard();
+  CHARGE.intentError = 'Payments are not configured yet.';
+  await call('posPaySubmit()');
+  const sale = saleInsert();
+  assert.ok(sale, 'the sale is saved');
+  assert.strictEqual(sale.rows.status, 'unpaid', 'saved UNPAID, never paid by the client');
+  assert.strictEqual(sale.rows.tender_method, null, 'no tender method until the card clears');
+  assert.strictEqual(sale.rows.confirmed_at, null);
+  assert.ok(SB_CALLS.find(c => c.table === 'memberships' && c.op === 'insert'), 'membership created before the charge (activation does not wait for money)');
+  assert.ok(SB_CALLS.find(c => c.table === 'enrollments' && c.op === 'insert'), 'roster seeded before the charge');
+  assert.ok(!clientCardRow(), 'the client never writes a card payment row');
+  assert.ok(!paidFlip(), 'the client never flips the invoice to paid');
+  const intent = CHARGES.find(c => c.action === 'intent');
+  assert.ok(intent && intent.sale_id === sale.rows.id, 'pos-charge is asked for THIS sale id');
+  assert.ok(intent.saleKnown, 'the sale row exists before the intent is requested');
+  assert.ok(!CHARGES.find(c => c.action === 'finalize'), 'no finalize without an intent');
+  assert.strictEqual(RECEIPTS.length, 0, 'no receipt for money that did not move');
+  const banner = run('INV_BANNER');
+  assert.ok(banner && banner.saleId === sale.rows.id && banner.problems.some(p => /Card not charged/.test(p)), 'staff are told the card did not charge');
+  assert.ok(banner.problems.some(p => /unpaid/.test(p)), 'and that the invoice is unpaid and retryable');
+  const nav = sandboxNav[sandboxNav.length - 1];
+  assert.ok(nav && nav.id === sale.rows.id, 'lands on the unpaid invoice');
+  assert.strictEqual(sandbox.posSale.lines.length, 0, 'builder resets for the next sale');
+});
+
+await test('17 new sale + Card approved: the server records the payment, the client sends nothing else', async () => {
+  cardSale();
+  await openCard();
+  await call('posPaySubmit()');
+  const sale = saleInsert();
+  assert.ok(sale && sale.rows.status === 'unpaid', 'still saved unpaid first');
+  const intent = CHARGES.find(c => c.action === 'intent');
+  assert.ok(intent && intent.sale_id === sale.rows.id && intent.saleKnown, 'intent for the already-saved sale');
+  const fin = CHARGES.find(c => c.action === 'finalize');
+  assert.ok(fin && fin.sale_id === sale.rows.id && /^pi_/.test(fin.payment_intent_id), 'finalize with the confirmed intent');
+  assert.ok(!clientCardRow() && !paidFlip(), 'the server owns the payment row and the paid flip');
+  assert.strictEqual(RECEIPTS.length, 0, 'the receipt is sent by pos-charge, not by the client');
+  const banner = run('INV_BANNER');
+  assert.ok(banner.badges.some(b => /Card approved/.test(b)), 'success badge rides the invoice');
+  assert.strictEqual(banner.problems.length, 0);
+  const nav = sandboxNav[sandboxNav.length - 1];
+  assert.ok(nav && nav.id === sale.rows.id, 'lands on the invoice');
+});
+
+await test('18 new sale + Card declined: invoice stays unpaid, nothing fake recorded, staff told to retry', async () => {
+  cardSale();
+  await openCard();
+  STRIPE_STUB.confirm = 'declined';
+  await call('posPaySubmit()');
+  const sale = saleInsert();
+  assert.ok(sale && sale.rows.status === 'unpaid');
+  assert.ok(CHARGES.find(c => c.action === 'intent'), 'the charge was attempted');
+  assert.ok(!CHARGES.find(c => c.action === 'finalize'), 'no finalize after a decline');
+  assert.ok(!clientCardRow() && !paidFlip());
+  assert.strictEqual(RECEIPTS.length, 0);
+  const banner = run('INV_BANNER');
+  assert.ok(banner.problems.some(p => /declined/.test(p)), "Stripe's reason reaches the invoice banner");
+  assert.ok(banner.problems.some(p => /unpaid/.test(p) && /Add payment/.test(p)), 'says how to retry');
+});
+
+await test('19 new sale + Card with an incomplete card: nothing is written at all', async () => {
+  cardSale();
+  await openCard();
+  STRIPE_STUB.pmError = 'Your card number is incomplete.';
+  await call('posPaySubmit()');
+  assert.strictEqual(SB_CALLS.length, 0, 'no database writes');
+  assert.strictEqual(CHARGES.filter(c => c.action !== 'config').length, 0, 'pos-charge not called');
+  assert.ok(run('PAY') !== null, 'the modal stays open so the card can be fixed');
+  assert.strictEqual(ensureEl('pmPay').disabled, false, 'Pay Now is usable again');
+  assert.strictEqual(ensureEl('pmCardErr').textContent, 'Your card number is incomplete.');
+});
+
+await test('20 posTender can no longer record a card payment on its own', async () => {
+  cardSale();
+  const res = await call("posTender('Card')");
+  const sale = saleInsert();
+  assert.ok(sale && sale.rows.status === 'unpaid' && sale.rows.tender_method === null, "'Card' is saved as unpaid");
+  assert.ok(!clientCardRow(), 'no card payment row');
+  assert.ok(res && res.saleId === sale.rows.id, 'posTender reports the sale id it wrote');
+  assert.ok(!/Card:'card'/.test(html), 'the client tender map has no card entry');
+});
+
+await test('21 a partial amount on the Card tab is refused before any write', async () => {
+  cardSale();
+  await openCard();
+  ensureEl('pmAmt').value = '1.00';
+  await call('posPaySubmit()');
+  assert.strictEqual(SB_CALLS.length, 0, 'nothing written');
+  assert.strictEqual(CHARGES.filter(c => c.action !== 'config').length, 0, 'nothing charged');
+  assert.ok(/full/.test(TOASTS[TOASTS.length - 1] || ''), 'asks for the full balance');
+});
+
+await test('22 invoice-mode Card: a decline or a failed finalize writes nothing from the client', async () => {
+  sandbox.posSale = sandbox.posBlank();
+  SB_CALLS.length = 0; CHARGES.length = 0; RECEIPTS.length = 0;
+  STRIPE_STUB.confirm = 'declined'; STRIPE_STUB.pmError = null;
+  CHARGE.intentError = null; CHARGE.finalizeError = null; CHARGE.amount = 5000;
+  await call("posPayOpen({mode:'invoice', saleId:'11111111-2222-3333-4444-555555555555', balanceCents:5000, totalCents:5000, who:'Jamie Lee', reopen:'inv'})");
+  sandbox.PM_STRIPE = STRIPE_STUB; sandbox.PM_CARD = { stub: true };
+  await call('posPaySubmit()');
+  assert.strictEqual(SB_CALLS.filter(c => c.op === 'insert' || c.op === 'update').length, 0, 'decline: no writes');
+  assert.ok(run('PAY') !== null, 'modal stays open');
+  STRIPE_STUB.confirm = 'succeeded'; CHARGE.finalizeError = 'boom';
+  await call('posPaySubmit()');
+  assert.strictEqual(SB_CALLS.filter(c => c.op === 'insert' || c.op === 'update').length, 0, 'finalize failure: still no client writes');
+  assert.ok(/Stripe/.test(ensureEl('pmCardErr').textContent), 'tells staff to check Stripe before charging again');
+  assert.strictEqual(RECEIPTS.length, 0);
+  CHARGE.amount = null;
+});
+
+await test('23 the Reader tab records nothing', async () => {
+  cardSale();
+  await call("posPayOpen({mode:'sale'})");
+  await call("posPayTab('Terminal')");
+  await call('posPaySubmit()');
+  assert.strictEqual(SB_CALLS.length, 0);
+  assert.strictEqual(CHARGES.filter(c => c.action !== 'config').length, 0);
+});
+
+await test('24 tripwire: the server tender path stays off until it carries partial payments and agreements', async () => {
+  assert.strictEqual(run('POS_SERVER_SALES'), false, 'flip this only after pos-sale writes agreements and PAY_DETAIL partials');
+});
+
+await test('25 a buyer name with markup is escaped in the POS header', async () => {
+  sandbox.MEMBERS.push({ id: 'evil', first: '<b>Evil</b>', last: '<img src=x onerror=1>', age: 30, role: '', segment: 'Lead', rank: '', memberships: [], guardians: [], phones: [], email: '' });
+  sandbox.posSale = sandbox.posBlank();
+  sandbox.posSale.memberId = 'evil';
+  run('renderPOS()');
+  const out = ensureEl('view-pos').innerHTML;
+  assert.ok(out.includes('&lt;b&gt;Evil&lt;/b&gt;'), 'the buyer name is escaped');
+  assert.ok(!out.includes('<img src=x'), 'no raw markup from a contact name');
+  sandbox.MEMBERS.pop();
+});
+
+await test('26 suite-wide: the client never wrote a card payment row', async () => {
+  assert.ok(!ALL_CALLS.some(c => c.table === 'pos_payments' && c.op === 'insert' && c.rows && c.rows.method === 'card'),
+    'a pos_payments row with method card may only come from pos-charge or the webhook');
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');

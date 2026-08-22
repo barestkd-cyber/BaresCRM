@@ -29,7 +29,6 @@ header{background:var(--ink);color:#fff;padding:10px 16px 9px;display:flex;align
 .wordmark{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px;letter-spacing:.5px;display:flex;align-items:center;gap:10px}
 .wordmark img{height:44px;width:auto;display:block}
 .wordmark small{font-weight:500;font-size:11px;letter-spacing:1.5px;color:#9AA1AC;text-transform:uppercase;padding-left:10px;border-left:1px solid #333940}
-.pos-link{background:var(--ink-2);border:1px solid #32363F;color:#E7E9EC;padding:6px 11px;border-radius:999px;font-size:13px;font-weight:600}
 
 main{flex:1;overflow-y:auto}
 .view{display:none}
@@ -95,33 +94,17 @@ main{flex:1;overflow-y:auto}
 .phead .pmeta{color:#AEB4BD;font-size:13.5px;margin-top:5px;line-height:1.5}
 .phead .pseg{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;margin-top:9px}
 
-.qactions{display:flex;gap:8px;padding:14px 16px 4px;overflow-x:auto;margin-top:-12px}
-.qactions::-webkit-scrollbar{display:none}
-.qa{flex:0 0 auto;background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:11px 14px;font-weight:600;font-size:13.5px;box-shadow:var(--shadow);display:flex;align-items:center;gap:7px}
-.qa.primary{background:var(--go);color:#fff;border-color:var(--go)}
-.qa:active{transform:scale(.97)}
 
 .sec{padding:18px 16px 0}
 .sec-h{font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:0 2px 9px;display:flex;justify-content:space-between;align-items:center}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
 .card.pad{padding:15px 16px}
 
-/* membership card */
-.mem{padding:15px 16px;border-bottom:1px solid var(--line)}
-.mem:last-child{border-bottom:none}
-.mem-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
-.mem-name{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px}
-.mem-plan{font-size:13px;color:var(--muted);margin-top:2px}
+/* membership status pill (profile membership cards) */
 .mstatus{font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;white-space:nowrap}
 .mstatus.active{background:#E4F5EE;color:var(--go)}
 .mstatus.paused{background:#FBF1DC;color:var(--gold)}
-.mstatus.cancelled{background:#EDEFF2;color:var(--muted)}
-.mem-pay{margin-top:10px;font-size:13.5px;display:flex;flex-wrap:wrap;gap:4px 14px}
-.mem-pay .due{color:var(--muted)}
-.mem-pay .od{color:var(--accent);font-weight:700}
-.mem-foot{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
-.mem-foot .vc{font-size:13px;font-weight:600;color:#2563EB}
-.mem-foot .act{font-size:13px;font-weight:700;color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:7px 13px;background:#fff}
+.mstatus.canceled,.mstatus.ended{background:#EDEFF2;color:var(--muted)}
 .add-mem{width:100%;padding:13px;text-align:center;font-weight:700;color:var(--go);font-size:14px;background:#fff;border:1.5px dashed #BFE6D6;border-radius:var(--radius);margin-top:9px}
 
 /* generic rows */
@@ -130,20 +113,9 @@ main{flex:1;overflow-y:auto}
 .kv .k{color:var(--muted);flex:0 0 auto}
 .kv .v{text-align:right;font-weight:500}
 .kv .v.owe{color:var(--accent);font-weight:700}
-.bal{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:#FBEBEC;border-radius:var(--radius) var(--radius) 0 0}
-.bal .bl{font-weight:600;color:#7a1f23}
-.bal .bv{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;color:var(--accent);font-variant-numeric:tabular-nums}
 .inv{display:flex;justify-content:space-between;gap:10px;padding:11px 16px;border-top:1px solid var(--line);font-size:14px}
-.inv .id{flex:1;min-width:0}
-.inv .id small{color:var(--muted);display:block;font-size:12px}
-.inv .ia{font-variant-numeric:tabular-nums;font-weight:600;text-align:right}
-.inv .st{font-size:11px;font-weight:700}
-.inv .st.paid{color:var(--go)}
-.inv .st.over{color:var(--accent)}
-.linkrow{padding:12px 16px;text-align:center;font-weight:600;color:var(--ink);font-size:14px;border-top:1px solid var(--line)}
-.tagwrap{display:flex;flex-wrap:wrap;gap:8px;padding:15px 16px}
+/* .tag: the pill on the preview and PDF top bars (.pubbar .tag) */
 .tag{background:#E7F1FB;color:#2563EB;font-size:13px;font-weight:600;padding:5px 11px;border-radius:7px}
-.tag.add{background:#fff;border:1.5px dashed var(--line);color:var(--muted)}
 .note{padding:13px 16px;border-bottom:1px solid var(--line)}
 .note:last-of-type{border-bottom:none}
 .note .nt{font-size:14px}
@@ -198,10 +170,6 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .ck-btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 .ck-btns .prog-edit{margin-top:0;flex:1 1 30%;min-width:84px;padding:10px 6px}
 .prog-edit.ghost{background:var(--surface);color:var(--muted)}
-.ck-status{font-size:12.5px;font-weight:600;margin-top:10px;padding:8px 11px;border-radius:8px}
-.ck-status.live{background:#E4F5EE;color:var(--go)}
-.ck-status.scheduled{background:var(--surface);color:var(--muted)}
-.ck-status.past{background:#FBE9E9;color:var(--accent)}
 /* ---------- calendar ---------- */
 .cal-bar{display:flex;align-items:center;gap:10px;margin:14px 0 12px}
 .cal-bar h2{font-family:'Space Grotesk',sans-serif;font-size:20px;margin:0;flex:1}
@@ -244,16 +212,7 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .tc-row .tc-info{flex:1;min-width:0}
 .tc-row .tc-name{font-weight:600;font-size:14.5px}
 .tc-row .tc-when{font-size:12.5px;color:var(--muted);margin-top:2px}
-.role-row{display:flex;justify-content:space-between;align-items:center;gap:12px}
-.role-row .role-desc{font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.4}
-.role-badge{display:inline-block;font-size:12px;font-weight:700;padding:4px 10px;border-radius:6px;background:#EDEFF2;color:var(--muted)}
-.role-badge.leader{background:#E7F1FB;color:#2563EB}
-.role-badge.instructor{background:#F3EAFB;color:#7A3FC0}
-.role-badge.admin,.role-badge.owner{background:#FBE9E9;color:var(--accent)}
 .opt-btn.on{border-color:var(--ink);background:var(--surface)}
-.pos-packets{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
-.pos-packets button{flex:1 1 40%;min-width:130px;display:flex;align-items:center;gap:7px;justify-content:center;background:#fff;border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:11px;font-weight:600;font-size:13.5px;color:var(--ink)}
-.pos-packets .pk-ico{color:var(--muted)}
 .pdf-wrap{display:flex;flex-direction:column;height:calc(100vh - 46px)}
 .pdf-frame{flex:1;width:100%;border:none;background:#525659}
 .pdf-foot{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--ink)}
@@ -266,13 +225,7 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .pdf-up.big{background:var(--ink);color:#fff;padding:13px 22px;font-size:15px}
 .pdf-hint{font-size:12.5px;color:var(--muted);max-width:280px;line-height:1.45}
 .prog-edit:active{transform:scale(.99)}
-.opt-h{font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin:16px 2px 10px;padding-top:14px;border-top:1px solid var(--line)}
-.opt-empty{color:var(--muted);font-size:13.5px;padding:6px 2px 12px}
 .planrow{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px;margin-bottom:10px}
-.planrow-top{display:flex;gap:8px;margin-bottom:8px}
-.planrow-top .pr-name{flex:1;background:#fff;border:1.5px solid var(--line);border-radius:9px;padding:10px 11px;font-size:14.5px;font-weight:600;outline:none}
-.planrow-top .pr-name:focus{border-color:var(--ink)}
-.pr-del{width:40px;border:1.5px solid var(--line);border-radius:9px;background:#fff;font-size:20px;color:var(--muted);flex:0 0 auto}
 .addopt{width:100%;padding:12px;text-align:center;font-weight:700;color:var(--go);font-size:14px;background:#fff;border:1.5px dashed #BFE6D6;border-radius:var(--radius-sm);margin-bottom:14px}
 /* reuse builder list styles in this app */
 .bld{padding:18px}
@@ -289,7 +242,6 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 @media (hover:hover){
   .mrow:hover{border-color:#C2C8D0}
   .chip:hover{border-color:#C2C8D0}
-  .qa:hover{border-color:#C2C8D0}
   .opt-btn:hover{border-color:#C2C8D0}
   .mrow.sel:hover{border-color:var(--ink)}
 }
@@ -303,7 +255,6 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .nav-item{display:flex;align-items:center;gap:14px;width:100%;padding:13px 12px;border-radius:10px;color:#C7CCD2;font-weight:600;font-size:15px;text-align:left;transition:background .12s}
 .nav-item .ni{width:24px;text-align:center;font-size:17px;flex:0 0 auto}
 .nav-item.active{background:var(--accent);color:#fff}
-.nav-item .soon{margin-left:auto;font-size:9.5px;font-weight:700;letter-spacing:.5px;background:#32363F;color:#9AA1AC;padding:2px 7px;border-radius:6px;text-transform:uppercase}
 .nav-sep{font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#6A727E;padding:13px 12px 6px;margin-top:8px;border-top:1px solid #2A2E36}
 .nav-sep.first{border-top:none;margin-top:2px}
 .nav-item.launch{color:#AEB4BD}
@@ -311,13 +262,6 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .nav-backdrop{position:fixed;inset:0;background:rgba(16,18,22,.5);z-index:45;display:none}
 .nav-backdrop.show{display:block}
 
-/* placeholder sections */
-.placeholder{text-align:center;padding:56px 28px}
-.placeholder .ph-ico{font-size:36px;width:80px;height:80px;border-radius:22px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;color:var(--ink);box-shadow:var(--shadow)}
-.placeholder h2{font-family:'Space Grotesk',sans-serif;color:var(--text);margin:0 0 8px;font-size:22px}
-.placeholder p{max-width:380px;margin:0 auto 18px;font-size:14.5px;line-height:1.5;color:var(--muted)}
-.ph-btn{background:var(--go);color:#fff;font-weight:700;padding:12px 22px;border-radius:12px;font-size:15px}
-.ph-tag{display:inline-block;background:#FBF1DC;color:var(--gold);font-weight:700;font-size:12px;padding:6px 12px;border-radius:8px}
 
 /* dashboard */
 .dash{padding:18px 16px 30px}
@@ -511,13 +455,12 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
   main{height:100%;overflow-y:auto}
   .rail-toggle{display:block;align-self:flex-end;background:var(--ink-2);color:#C7CCD2;width:32px;height:30px;border-radius:8px;font-size:15px;margin-bottom:8px;transition:transform .2s}
   .sidebar.rail{flex-basis:64px;width:64px}
-  .sidebar.rail .nl,.sidebar.rail .soon,.sidebar.rail .ext,.sidebar.rail .nav-sep{display:none}
+  .sidebar.rail .nl,.sidebar.rail .ext,.sidebar.rail .nav-sep{display:none}
   .sidebar.rail .nav-item{justify-content:center;gap:0;padding:13px 0}
   .sidebar.rail .rail-toggle{transform:rotate(180deg);align-self:center}
   .dash{padding:26px 30px 36px;max-width:940px}
   .dash-hd h2{font-size:28px}
   .dcards{grid-template-columns:repeat(4,1fr);gap:14px}
-  .placeholder{padding:72px 28px}
   .actionbar{padding:18px 28px 4px}
   .search-wrap{padding:8px 28px 6px}
   .list-head{padding:10px 30px 4px}
@@ -539,7 +482,6 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
   .phead .pname{font-size:25px}
   .phead .pmeta{margin-top:4px}
   .phead .pseg{margin-top:8px}
-  .qactions{padding:18px 28px 2px;margin-top:0}
   .psections{column-count:2;column-gap:20px;padding:14px 28px 0}
   .psections .sec{padding:0;margin-bottom:18px;break-inside:avoid}
   .spacer{height:30px}
@@ -581,7 +523,6 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .qty .qv{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;min-width:24px;text-align:center}
 .addon{display:flex;align-items:center;gap:13px;background:var(--surface);border-radius:var(--radius-sm);padding:13px 14px}
 .addon .an{font-weight:600;font-size:14px}.addon .ap{color:var(--muted);font-size:13px;margin-top:2px}
-.lock{display:flex;align-items:center;justify-content:center;gap:6px;color:var(--muted);font-size:12px;margin-top:14px}
 .summary{padding:16px 18px;background:#FAFBFC}
 .sline{display:flex;justify-content:space-between;font-size:14px;padding:5px 0;color:var(--muted)}
 .sline.tot{color:var(--text);font-weight:700;font-size:17px;border-top:1px solid var(--line);margin-top:6px;padding-top:11px;font-family:'Space Grotesk',sans-serif}
@@ -604,23 +545,13 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .ck-tab{padding:10px 15px;font-weight:600;font-size:14.5px;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
 .ck-tab.on{color:var(--text);border-bottom-color:var(--accent)}
 /* ---------- POS ---------- */
-.pos-buyer{display:flex;justify-content:space-between;align-items:center;margin-top:16px}
-.pos-buyer .pb-lbl{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
-.pos-buyer .pb-name{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;margin-top:3px}
-.pos-buyer .pb-change{font-weight:700;color:#2563EB;font-size:14px}
-.pos-add{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}
-.pos-add button{flex:1 1 28%;min-width:96px;background:var(--ink);color:#fff;font-weight:700;font-size:14px;padding:14px 6px;border-radius:var(--radius)}
-.pos-add button:active{transform:scale(.99)}
 .cart-line{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line)}
 .cart-line:last-child{border-bottom:none}
 .cart-line .cl-info{flex:1;min-width:0}
 .cart-line .cl-label{font-weight:600;font-size:14.5px}
 .cart-line .cl-sub{font-size:12.5px;color:var(--muted);margin-top:2px}
-.cart-line .cl-amt{font-weight:700;font-variant-numeric:tabular-nums}
 .cart-line .cl-del{width:30px;height:30px;border-radius:8px;background:var(--surface);color:var(--muted);font-size:18px;flex:0 0 auto}
 .cart-empty{padding:22px 16px;text-align:center;color:var(--muted);font-size:14px}
-.pos-tot{margin-top:13px;padding:14px 16px}
-.sline2{display:flex;justify-content:space-between;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px}
 .tenders{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:13px}
 .tbtn{background:var(--go);color:#fff;font-weight:700;font-size:15px;padding:15px;border-radius:var(--radius)}
 .tbtn:active{transform:scale(.99)}
@@ -665,10 +596,6 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .inv-notes:focus{border-color:var(--ink)}
 .ed-lbl{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:12px 0 5px}
 .ed-in{width:100%;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:11px 12px;font-size:15px;outline:none;color:var(--text)}
-.ed-rm{width:100%;margin-top:10px;background:none;border:1.5px solid var(--accent);color:var(--accent);font-weight:700;font-size:13px;padding:11px;border-radius:var(--radius);cursor:pointer}
-.ed-tax{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;padding:12px 14px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--surface)}
-.ed-tax-lbl{font-weight:600;font-size:14px;color:var(--text)}
-.ed-tax-sub{font-size:12px;color:var(--muted);margin-top:2px}
 /* SPARK-style line modal */
 .spk-head{background:var(--ink);color:#fff;padding:13px 18px;margin:0;border-radius:18px 18px 0 0}
 .spk-head h3{color:#fff}
@@ -784,9 +711,6 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .iv-abtn.danger{color:#c8102e}
 .iv-payhd{display:flex;align-items:center;gap:9px;padding:14px 16px 8px;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:13px;letter-spacing:1.5px}
 .iv-payhd svg{width:17px;height:17px}
-.iv-empty2{display:flex;align-items:center;gap:11px;padding:6px 16px 16px;color:var(--muted);font-size:13px}
-.iv-empty2 .ic{width:34px;height:34px;border-radius:9px;background:var(--surface);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.iv-empty2 .ic svg{width:17px;height:17px}
 /* payment modal */
 .pm-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:13px}
 .pm-tab{display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 4px;border:1.5px solid var(--line);border-radius:10px;background:var(--card);font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;font-family:inherit}
@@ -992,22 +916,15 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
         <div class="list-head"><span class="lh-title" id="lhTitle">All members</span><span class="lh-clear" id="lhClear" style="display:none" onclick="clearFilter()" title="Only resets the search/filter - never deletes anything">Clear filter ✕</span></div>
         <div class="lthead"><span>Member</span><span>Belt / rank</span><span>Plan</span><span>Last visit</span><span>Phone</span><span class="lt-r">Status</span></div>
         <div class="mlist" id="mlist"></div>
-        <div class="proto-note">Prototype · mock data · resets on reload. Click a member to open their profile.</div>
+        <div class="proto-note">Click a member to open their profile.</div>
       </section>
 
       <!-- ===== PROFILE ===== -->
       <section class="view" id="view-profile"></section>
       <section class="view" id="view-invoice"></section>
 
-      <!-- ===== POS ===== -->
-      <section class="view" id="view-pos">
-        <div class="placeholder">
-          <div class="ph-ico">＄</div>
-          <h2>Point of Sale</h2>
-          <p>Ring up sales, sell memberships, take payments. This is the separate POS app, sharing the same roster and tables as the CRM.</p>
-          <button class="ph-btn" onclick="toast('Launches the POS app')">Open POS ↗</button>
-        </div>
-      </section>
+      <!-- ===== POS (filled by renderPOS) ===== -->
+      <section class="view" id="view-pos"></section>
 
       <!-- ===== MEMBERSHIPS (config) ===== -->
       <section class="view" id="view-memberships"></section>
@@ -1070,7 +987,7 @@ const BELT = {
   Blue:"#2563EB", Purple:"#7C3AED", Brown:"#8B5E3C", Red:"#D8232A", Black:"#15171C"
 };
 
-/* ========== MOCK MEMBERS (becomes the shared roster table) ========== */
+/* ========== MEMBERS: the contacts table, loaded once at boot ========== */
 let MEMBERS = [];
 
 async function loadMembers(){
@@ -1117,8 +1034,7 @@ async function loadMembers(){
     tags: [],
     attended: 0,
     daysSince: null,
-    testing: false,
-    balance: 0,
+    balanceCents: 0,        // owed on unpaid invoices, filled by loadBalances()
     memberships: [],
     invoices: [],
     notes: []
@@ -1159,7 +1075,7 @@ function attFillClasses(){
   if(!todays.length){
     sel.innerHTML='<option value="-1">No classes scheduled this day</option>';
   } else {
-    sel.innerHTML=todays.map(x=>`<option value="${x.i}">${x.c.label}</option>`).join('');
+    sel.innerHTML=todays.map(x=>`<option value="${x.i}">${escHtml(x.c.label)}</option>`).join('');
   }
 }
 async function renderAttendance(){
@@ -1196,11 +1112,11 @@ function attRowHtml(m, extraStyle){
   // check-in from their own before unchecking it.
   const chip = !on ? '<span style="display:inline-block;width:24px;height:24px;border-radius:50%;border:2px solid var(--line)"></span>'
     : (src && src.source && src.source!=='staff'
-        ? '<span class="seg active" title="Checked in via '+src.source+'">'+(src.source==='kiosk'?'Kiosk':(src.source==='parent_gps'?'Parent 📍':'Parent'))+'</span>'
+        ? '<span class="seg active" title="Checked in via '+escAttr(src.source)+'">'+(src.source==='kiosk'?'Kiosk':(src.source==='parent_gps'?'Parent 📍':'Parent'))+'</span>'
         : '<span class="seg active">Here</span>');
   return '<button class="mrow" onclick="attToggle(\''+m.id+'\')" style="'+(on?'background:#E4F5EE;border-color:var(--go);':'')+(extraStyle||'')+'">'
-    +'<div class="c-name"><div class="av" style="background:'+beltC+'"><span style="color:'+txt+'">'+initials(m)+'</span></div>'
-    +'<div class="minfo"><div class="mname">'+m.first+' '+m.last+'</div><div class="msub">'+(m.rank||'')+'</div></div></div>'
+    +'<div class="c-name"><div class="av" style="background:'+beltC+'"><span style="color:'+txt+'">'+escHtml(initials(m))+'</span></div>'
+    +'<div class="minfo"><div class="mname">'+escHtml(m.first+' '+m.last)+'</div><div class="msub">'+escHtml(m.rank||'')+'</div></div></div>'
     +'<div class="mright">'+chip+'</div>'
     +'</button>';
 }
@@ -1241,7 +1157,7 @@ function attAddSearch(){
   const box=document.getElementById('att-add-results');
   if(q.length<2){ box.innerHTML=''; return; }
   const hits=MEMBERS.filter(m=>((m.first+' '+m.last).toLowerCase().includes(q))).slice(0,6);
-  box.innerHTML=hits.map(m=>'<button class="mrow" onclick="attAdd(\''+m.id+'\')"><div class="c-name"><div class="av" style="background:'+(BELT[m.belt]||'#C7CCD2')+'"><span style="color:'+((m.belt==='White'||m.belt==='Yellow')?'#15171C':'#fff')+'">'+initials(m)+'</span></div><div class="minfo"><div class="mname">'+m.first+' '+m.last+'</div><div class="msub">'+(m.rank||'')+'</div></div></div><div class="mright"><span class="seg trial">Add</span></div></button>').join('');
+  box.innerHTML=hits.map(m=>'<button class="mrow" onclick="attAdd(\''+m.id+'\')"><div class="c-name"><div class="av" style="background:'+(BELT[m.belt]||'#C7CCD2')+'"><span style="color:'+((m.belt==='White'||m.belt==='Yellow')?'#15171C':'#fff')+'">'+escHtml(initials(m))+'</span></div><div class="minfo"><div class="mname">'+escHtml(m.first+' '+m.last)+'</div><div class="msub">'+escHtml(m.rank||'')+'</div></div></div><div class="mright"><span class="seg trial">Add</span></div></button>').join('');
 }
 function attAdd(id){
   ATT_PRESENT.add(id); ATT_EXTRA.add(id);
@@ -1284,27 +1200,30 @@ function attVisitLabel(dateStr){
 }
 async function attComputeLastVisits(){
   try{
-    // Bounded read: last 90 days, newest first. An uncapped select hits
-    // PostgREST's row limit within weeks and silently freezes the column.
-    const since=new Date(); since.setDate(since.getDate()-90);
-    const { data }=await sb.from('attendance').select('student_id,class_date').gte('class_date',attYMD(since)).order('class_date',{ascending:false}).limit(5000);
-    if(!data) return;
+    // One row per student who has EVER checked in (contact_last_visit =
+    // max(class_date) per student, sql/contact-last-visit.sql). An active
+    // member with no row has never checked in: that is the most at-risk
+    // state there is, so they get daysSince 9999 rather than "unknown".
+    const { data, error }=await sb.from('contact_last_visit').select('student_id,last_date');
+    if(error){ console.error('last visits', error); return; }
     const today=new Date(); today.setHours(12,0,0,0);
     const last={};
-    data.forEach(r=>{ if(!last[r.student_id] || r.class_date>last[r.student_id]) last[r.student_id]=r.class_date; });
+    (data||[]).forEach(r=>{ last[r.student_id]=r.last_date; });
     MEMBERS.forEach(m=>{
       const d=last[m.id];
       if(d){
         m.lastVisit=d;
         m.visitLabel=attVisitLabel(d);
         m.daysSince=Math.max(0,Math.round((today-new Date(d+'T12:00:00'))/86400000));
+      } else if(m.segment==="Active"){
+        m.lastVisit=null; m.visitLabel='never'; m.daysSince=9999;
       }
     });
     if(typeof renderList==='function') renderList();
-  }catch(e){}
+  }catch(e){ console.error('last visits', e); }
 }
 /* ========== STATE ========== */
-let activeFilter = null;   // 'overdue' | 'leads' | 'risk' | 'testing'
+let activeFilter = null;   // 'overdue' (balance due) | 'leads' | 'trials' | 'risk'
 let selectedId = null;
 let currentMember = null;
 
@@ -1317,17 +1236,18 @@ const escAttr = s => String(s==null?"":s).replace(/&/g,"&amp;").replace(/"/g,"&q
 
 /* ========== FILTERS ========== */
 const RISK_DAYS = 14;
-function isOverdue(m){ return m.balance > 0; }
+// "Balance due": owes on an unpaid invoice, per the ledger (loadBalances).
+function isOverdue(m){ return (m.balanceCents||0) > 0; }
 function isLead(m){ return m.segment === "Lead"; }
 function isTrial(m){ return m.segment === "Trial"; }
+// An active member with NO attendance on record is the most at-risk case
+// there is; attComputeLastVisits gives them daysSince 9999 so they count.
 function isRisk(m){ return m.segment === "Active" && m.daysSince != null && m.daysSince >= RISK_DAYS; }
-function isTesting(m){ return m.testing === true; }
 const FILTERS = {
-  overdue:{label:"Overdue", test:isOverdue, alert:true},
+  overdue:{label:"Balance due", test:isOverdue, alert:true},
   leads:{label:"Leads", test:isLead},
   trials:{label:"Trials", test:isTrial},
-  risk:{label:"At risk", test:isRisk},
-  testing:{label:"Testing", test:isTesting}
+  risk:{label:"At risk", test:isRisk}
 };
 
 /* ========== RENDER: chips ========== */
@@ -1355,6 +1275,49 @@ function renderChips(){
 function toggleFilter(key){ activeFilter = (activeFilter===key)?null:key; renderChips(); renderList(); }
 function clearFilter(){ activeFilter=null; $("#search").value=""; renderChips(); renderList(); }
 
+/* ── ledger-fed roster facts ───────────────────────────────────────────────
+ * Balance due and the Plan column come from the same tables the invoices and
+ * the profile read, so the Members list can never disagree with them. */
+function contactBalances(sales, payments){
+  const paid = {};
+  (payments||[]).forEach(r=>{ paid[r.sale_id]=(paid[r.sale_id]||0)+r.amount_cents; });
+  const owed = {};
+  (sales||[]).forEach(s=>{ if(!s.buyer_contact_id) return; owed[s.buyer_contact_id]=(owed[s.buyer_contact_id]||0)+Math.max(s.total_cents-(paid[s.id]||0),0); });
+  return owed;
+}
+async function loadBalances(){
+  const { data: sales, error } = await sb.from('pos_sales').select('id,buyer_contact_id,total_cents').eq('status','unpaid');
+  if(error){ console.error('balances load', error); return; }
+  const rows = (sales||[]).filter(s=>s.buyer_contact_id);
+  let pays = [];
+  if(rows.length){
+    const p = await sb.from('pos_payments').select('sale_id,amount_cents').in('sale_id', rows.map(s=>s.id));
+    if(p.error){ console.error('balances payments', p.error); return; }
+    pays = p.data||[];
+  }
+  const owed = contactBalances(rows, pays);
+  MEMBERS.forEach(m=>{ m.balanceCents = owed[m.id]||0; });
+  const v = document.getElementById('view-members');
+  if(v && v.classList.contains('on')){ renderChips(); renderList(); }
+}
+/* "Juniors · Option C", plus "+1" when they hold more than one. */
+function memberPlanLabel(m){
+  const ms = (m.memberships||[]).filter(x=>x.status!=='canceled' && x.status!=='ended');
+  if(!ms.length) return '';
+  const f = ms[0];
+  const label = escHtml(f.program||'') + (f.plan ? ' · '+escHtml(f.plan) : '');
+  return ms.length>1 ? label+' <span class="c-dash">+'+(ms.length-1)+'</span>' : label;
+}
+async function loadMemberPlans(){
+  await loadCatalog();
+  const { data, error } = await sb.from('memberships').select('contact_id,program,plan_code,status').in('status',['active','pending','paused']);
+  if(error){ console.error('plans load', error); return; }
+  const by = {};
+  (data||[]).forEach(r=>{ const pl=planByCode(r.plan_code); (by[r.contact_id]=by[r.contact_id]||[]).push({ program:r.program||'', plan: pl ? pl.name.replace(/^.*-\s*/,'') : (r.plan_code||''), status:r.status }); });
+  MEMBERS.forEach(m=>{ m.memberships = by[m.id]||[]; });
+  const v = document.getElementById('view-members');
+  if(v && v.classList.contains('on')) renderList();
+}
 /* ========== RENDER: list ========== */
 /* Which business the roster is showing. Grizzly Business Systems clients live
    in the same contacts table but must not clutter the martial arts roster, so
@@ -1382,21 +1345,22 @@ function renderList(){
     const segClass = m.segment==="Active"?"active":m.segment==="Lead"?"lead":m.segment==="Trial"?"trial":"former";
     const beltC = BELT[m.belt] || "#C7CCD2";
     const ring = m.belt ? '<span class="belt-ring" style="border-color:'+beltC+'"></span>' : '';
-    const sub = m.belt ? (m.rank) : (m.phase || m.segment);
-    const right = m.balance>0
-      ? '<span class="seg '+segClass+'">'+m.segment+'</span><div class="owe num">'+money(m.balance)+'</div>'
-      : '<span class="seg '+segClass+'">'+m.segment+'</span>';
+    const sub = escHtml(m.belt ? (m.rank) : (m.phase || m.segment));
+    const owed = m.balanceCents||0;
+    const right = owed>0
+      ? '<span class="seg '+segClass+'">'+escHtml(m.segment)+'</span><div class="owe num">'+money(owed/100)+'</div>'
+      : '<span class="seg '+segClass+'">'+escHtml(m.segment)+'</span>';
     const beltCell = m.belt
-      ? '<span class="belt-bar" style="background:'+beltC+'"></span>'+m.rank
-      : '<span class="c-dash">'+(m.phase||'-')+'</span>';
-    const planCell = m.memberships.length ? m.memberships[0].plan : '<span class="c-dash">-</span>';
-    const visitRisk = m.segment==="Active" && m.daysSince!=null && m.daysSince>=14;
-    const visitCell = m.visitLabel ? m.visitLabel : '<span class="c-dash">-</span>';
-    const phoneCell = m.phones.length ? m.phones[0][1] : '<span class="c-dash">-</span>';
+      ? '<span class="belt-bar" style="background:'+beltC+'"></span>'+escHtml(m.rank)
+      : '<span class="c-dash">'+escHtml(m.phase||'-')+'</span>';
+    const planCell = memberPlanLabel(m) || '<span class="c-dash">-</span>';
+    const visitRisk = m.segment==="Active" && m.daysSince!=null && m.daysSince>=RISK_DAYS;
+    const visitCell = m.visitLabel ? escHtml(m.visitLabel) : '<span class="c-dash">-</span>';
+    const phoneCell = m.phones.length ? escHtml(m.phones[0][1]) : '<span class="c-dash">-</span>';
     return '<button class="mrow'+(m.id===selectedId?' sel':'')+'" onclick="openProfile(\''+m.id+'\')">'
       + '<div class="c-name">'
-        + '<div class="av" style="background:'+beltC+'">'+ring+'<span style="color:'+(m.belt==="White"||m.belt==="Yellow"?"#15171C":"#fff")+'">'+initials(m)+'</span></div>'
-        + '<div class="minfo"><div class="mname">'+m.first+' '+m.last+'</div><div class="msub">'+sub+'</div></div>'
+        + '<div class="av" style="background:'+beltC+'">'+ring+'<span style="color:'+(m.belt==="White"||m.belt==="Yellow"?"#15171C":"#fff")+'">'+escHtml(initials(m))+'</span></div>'
+        + '<div class="minfo"><div class="mname">'+escHtml(m.first+' '+m.last)+'</div><div class="msub">'+sub+'</div></div>'
       + '</div>'
       + '<div class="col-d c-belt">'+beltCell+'</div>'
       + '<div class="col-d c-plan">'+planCell+'</div>'
@@ -1416,7 +1380,7 @@ function showSection(sec){
   $("#view-"+sec).classList.add("on");
   setNavActive(sec);
   if(sec==="dashboard") renderDashboard();
-  if(sec==="members") renderList();
+  if(sec==="members"){ renderList(); loadBalances(); }
   if(sec==="memberships") renderMemberships();
   if(sec==="reports") renderReports();
   if(sec==="checkout") renderCheckout();
@@ -1430,7 +1394,6 @@ function toggleNav(){ $("#sidebar").classList.toggle("open"); $("#navBackdrop").
 function closeNav(){ $("#sidebar").classList.remove("open"); $("#navBackdrop").classList.remove("show"); }
 function toggleRail(){ $("#sidebar").classList.toggle("rail"); }
 function goToFilter(key){ activeFilter = key; renderChips(); showSection("members"); }
-const APP_NAMES = { testing:"Testing", curriculum:"Curriculum", classplan:"Class Plan", leadership:"Leadership", gear:"Gear Order", certs:"Certificate", store:"Store" };
 function launchApp(key){
   closeNav();
   const urls = {
@@ -1457,8 +1420,7 @@ function renderDashboard(){
     {k:"unpaidinv", ico:"⚠", label:"Unpaid invoices", desc:"…", alert:true},
     {k:"expiring", ico:"⧖", label:"Expiring", desc:"next 30 days"},
     {k:"leads",   ico:"★", label:"Leads",   desc:"in the pipeline"},
-    {k:"risk",    ico:"◷", label:"At risk",  desc:"14+ days no visit"},
-    {k:"testing", ico:"▲", label:"Testing",  desc:"eligible now"}
+    {k:"risk",    ico:"◷", label:"At risk",  desc:"14+ days no visit"}
   ];
   let html = '<div class="dash">'
     + '<div class="dash-hd"><h2>Dashboard</h2><div class="ds">'+active+' active members · '+leads+' leads in the pipeline</div></div>'
@@ -1491,7 +1453,7 @@ async function dashLoadExpiring(){
   const dEl = document.getElementById('dash-exp-d');
   if(!nEl) return;
   const today = attYMD();
-  const horizon = addWeeksYMD(today, 5).slice(0,10); // ~30 days out
+  const horizon = addDaysYMD(today, 30); // the tile says "next 30 days"
   const { data, error } = await sb.from('memberships')
     .select('id').eq('status','active').not('ended_on','is',null)
     .gte('ended_on', today).lte('ended_on', horizon);
@@ -1535,10 +1497,17 @@ async function posExpiringSheet(){
    Tapping it opens Transactions pre-filtered to unpaid. */
 async function dashLoadUnpaid(){
   const box = document.getElementById('dash-unpaid'); if(!box) return;
-  const { data, error } = await sb.from('pos_sales').select('total_cents').eq('status','unpaid');
+  const { data, error } = await sb.from('pos_sales').select('id,buyer_contact_id,total_cents').eq('status','unpaid');
   if(error){ console.error('dash unpaid', error); return; }
   const rows = data||[];
-  const owedAll = rows.reduce((a,r)=>a+r.total_cents,0);
+  // Owed is total minus payments, the same figure the invoice shows, so a
+  // partly-paid invoice is not counted at its full total here.
+  const paid = {};
+  if(rows.length){
+    const p = await sb.from('pos_payments').select('sale_id,amount_cents').in('sale_id', rows.map(r=>r.id));
+    (p.data||[]).forEach(r=>{ paid[r.sale_id]=(paid[r.sale_id]||0)+r.amount_cents; });
+  }
+  const owedAll = rows.reduce((a,r)=>a+Math.max(r.total_cents-(paid[r.id]||0),0),0);
   const nEl = document.getElementById('dash-unpaid-n');
   const dEl = document.getElementById('dash-unpaid-d');
   if(nEl) nEl.textContent = rows.length;
@@ -1587,7 +1556,6 @@ let PROGRAMS = [
     {name:"Leadership Team", down:0, monthly:0, months:0}
   ]}
 ];
-let editProgram = null, editPlans = [];
 
 function planLine(pl){
   if(pl.down===0 && pl.monthly===0) return "Free";
@@ -1596,9 +1564,12 @@ function planLine(pl){
   if(pl.monthly===0 && pl.down>0) return money(pl.down)+" · paid in full";
   return "-";
 }
-/* Superseded by the real Memberships section (household pricing) further down.
-   Kept for reference only - nothing calls it. */
-// The seven sales buckets, in pitch order. `program` on pricing_plans rows
+/* ========== Memberships section (LIVE) ==========
+   showSection('memberships') renders renderMemberships(): the pricing_plans
+   catalog grouped into program cards, with admin-only price editing
+   (mbEditProgram / mbEditDiscounts). posProgramBuckets() in the POS groups
+   the same catalog in the same MB_PROGRAM_CARDS order. */
+// The sales buckets, in pitch order. `program` on pricing_plans rows
 // decides which card a row lands on; rows with sellable=false are the
 // engine's rate table and render as muted rate lines, never as products.
 const MB_PROGRAM_CARDS = [
@@ -1663,68 +1634,252 @@ function mbPlanTerms(p){
   if(p.payment_count) t += ' × '+p.payment_count;
   return t;
 }
-function openProgramEdit(id){
-  editProgram = id ? PROGRAMS.find(g=>g.id===id) : {id:"g"+(PROGRAMS.length+1), name:"", ages:"", members:0, plans:[]};
-  editPlans = editProgram.plans.map(pl=>({...pl}));
-  $("#sheet").innerHTML = '<div class="grab"></div>'
-    + '<div class="sheet-head"><div><h3>'+(id?"Edit program":"New program")+'</h3><div class="sub">Program details and payment options</div></div>'
-    + '<button class="close" onclick="closeSheet()">×</button></div>'
-    + '<div class="sheet-body">'
-    + '<div class="medit"><label>Program name</label><input id="pg-name" value="'+editProgram.name+'" placeholder="e.g. Juniors Taekwondo"></div>'
-    + '<div class="medit"><label>Ages / who it is for</label><input id="pg-ages" value="'+editProgram.ages+'" placeholder="Ages 7 to 12"></div>'
-    + '<div class="opt-h">Payment options</div><div id="planRows"></div>'
-    + '<button class="addopt" onclick="addPlanRow()">＋ Add option</button>'
-    + '<button class="savebtn" onclick="saveProgram()">Save program</button></div>';
-  renderPlanRows();
+/* ========== checkout pages ==========
+   Memberships: the registry of the LIVE website enrollment pages (table
+   checkout_pages), each card read from the page itself, with the live switch
+   the page functions enforce, plus Sessions (program_sessions cohorts).
+   Testing: the testing_dates groups and the page switch. Events: the events
+   table, which this editor OWNS (the POS and Curriculum read it), the real
+   participant lists, and the private-lesson page switch. The "Design
+   previews" under Memberships run on the hardcoded PROGRAMS and SCHEDULE
+   samples and save nothing; the real trial classes live in
+   schedule_template.trial_open (Class Plan) and the website's trial-booking
+   function. */
+/* EVENTS: the sellable events the POS can add to an invoice, loaded from the
+   events table by loadEvents(). Starts EMPTY on purpose: there is no demo
+   fallback, so nothing fake can ever be sold. EVENTS_ALL holds every row
+   for the Checkout Pages editor. */
+/* ── Checkout pages → Memberships: the registry of LIVE public pages ──────
+ * One card per row of checkout_pages. A card shows what the page is selling
+ * RIGHT NOW by asking the page's own function (the same GET the public page
+ * makes), so it can never disagree with the website. The live switch is
+ * enforced by those functions: off = the page refuses new enrollments. */
+let CP_PAGES = [], CP_PAGES_STATE = 'loading', CP_OFFERS = {}, CP_SALES = {}, CP_PREVIEWS_OPEN = false;
+let CP_SESSIONS = [], CP_SESSIONS_STATE = 'loading';
+function cpRepaintMemberships(){ const v=document.getElementById('view-checkout'); if(v && v.classList.contains('on') && cpTab==='memberships') renderCheckout(); }
+async function cpLoadPages(){
+  const { data, error } = await sb.from('checkout_pages').select('*').order('sort_order');
+  if(error){ console.error('checkout_pages', error); CP_PAGES_STATE='error'; cpRepaintMemberships(); return; }
+  CP_PAGES = data||[]; CP_PAGES_STATE='ready';
+  cpRepaintMemberships();
+  // Enrollments each page has written. The page functions sign their sales
+  // (staff_email = '<fn>@website'); the shared program function is told
+  // apart by the program on the membership it sold.
+  const fnOf = p => String(p.fn||'').split('?')[0]+'@website';
+  const { data: sales } = await sb.from('pos_sales').select('id,staff_email').like('staff_email','%@website');
+  const byWriter = {};
+  (sales||[]).forEach(s=>{ (byWriter[s.staff_email]=byWriter[s.staff_email]||[]).push(s.id); });
+  const shared = byWriter['program-checkout@website']||[];
+  const memsByProgram = {};
+  if(shared.length){
+    const m = await sb.from('memberships').select('sale_id,program').in('sale_id', shared);
+    (m.data||[]).forEach(r=>{ memsByProgram[r.program]=(memsByProgram[r.program]||0)+1; });
+  }
+  CP_SALES = {};
+  CP_PAGES.forEach(p=>{ const w=fnOf(p); CP_SALES[p.slug] = w==='program-checkout@website' ? (memsByProgram[p.program]||0) : (byWriter[w]||[]).length; });
+  // What each page offers, from the page's own GET.
+  await Promise.all(CP_PAGES.map(async p=>{
+    try{
+      const r = await sb.functions.invoke(p.fn, { method:'GET' });
+      if(r.error){
+        let j=null; try{ j = (r.error.context && r.error.context.json) ? await r.error.context.json() : null; }catch(_){}
+        CP_OFFERS[p.slug] = (j && j.closed) ? { closed:true, error:j.error } : { error:(j&&j.error)||r.error.message||'did not load' };
+      } else CP_OFFERS[p.slug] = r.data||{};
+    }catch(e){ CP_OFFERS[p.slug] = { error:(e&&e.message)||'did not load' }; }
+  }));
+  cpRepaintMemberships();
+}
+function cpOfferHtml(o){
+  if(!o) return '<div class="ck-hint">Reading what the page offers…</div>';
+  if(o.closed) return '<div class="ck-hint" style="color:var(--muted)">Switched off. The website says: "'+escHtml(o.error||'')+'"</div>';
+  if(o.error) return '<div class="ck-hint" style="color:var(--warn)">Could not read the page: '+escHtml(o.error)+'</div>';
+  let h='';
+  if(Array.isArray(o.options) && o.options.length){
+    h += o.options.map(x=>'<div class="plan-line"><span class="pl-name">'+escHtml(String(x.name||'').replace(/^.*-\s*/,''))
+      +(x.promo?' <span style="color:var(--go);font-size:12px;font-weight:700">'+escHtml(x.promo)+'</span>':'')
+      +'</span><span class="pl-terms">'+money((x.due_today_cents||0)/100)+' today</span></div>').join('');
+  }
+  if(o.session){
+    h += '<div class="plan-line"><span class="pl-name">'+escHtml(o.session.label||'Session')+'</span><span class="pl-terms">'+escHtml(o.session.status||'')+(o.enrollment_open?' · enrolling':'')+'</span></div>';
+    if(o.price_cents!=null) h += '<div class="plan-line"><span class="pl-name">Session fee</span><span class="pl-terms">'+money(o.price_cents/100)+'</span></div>';
+  }
+  const gear=[];
+  if(o.uniform_available) gear.push('uniform '+money((o.uniform_cents||0)/100));
+  if(Array.isArray(o.shirts) && o.shirts.length) gear.push(o.shirts.length+' shirt'+(o.shirts.length>1?'s':'')+' from '+money(Math.min.apply(null,o.shirts.map(s=>s.cents||0))/100));
+  if(o.tshirt_available) gear.push('tee '+money((o.tshirt_cents||0)/100));
+  if(Array.isArray(o.add_ons) && o.add_ons.length) gear.push('add-ons: '+o.add_ons.map(a=>escHtml(a.program)+' '+money((a.monthly_cents||0)/100)+'/mo').join(', '));
+  if(gear.length) h += '<div class="ck-hint" style="margin:8px 0 0">'+gear.join(' · ')+'</div>';
+  return h || '<div class="ck-hint">Nothing offered right now.</div>';
+}
+function cpPageCard(p){
+  const n = CP_SALES[p.slug]||0, live = p.live!==false;
+  return '<div class="prog-card" style="border-color:'+(live?'#BFE6D6':'#F0C9C9')+'"><div class="prog-top"><div>'
+    + '<div class="prog-name">'+escHtml(p.label)+'</div>'
+    + '<div class="prog-ages">'+escHtml(String(p.public_url||'').replace(/^https:\/\/www\./,''))+' · '+n+' enrollment'+(n===1?'':'s')+' from this page</div></div>'
+    + (live?'<span class="prog-count" style="background:#E4F5EE;color:var(--go)">Live</span>':'<span class="prog-count" style="background:#FBE9E9;color:var(--accent)">Off</span>')+'</div>'
+    + '<div class="prog-plans">'+cpOfferHtml(CP_OFFERS[p.slug])+'</div>'
+    + '<div class="ck-btns">'
+    + '<button class="prog-edit" onclick="cpSetPageLive(\''+escAttr(p.slug)+'\','+(live?'false':'true')+')">'+(live?'Turn the page off':'Turn the page on')+'</button>'
+    + '<button class="prog-edit ghost" onclick="window.open(\''+escAttr(p.public_url)+'\',\'_blank\')">Open page ↗</button>'
+    + '<button class="prog-edit ghost" onclick="showSection(\'memberships\')">Edit prices ↗</button>'
+    + '</div></div>';
+}
+async function cpSetPageLive(slug, next){
+  const p = CP_PAGES.find(x=>x.slug===slug); if(!p) return;
+  if(!next && !confirm('Turn off '+p.label+'? The website page will refuse new enrollments until it is turned back on.')) return;
+  const { error } = await sb.from('checkout_pages').update({ live: next, updated_at: new Date().toISOString() }).eq('slug', slug);
+  if(error){ toast('Could not change the page: '+(error.message||error)); return; }
+  p.live = next; delete CP_OFFERS[slug];
+  toast(p.label+' page is '+(next?'LIVE':'off'));
+  cpRepaintMemberships();
+  cpLoadPages();   // re-ask the page so the card shows its new state
+}
+function cpRenderMembershipsTab(){
+  if(CP_PAGES_STATE==='loading' && !CP_PAGES.length) cpLoadPages();
+  if(CP_SESSIONS_STATE==='loading') cpLoadSessions();
+  let html = '<div class="ck-hint">The live enrollment pages on the website. Each card shows what the page is selling right now, read from the page itself. Prices and plans are edited in Memberships; the switch decides whether the page accepts new enrollments.</div>';
+  if(CP_PAGES_STATE==='error') html += '<div class="ag-empty">Could not load the page registry. Run <strong>sql/checkout-pages.sql</strong> once, then reload.</div>';
+  else if(!CP_PAGES.length) html += '<div class="ag-empty">'+(CP_PAGES_STATE==='loading'?'Loading…':'No pages registered yet. Run sql/checkout-pages.sql.')+'</div>';
+  html += CP_PAGES.map(cpPageCard).join('');
+  html += cpSessionsCard();
+  html += '<button class="addopt" style="margin-top:4px" onclick="CP_PREVIEWS_OPEN=!CP_PREVIEWS_OPEN;renderCheckout()">'+(CP_PREVIEWS_OPEN?'Hide design previews':'Design previews (reference only)')+'</button>';
+  if(CP_PREVIEWS_OPEN){
+    html += '<div class="ck-hint">Sample pages on hardcoded data, kept as a reference for future checkout pages. Nothing here is saved or sold.</div>';
+    html += '<div class="prog-card"><div class="prog-top"><div><div class="prog-name">Free Trial</div><div class="prog-ages">One week free · any program · info, waiver, self-scheduler</div></div><span class="prog-count" style="background:var(--surface);color:var(--muted)">Preview</span></div>'
+      + '<div class="ck-btns"><button class="prog-edit ghost" onclick="cpOpen(\'trial\',\'trial\')">Preview flow ↗</button></div></div>';
+    html += PROGRAMS.filter(g=>!g.trial).map(g=>{
+      const minT = Math.min.apply(null, g.plans.map(planToday));
+      const today = g.free ? "Free" : "From "+money(minT)+" today";
+      return '<div class="prog-card"><div class="prog-top"><div><div class="prog-name">'+escHtml(g.name)+' Enrollment</div><div class="prog-ages">'+today+' · '+g.plans.length+' option'+(g.plans.length>1?'s':'')+' · preview only</div></div>'
+        + '<span class="prog-count" style="background:var(--surface);color:var(--muted)">Preview</span></div>'
+        + '<div class="ck-btns"><button class="prog-edit ghost" onclick="cpOpen(\'prog\',\''+g.id+'\')">Preview ↗</button></div></div>';
+    }).join('');
+  }
+  return html;
+}
+
+/* ── Sessions (cohorts): Little Kickers and anything else sold six weeks at
+ * a time. One row in program_sessions per cohort; the page follows the OPEN
+ * one, so the next session is a data change here, never a new page. Class
+ * dates are generated onto the calendar from the start date and weeks. */
+async function cpLoadSessions(){
+  await loadCatalog();
+  const { data, error } = await sb.from('program_sessions').select('*').order('starts_on', { ascending:false });
+  if(error){ console.error('sessions', error); CP_SESSIONS_STATE='error'; cpRepaintMemberships(); return; }
+  CP_SESSIONS = data||[]; CP_SESSIONS_STATE='ready';
+  cpRepaintMemberships();
+}
+function cpSessionPrograms(){ return [...new Set(PLAN_ROWS.filter(p=>p.duration_weeks).map(p=>p.program))]; }
+function cpSessionsCard(){
+  const progs = cpSessionPrograms();
+  if(!progs.length && !CP_SESSIONS.length) return '';
+  let h = '<div class="prog-card"><div class="prog-top"><div><div class="prog-name">Sessions</div><div class="prog-ages">'+escHtml(progs.join(', ')||'Session programs')+' · one cohort at a time; the page follows the open one</div></div>'
+    + '<span class="prog-count">'+CP_SESSIONS.filter(s=>s.status==='open').length+' open</span></div><div class="prog-plans">';
+  if(CP_SESSIONS_STATE==='error') h += '<div class="ck-hint" style="color:var(--warn)">Could not load sessions.</div>';
+  else if(!CP_SESSIONS.length) h += '<div class="ck-hint">No sessions yet.</div>';
+  CP_SESSIONS.forEach(s=>{
+    const st = s.status||'draft';
+    const col = st==='open'?'var(--go)':st==='draft'?'var(--gold)':'var(--muted)';
+    h += '<div class="plan-line"><span class="pl-name">'+escHtml(s.label||s.program)+' <span style="color:'+col+';font-size:11px;font-weight:700;text-transform:uppercase">'+escHtml(st)+'</span>'
+      + '<div style="font-size:12px;color:var(--muted);font-weight:400">'+escHtml(s.program)+' · starts '+escHtml(fmtDate(s.starts_on))+' · '+(s.weeks||0)+' weeks · '+escHtml(s.class_time||'')+(s.capacity?' · cap '+s.capacity:'')+(st==='draft'&&s.enrollment_opens_on?' · opens '+escHtml(fmtDate(s.enrollment_opens_on)):'')+'</div></span>'
+      + '<span class="pl-terms" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">'
+      + (st==='draft'?'<button class="pb-change" onclick="cpSessionStatus(\''+escAttr(s.id)+'\',\'open\')">Open enrollment</button>':'')
+      + (st==='open'?'<button class="pb-change" onclick="cpSessionStatus(\''+escAttr(s.id)+'\',\'closed\')">Close</button>':'')
+      + (st==='closed'?'<button class="pb-change" onclick="cpSessionStatus(\''+escAttr(s.id)+'\',\'completed\')">Complete</button><button class="pb-change" onclick="cpSessionStatus(\''+escAttr(s.id)+'\',\'open\')">Reopen</button>':'')
+      + '<button class="pb-change" onclick="cpSessionClasses(\''+escAttr(s.id)+'\')">Class dates</button>'
+      + '</span></div>';
+  });
+  h += '</div><div class="ck-btns"><button class="prog-edit" onclick="cpSessionNew()">＋ New session</button></div></div>';
+  return h;
+}
+function cpSessionPlansFor(prog){ return PLAN_ROWS.filter(p=>p.program===prog && p.duration_weeks && p.active); }
+function cpSessionNew(){
+  const progs = cpSessionPrograms();
+  if(!progs.length){ toast('No session-based plan in the catalog (a plan with duration_weeks)'); return; }
+  const prog0 = progs[0];
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>New session</h3><div class="sub">A cohort: the page sells the one that is open</div></div><button class="close" onclick="closeSheet()">×</button></div>'
+    +'<div class="sheet-body">'
+    +'<div class="medit"><label>Program</label><select id="ss-prog" class="ed-in" onchange="cpSessionPlans()">'+progs.map(p=>'<option value="'+escAttr(p)+'">'+escHtml(p)+'</option>').join('')+'</select></div>'
+    +'<div class="medit"><label>Plan (what it sells)</label><select id="ss-plan" class="ed-in">'+cpSessionPlansFor(prog0).map(p=>'<option value="'+escAttr(p.code)+'">'+escHtml(p.name)+'</option>').join('')+'</select></div>'
+    +'<div class="medit"><label>Label</label><input id="ss-label" placeholder="e.g. Fall 2026"></div>'
+    +'<div class="frow2"><div class="medit"><label>First class</label><input id="ss-start" type="date"></div><div class="medit"><label>Weeks</label><input id="ss-weeks" type="number" min="1" max="52" value="6"></div></div>'
+    +'<div class="frow2"><div class="medit"><label>Class time</label><input id="ss-time" placeholder="9:30-10:20 AM"></div><div class="medit"><label>Capacity (blank = none)</label><input id="ss-cap" type="number" min="1"></div></div>'
+    +'<div class="medit"><label>Enrollment opens on (shown while draft)</label><input id="ss-opens" type="date"></div>'
+    +'<div class="medit"><label>Notes</label><input id="ss-notes"></div>'
+    +'<div class="ck-hint">Saved as a draft with its class dates on the calendar. "Open enrollment" puts it on the page; only one session per program can be open.</div>'
+    +'<button class="savebtn" onclick="cpSessionSave()">Create session</button></div>';
   openSheet();
 }
-function renderPlanRows(){
-  $("#planRows").innerHTML = editPlans.map((pl,i)=>
-    '<div class="planrow"><div class="planrow-top"><input class="pr-name" value="'+pl.name+'" placeholder="Option name">'
-    + '<button class="pr-del" onclick="removePlanRow('+i+')">×</button></div>'
-    + '<div class="frow2"><div class="medit"><label>Down</label><input class="pr-down" inputmode="decimal" value="'+pl.down+'"></div>'
-    + '<div class="medit"><label>Monthly</label><input class="pr-monthly" inputmode="decimal" value="'+pl.monthly+'"></div>'
-    + '<div class="medit"><label>Months</label><input class="pr-months" inputmode="numeric" value="'+pl.months+'"></div></div></div>'
-  ).join("") || '<div class="opt-empty">No options yet. Add one below.</div>';
+function cpSessionPlans(){
+  const sel = $("#ss-plan"); if(!sel) return;
+  sel.innerHTML = cpSessionPlansFor($("#ss-prog").value).map(p=>'<option value="'+escAttr(p.code)+'">'+escHtml(p.name)+'</option>').join('');
 }
-function syncPlans(){
-  const rows = document.querySelectorAll("#planRows .planrow");
-  editPlans = Array.from(rows).map(r=>({
-    name: r.querySelector(".pr-name").value.trim() || "Option",
-    down: parseFloat(r.querySelector(".pr-down").value)||0,
-    monthly: parseFloat(r.querySelector(".pr-monthly").value)||0,
-    months: parseInt(r.querySelector(".pr-months").value,10)||0
-  }));
+async function cpSessionSave(){
+  const row = {
+    program: $("#ss-prog").value, plan_code: $("#ss-plan").value,
+    label: ($("#ss-label").value||'').trim() || null,
+    starts_on: $("#ss-start").value || null,
+    weeks: parseInt($("#ss-weeks").value,10)||6,
+    class_time: ($("#ss-time").value||'').trim(),
+    capacity: $("#ss-cap").value ? parseInt($("#ss-cap").value,10) : null,
+    enrollment_opens_on: $("#ss-opens").value || null,
+    notes: ($("#ss-notes").value||'').trim() || null,
+    status: 'draft',
+    created_by: await currentStaffEmail()
+  };
+  if(!row.program || !row.plan_code){ toast('Pick the program and plan'); return; }
+  if(!row.starts_on){ toast('Pick the first class date'); return; }
+  if(!row.class_time){ toast('Enter the class time'); return; }
+  const { data, error } = await sb.from('program_sessions').insert(row).select('id').single();
+  if(error){ toast('Could not create the session: '+(error.message||error)); return; }
+  closeSheet(); toast('Session created as a draft');
+  const g = await sb.rpc('generate_session_classes', { p_session: data.id });
+  if(g.error) toast('Session saved, but class dates were not generated: '+(g.error.message||g.error));
+  else toast((g.data||0)+' class dates added to the calendar');
+  CAL_DB_LOADED=false;
+  cpLoadSessions();
 }
-function addPlanRow(){ syncPlans(); editPlans.push({name:"",down:0,monthly:0,months:12}); renderPlanRows(); }
-function removePlanRow(i){ syncPlans(); editPlans.splice(i,1); renderPlanRows(); }
-function saveProgram(){
-  syncPlans();
-  const name = ($("#pg-name").value||"").trim();
-  if(!name){ toast("Give the program a name"); return; }
-  editProgram.name = name;
-  editProgram.ages = ($("#pg-ages").value||"").trim() || "-";
-  editProgram.plans = editPlans;
-  if(!PROGRAMS.includes(editProgram)) PROGRAMS.push(editProgram);
-  closeSheet();
-  renderMemberships();
-  toast("Program saved");
+async function cpSessionStatus(id, status){
+  const s = CP_SESSIONS.find(x=>x.id===id); if(!s) return;
+  const verb = status==='open' ? 'Open enrollment for' : status==='closed' ? 'Close' : 'Mark completed';
+  if(!confirm(verb+' '+(s.label||s.program)+'?')) return;
+  const { error } = await sb.from('program_sessions').update({ status: status }).eq('id', id);
+  if(error){ toast(/one_open|duplicate|unique/i.test(error.message||'') ? 'Another '+s.program+' session is already open. Close it first.' : 'Could not update: '+(error.message||error)); return; }
+  toast((s.label||s.program)+' is now '+status);
+  cpLoadSessions();
+}
+async function cpSessionClasses(id){
+  const s = CP_SESSIONS.find(x=>x.id===id); if(!s) return;
+  if(!confirm('Rebuild the class dates for '+(s.label||s.program)+' from its start date and weeks? Existing dates for this session are replaced.')) return;
+  const g = await sb.rpc('generate_session_classes', { p_session: id });
+  if(g.error){ toast('Could not generate class dates: '+(g.error.message||g.error)); return; }
+  toast((g.data||0)+' class dates on the calendar');
+  CAL_DB_LOADED=false;
 }
 
-/* ========== checkout pages (in CRM, read shared PROGRAMS) ========== */
-let EVENTS = [
-  {id:"e1", title:"Summer Camp 2026", desc:"A full week of martial arts, games, and fun. Ages 5 to 12. Lunch included.", price:199, qty:true, date:"Jul 13, 2026", participants:[{memberId:"m1", paid:true}]}
-];
-// Testing dates are owned by Class Plan (cycle.testingDates). Synced here, read-only.
-let TESTING = [
-  {id:"t1", title:"Belt Testing · June 2026", date:"Jun 28, 2026", fee:60, desc:"Reserve your student's spot for the next belt testing. The fee covers the evaluation and certificate."},
-  {id:"t2", title:"Belt Testing · Sept 2026", date:"Sep 27, 2026", fee:60, desc:"Reserve your student's spot for the next belt testing. The fee covers the evaluation and certificate."}
-];
+/* The private-lesson page switch, shown under Events → Services. */
+function cpPrivateCard(){
+  const plive = PRIVATE_PAGE_LIVE;
+  let html = '<div class="prog-card" style="border-color:' + (plive ? '#BFE6D6' : '#F0C9C9') + '">'
+    + '<div class="prog-top"><div>'
+    + '<div class="prog-name">Private lesson page</div>'
+    + '<div class="prog-ages">' + (plive
+        ? 'Anyone with the link can book and pay.'
+        : 'Dark. Nobody can book until you turn it on.') + '</div></div>'
+    + (plive ? '<span class="prog-count" style="background:#E4F5EE;color:var(--go)">Live</span>'
+             : '<span class="prog-count" style="background:#FBE9E9;color:var(--accent)">Off</span>')
+    + '</div><div class="ck-btns">'
+    + '<button class="prog-edit" onclick="cpTogglePrivatePage()">' + (plive ? 'Turn the page off' : 'Turn the page on') + '</button>'
+    + '<button class="prog-edit ghost" onclick="window.open(\'https://www.barestkd.fit/private-lesson/\',\'_blank\')">Open page ↗</button>'
+    + '</div></div>';
+  html += '<div class="ck-hint">Private lessons are ' + money(PRIVATE_RATE_CENTS/100) + ' for 30 minutes, or seven for the price of six. Open times are worked out from the class schedule, so they keep themselves right. Your standing Monday and Thursday lessons are already held back.</div>';
+  return html;
+}
 
-/* Belt testing, for real. The mock TESTING array above is the old prototype
-   mirroring Class Plan's cycle.testingDates; the Testing tab no longer renders
-   it. Groups now come from the testing_dates table, and ONE switch on the
-   settings singleton puts the public signup page live.
+let EVENTS = [], EVENTS_ALL = [];
+
+/* Belt testing, for real. Groups come from the testing_dates table, and ONE
+   switch on the settings singleton puts the public signup page live.
    Owner, 2026-08-19: "just a toggle for a page live/not live. ill set it open
    when i want" - nothing here is scheduled, computed, or auto-opened. */
 let TESTING_ROWS = [], TESTING_PAGE_LIVE = false, PRIVATE_PAGE_LIVE = false, PRIVATE_RATE_CENTS = 3500;
@@ -1790,7 +1945,9 @@ function cpTestingWhen(row){
   const label = d.toLocaleDateString('en-US', { timeZone:'UTC', weekday:'short', month:'short', day:'numeric' });
   return row.start_time ? (label + ' at ' + row.start_time) : label;
 }
-// Weekly class grid synced from Class Plan (read-only). Only the trial flag is set here.
+// Hardcoded sample week used ONLY by the in-CRM trial preview (cpTrialSlots).
+// It is never loaded from Class Plan. The real trial flag is
+// schedule_template.trial_open, set in Class Plan and read by the website booker.
 // day: 0 Sun ... 6 Sat
 let SCHEDULE = [
   {id:"s1", day:1, time:"5:30 PM", name:"Cubs Beginner", trial:true},
@@ -1803,33 +1960,19 @@ let SCHEDULE = [
   {id:"s8", day:6, time:"11:00 AM", name:"Cubs Beginner", trial:true}
 ];
 let cpKind="", cpItem=null, cp={planIdx:0, qty:1, addon:false};
-let cpTab="events";
+let cpTab="memberships";
 function cpSetTab(t){ cpTab=t; renderCheckout(); }
 function planToday(pl){ return pl.monthly>0 ? (pl.down + pl.monthly) : pl.down; }
-function testingStatus(t){
-  const today=new Date(); today.setHours(0,0,0,0);
-  const d=new Date(t.date);
-  const opens=new Date(d); opens.setDate(opens.getDate()-28);
-  const fmt=dt=>dt.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-  if(today>d) return {state:"past", label:"Testing passed · open for backfill"};
-  if(today>=opens) return {state:"live", label:"Live now · public sign-ups open"};
-  return {state:"scheduled", label:"Page opens "+fmt(opens)+", 4 weeks before"};
-}
 function renderCheckout(){
   let html = '<div class="bld"><div class="bld-hd"><h2>Checkout pages</h2><p>Public links your buyers use, organized by type.</p></div>';
   html += '<div class="ck-tabs">'
-    + '<button class="ck-tab'+(cpTab==="events"?" on":"")+'" onclick="cpSetTab(\'events\')">Events</button>'
+    + '<button class="ck-tab'+(cpTab==="memberships"?" on":"")+'" onclick="cpSetTab(\'memberships\')">Memberships</button>'
     + '<button class="ck-tab'+(cpTab==="testing"?" on":"")+'" onclick="cpSetTab(\'testing\')">Testing</button>'
-    + '<button class="ck-tab'+(cpTab==="memberships"?" on":"")+'" onclick="cpSetTab(\'memberships\')">Memberships</button></div>';
+    + '<button class="ck-tab'+(cpTab==="events"?" on":"")+'" onclick="cpSetTab(\'events\')">Events</button></div>';
 
   html += '<div class="ck-list">';
   if(cpTab==="events"){
-    html += '<button class="addopt" onclick="cpEditEvent(null)">＋ New event or product</button>';
-    html += EVENTS.map(e=>'<div class="prog-card"><div class="prog-top"><div>'
-      + '<div class="prog-name">'+e.title+'</div><div class="prog-ages">'+money(e.price)+' · '+e.participants.length+' signed up'+(e.date?(' · '+e.date):'')+'</div></div>'
-      + '<span class="prog-count" style="background:#FBF1DC;color:var(--gold)">Event</span></div>'
-      + '<div class="ck-btns"><button class="prog-edit" onclick="cpManageEvent(\''+e.id+'\')">Participants</button><button class="prog-edit" onclick="cpEditEvent(\''+e.id+'\')">Edit</button><button class="prog-edit ghost" onclick="cpOpen(\'event\',\''+e.id+'\')">Preview ↗</button></div></div>').join("");
-    html += '<div class="proto-note">Events auto-archive after their date and keep their sign-up stats.</div>';
+    html += evRenderTab();
   } else if(cpTab==="testing"){
     const live = TESTING_PAGE_LIVE;
     html += '<div class="prog-card" style="border-color:' + (live ? '#BFE6D6' : '#F0C9C9') + '">'
@@ -1844,20 +1987,6 @@ function renderCheckout(){
       + '<button class="prog-edit" onclick="cpToggleTestingPage()">' + (live ? 'Turn the page off' : 'Turn the page on') + '</button>'
       + '<button class="prog-edit ghost" onclick="window.open(\'https://www.barestkd.fit/testing-checkout/\',\'_blank\')">Open page ↗</button>'
       + '</div></div>';
-    const plive = PRIVATE_PAGE_LIVE;
-    html += '<div class="prog-card" style="margin-top:12px;border-color:' + (plive ? '#BFE6D6' : '#F0C9C9') + '">'
-      + '<div class="prog-top"><div>'
-      + '<div class="prog-name">Private lesson page</div>'
-      + '<div class="prog-ages">' + (plive
-          ? 'Anyone with the link can book and pay.'
-          : 'Dark. Nobody can book until you turn it on.') + '</div></div>'
-      + (plive ? '<span class="prog-count" style="background:#E4F5EE;color:var(--go)">Live</span>'
-               : '<span class="prog-count" style="background:#FBE9E9;color:var(--accent)">Off</span>')
-      + '</div><div class="ck-btns">'
-      + '<button class="prog-edit" onclick="cpTogglePrivatePage()">' + (plive ? 'Turn the page off' : 'Turn the page on') + '</button>'
-      + '<button class="prog-edit ghost" onclick="window.open(\'https://www.barestkd.fit/private-lesson/\',\'_blank\')">Open page ↗</button>'
-      + '</div></div>';
-    html += '<div class="ck-hint">Private lessons are ' + money(PRIVATE_RATE_CENTS) + ' for 30 minutes, or seven for the price of six. Open times are worked out from the class schedule, so they keep themselves right. Your standing Monday and Thursday lessons are already held back.</div>';
     html += '<div class="ck-hint">These are the groups a parent picks from, and a group leaves the page by itself once its date passes. The sign-up-by date is printed for parents, never enforced.</div>';
     if(!TESTING_ROWS.length){
       html += '<div class="proto-note">No testing dates coming up.</div>';
@@ -1871,20 +2000,7 @@ function renderCheckout(){
         + '<span class="prog-count" style="background:#FBF1DC;color:var(--gold)">Group</span></div></div>';
     }).join("");
   } else {
-    html += '<div class="ck-hint">The Free Trial page is the self-serve front door, prospects do everything themselves. Enrollment pages come from your programs; to add a program or change plans, edit it in Memberships.</div>';
-    html += '<div class="prog-card" style="border-color:#BFE6D6"><div class="prog-top"><div>'
-      + '<div class="prog-name">Free Trial</div><div class="prog-ages">One week free · any program · info, waiver, self-scheduler</div></div>'
-      + '<span class="prog-count">Trial</span></div>'
-      + '<div class="ck-btns"><button class="prog-edit" onclick="cpTrialClasses()">Set trial classes</button><button class="prog-edit ghost" onclick="cpOpen(\'trial\',\'trial\')">Preview flow ↗</button></div></div>';
-    html += '<button class="addopt" onclick="showSection(\'memberships\')">Edit programs & plans in Memberships ↗</button>';
-    html += PROGRAMS.filter(g=>!g.trial).map(g=>{
-      const minT = Math.min.apply(null, g.plans.map(planToday));
-      const today = g.free ? "Free" : "From "+money(minT)+" today";
-      return '<div class="prog-card"><div class="prog-top"><div>'
-        + '<div class="prog-name">'+g.name+' Enrollment</div><div class="prog-ages">'+today+' · '+g.plans.length+' option'+(g.plans.length>1?'s':'')+' · public link</div></div>'
-        + '<span class="prog-count">Joins roster</span></div>'
-        + '<div class="ck-btns"><button class="prog-edit" onclick="openProgramEdit(\''+g.id+'\')">Edit options</button><button class="prog-edit ghost" onclick="cpOpen(\'prog\',\''+g.id+'\')">Preview ↗</button></div></div>';
-    }).join("");
+    html += cpRenderMembershipsTab();
   }
   html += '</div></div>';
   $("#view-checkout").innerHTML = html;
@@ -1892,7 +2008,6 @@ function renderCheckout(){
 function cpOpen(kind,id){
   cpKind=kind; cp={planIdx:0,qty:1,addon:false,slotIdx:null,waiver:false};
   cpItem = kind==="prog" ? PROGRAMS.find(g=>g.id===id)
-         : kind==="testing" ? TESTING.find(t=>t.id===id)
          : kind==="trial" ? null
          : EVENTS.find(e=>e.id===id);
   cpRender();
@@ -1905,7 +2020,7 @@ function cpOpen(kind,id){
 function cpBack(){ showSection("checkout"); }
 function cpRender(){
   if(cpKind==="trial") return cpRenderTrial();
-  const it=cpItem, isProg = cpKind==="prog", isTest = cpKind==="testing";
+  const it=cpItem, isProg = cpKind==="prog";
   let html='<div class="pubbar"><button class="back" onclick="cpBack()">‹ Back to checkout pages</button><span class="tag">Preview</span></div>';
   html+='<div class="pub"><div class="pub-brand"><img class="logo" src="assets/img/logo.png" alt="Bares Taekwondo Fitness"><div class="school">Bares Taekwondo · Tyler, TX</div></div><div class="pub-card" id="cpBody">';
   const title = isProg ? (it.name+" Enrollment") : it.title;
@@ -1929,15 +2044,6 @@ function cpRender(){
       +'<div class="fld"><label>Student full name</label><input placeholder="Student name"></div>'
       +'<div class="fld"><label>Parent / guardian name</label><input placeholder="Guardian name"></div>'
       +'<div class="frow"><div class="fld"><label>Email</label><input placeholder="you@email.com"></div><div class="fld"><label>Phone</label><input placeholder="(903) 555-0000"></div></div></div>';
-  } else if(isTest){
-    const st=testingStatus(it);
-    if(st.state!=="live") html+='<div class="pub-sec" style="background:'+(st.state==="scheduled"?'#FBF7EC':'#FBE9E9')+'"><div style="font-size:13px;font-weight:600;color:'+(st.state==="scheduled"?'#9A7B16':'var(--accent)')+'">'+(st.state==="scheduled"?"Not public yet · "+st.label:"Testing date passed · staff backfill only")+'</div></div>';
-    html+='<div class="pub-sec"><div class="sh">Testing fee</div><div class="addon"><div><div class="an">'+it.title+'</div><div class="ap">'+money(it.fee)+' · '+it.date+'</div></div></div></div>';
-    html+='<div class="pub-sec"><div class="sh">Student</div>'
-      +'<div class="fld"><label>Student full name</label><input placeholder="Student name"></div>'
-      +'<div class="fld"><label>Current rank / belt</label><input placeholder="e.g. Senior Yellow Belt"></div>'
-      +'<div class="fld"><label>Parent / guardian name</label><input placeholder="Guardian name"></div>'
-      +'<div class="frow"><div class="fld"><label>Email</label><input placeholder="you@email.com"></div><div class="fld"><label>Phone</label><input placeholder="(903) 555-0000"></div></div></div>';
   } else {
     if(it.qty){
       html+='<div class="pub-sec"><div class="sh">How many?</div><div class="qty"><button onclick="cpBumpQty(-1)">−</button><span class="qv num" id="cpQv">1</span><button onclick="cpBumpQty(1)">+</button></div></div>';
@@ -1946,9 +2052,9 @@ function cpRender(){
       +'<div class="fld"><label>Full name</label><input placeholder="Your name"></div>'
       +'<div class="frow"><div class="fld"><label>Email</label><input placeholder="you@email.com"></div><div class="fld"><label>Phone</label><input placeholder="(903) 555-0000"></div></div></div>';
   }
-  // No card fields here, mock or otherwise: payment happens on Stripe-hosted
-  // checkout when the payments build lands. A card form in our page - even a
-  // fake one - is the one thing this app must never grow.
+  // No card fields in this preview. Real card entry lives in the POS payment
+  // modal (Stripe Elements, pmCardMount) and on the public checkout pages; the
+  // card number is typed into Stripe's iframe, never into our own markup.
   html+='<div class="summary" id="cpSummary"></div></div></div>';
   $("#view-checkoutpub").innerHTML=html;
   cpRecompute();
@@ -1973,9 +2079,6 @@ function cpRecompute(){
       recNote = (pl.down===0&&pl.monthly===0) ? "Free signup. No payment due." : "Paid in full. No further payments.";
     }
     if(it.uniform && cp.addon){ lines.push(["Beginner uniform",82.25]); items+=82.25; }
-  } else if(cpKind==="testing"){
-    lines.push([it.title,it.fee]); items+=it.fee;
-    recNote="Reserves a spot at the "+it.date+" testing.";
   } else {
     const sub=it.price*cp.qty; lines.push([it.title+(it.qty?(" × "+cp.qty):""),sub]); items+=sub;
   }
@@ -1985,7 +2088,7 @@ function cpRecompute(){
   let h=lines.map(l=>'<div class="sline">'+l[0]+'<span class="num">'+money(l[1])+'</span></div>').join("");
   h+='<div class="sline tot">'+(total===0?"Total":(cpKind==="prog"?"Total today":"Total"))+'<span class="num">'+money(total)+'</span></div>';
   if(recNote) h+='<div class="rec-note">'+recNote+'</div>';
-  const label = total===0 ? "Complete sign-up" : (cpKind==="prog"?"Enroll & pay "+money(total):cpKind==="testing"?"Sign up & pay "+money(total):"Pay "+money(total));
+  const label = total===0 ? "Complete sign-up" : (cpKind==="prog"?"Enroll & pay "+money(total):"Pay "+money(total));
   h+='<button class="paybtn" onclick="cpPay()">'+label+'</button>';
   $("#cpSummary").innerHTML=h;
 }
@@ -1996,46 +2099,18 @@ function cpPay(){
     const rec = pl.monthly>0 ? (pl.months>0 ? ((pl.months-1)+" monthly payments of "+money(pl.monthly)+" remain") : (money(pl.monthly)+"/mo continues")) : "you're paid in full";
     head="You're a member"; sys="Added to your member list";
     msg="Enrollment in "+it.name+" on the "+pl.name+" plan is confirmed - "+rec+"."+(it.uniform&&cp.addon?" Uniform ready at first class.":"");
-  } else if(cpKind==="testing"){
-    head="You're signed up"; sys="Added to the testing sheet";
-    msg="Your student is registered for "+it.title+" on "+it.date+". They'll show up automatically when the judge sheets are built.";
   } else {
     head="You're all set"; sys="New contact created";
     msg="You're registered for "+it.title+". A receipt is on its way to your email.";
   }
-  $("#cpBody").innerHTML='<div class="success"><div class="chk">✓</div><h2>'+head+'</h2><p>'+msg+'</p><div class="insys">✓ '+sys+'</div></div>';
+  $("#cpBody").innerHTML='<div class="success"><div class="chk">✓</div><h2>'+head+'</h2><p>'+msg+'</p><div class="insys">✓ '+sys+'</div><div class="ck-hint" style="margin-top:14px">Preview only: nothing was saved or charged.</div></div>';
   document.querySelector("main").scrollTop=0;
 }
 
-let cpEditId=null;
-function cpEditEvent(id){
-  cpEditId = id || null;
-  const e = id ? EVENTS.find(x=>x.id===id) : {title:"",desc:"",price:0,date:""};
-  $("#sheet").innerHTML='<div class="grab"></div>'
-   +'<div class="sheet-head"><div><h3>'+(id?"Edit event":"New event")+'</h3><div class="sub">Public event or product page</div></div><button class="close" onclick="closeSheet()">×</button></div>'
-   +'<div class="sheet-body">'
-   +'<div class="medit"><label>Title</label><input id="ce-title" value="'+(e.title||"")+'" placeholder="e.g. Summer Camp 2026"></div>'
-   +'<div class="medit"><label>Description</label><textarea id="ce-desc" rows="3" placeholder="What it is, who it is for">'+(e.desc||"")+'</textarea></div>'
-   +'<div class="frow2"><div class="medit"><label>Price</label><input id="ce-price" inputmode="decimal" value="'+(e.price||0)+'"></div>'
-   +'<div class="medit"><label>Date</label><input id="ce-date" value="'+(e.date||"")+'" placeholder="Jul 14, 2026"></div></div>'
-   +'<button class="savebtn" onclick="cpSaveEvent()">Save event</button></div>';
-  openSheet();
-}
-function cpSaveEvent(){
-  const title=($("#ce-title").value||"").trim();
-  if(!title){ toast("Give the event a title"); return; }
-  const price=parseFloat($("#ce-price").value)||0;
-  const desc=($("#ce-desc").value||"").trim();
-  const date=($("#ce-date").value||"").trim();
-  if(cpEditId){ const e=EVENTS.find(x=>x.id===cpEditId); e.title=title; e.price=price; e.desc=desc; e.date=date; }
-  else { EVENTS.push({id:"e"+Date.now(), title, desc, price, date, qty:true, participants:[]}); }
-  closeSheet(); renderCheckout(); toast("Event saved");
-}
-function cpMemberName(id){ const m=MEMBERS.find(x=>x.id===id); return m? (m.first+" "+m.last) : "Unknown"; }
 /* ---- self-serve free trial: info, waiver, scheduler from Class Plan ---- */
 let cpSlots=[];
 function cpTrialSlots(){
-  const blackoutDays=CAL.filter(c=>c.type==="blackout").map(c=>new Date(c.date)).filter(d=>!isNaN(d));
+  const blackoutDays=CAL_DB.filter(c=>c.type==="blackout").map(c=>new Date(c.event_date+"T12:00:00")).filter(d=>!isNaN(d));
   const isBlackout=(d)=>blackoutDays.some(b=>sameDay(b,d));
   const trialClasses=SCHEDULE.filter(s=>s.trial);
   let slots=[], base=new Date(); base.setHours(0,0,0,0);
@@ -2058,7 +2133,7 @@ function cpPickSlot(i){ cp.slotIdx=i; cpRenderSlots(); }
 function cpToggleWaiver(){ cp.waiver=$("#cpWaiver").checked; }
 function cpRenderTrial(){
   cpSlots=cpTrialSlots();
-  let html='<div class="pubbar"><button class="back" onclick="cpBack()">‹ Back to checkout pages</button><span class="tag">Free trial</span></div>';
+  let html='<div class="pubbar"><button class="back" onclick="cpBack()">‹ Back to checkout pages</button><span class="tag">Preview · Free trial</span></div>';
   html+='<div class="pub"><div class="pub-brand"><img class="logo" src="assets/img/logo.png" alt="Bares Taekwondo Fitness"><div class="school">Bares Taekwondo · Tyler, TX</div></div><div class="pub-card" id="cpBody">';
   html+='<div class="pub-hero"><h1>Start your free week</h1><p>One free week at Bares Taekwondo. Tell us about the student, sign the waiver, and pick your first class. No payment needed.</p></div>';
   html+='<div class="pub-sec"><div class="sh">About the student</div>'
@@ -2070,7 +2145,7 @@ function cpRenderTrial(){
   html+='<div class="pub-sec"><div class="sh">Liability waiver</div>'
     +'<div class="waiver">I understand that martial arts training involves physical activity and inherent risks. I release Bares Taekwondo, its instructors, and staff from liability for injury arising from participation, and I confirm the student is in suitable health to train. As parent or guardian I sign on behalf of any participant under 18.</div>'
     +'<div class="addon"><span class="sw"><input type="checkbox" id="cpWaiver" onchange="cpToggleWaiver()"><span class="track"></span><span class="knob"></span></span><div><div class="an">I have read and agree</div><div class="ap">Counts as your signature</div></div></div></div>';
-  html+='<div class="pub-sec"><div class="sh">Pick your first class</div><div class="ck-hint" style="margin:-2px 0 10px">Only beginner classes show here. Times come straight from the class schedule.</div><div id="cpSlotList"></div></div>';
+  html+='<div class="pub-sec"><div class="sh">Pick your first class</div><div class="ck-hint" style="margin:-2px 0 10px">Preview only: sample classes, not the live schedule.</div><div id="cpSlotList"></div></div>';
   html+='<div class="pub-sec"><button class="paybtn" onclick="cpBookTrial()">Book my free trial</button><div class="ck-hint" style="margin-top:8px">You will get a confirmation and a reminder before class.</div></div>';
   html+='</div></div>';
   $("#view-checkoutpub").innerHTML=html;
@@ -2088,98 +2163,186 @@ function cpBookTrial(){
   const phone=($("#cp-tphone").value||"").trim();
   const age=parseInt($("#cp-tage").value,10)||0;
   const dstr=s.date.toLocaleDateString('en-US',{month:'short', day:'numeric', year:'numeric'});
-  const parts=name.split(" ");
-  const nm={id:"m"+Date.now(), first:parts[0]||name, last:parts.slice(1).join(" ")||"", segment:"Trial",
-    belt:"", rank:"", rankDate:"", since:"", entered:dstr, age:age, gender:"", guardians:guard?[[guard,"Guardian"]]:[], phones:phone?[["Mobile",phone]]:[], emails:email?[email]:[], address:"",
-    app:false, phase:"Free Trial", source:"Trial page", beltSize:"", kickSize:"", tags:["trial-booked"], attended:0, daysSince:null, testing:false, balance:0,
-    memberships:[{program:"Free Trial", plan:"1 week trial", status:"trial", nextDue:"-", overdue:0, contract:false, down:0, monthly:0, total:null, remaining:null, trial:true}],
-    invoices:[], notes:[[dstr,"Self-booked free trial"+(prog?" · interested in "+prog:"")+". First class "+s.label+" "+s.time+" ("+s.name+")."]]};
-  MEMBERS.push(nm);
-  CAL.push({id:"c"+Date.now(), type:"trial", title:"Trial · "+name, date:dstr, time:s.time, memberId:nm.id});
-  renderChips();
-  $("#cpBody").innerHTML='<div class="success"><div class="chk">✓</div><h2>You\'re booked!</h2><p>Your free trial is set for '+s.label+' at '+s.time+' ('+s.name+'). Check your email for a confirmation and a reminder before class.</p><div class="insys">✓ Added to roster as a trial · on the calendar</div></div>';
+  $("#cpBody").innerHTML='<div class="success"><div class="chk">✓</div><h2>You\'re booked!</h2><p>Your free trial is set for '+s.label+' at '+s.time+' ('+s.name+'). Check your email for a confirmation and a reminder before class.</p><div class="insys">Preview only: shown on this screen until reload, not saved to the roster or calendar</div></div>';
   document.querySelector("main").scrollTop=0;
 }
-function cpTrialClasses(){
-  const days=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  const rows=SCHEDULE.slice().sort((a,b)=>a.day-b.day).map(s=>
-    '<div class="tc-row"><div class="tc-info"><div class="tc-name">'+s.name+'</div><div class="tc-when">'+days[s.day]+' · '+s.time+'</div></div>'
-    +'<label class="sw"><input type="checkbox" '+(s.trial?"checked":"")+' onchange="cpToggleTrialClass(\''+s.id+'\',this.checked)"><span class="track"></span><span class="knob"></span></label></div>'
-  ).join("");
-  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Trial classes</h3><div class="sub">Schedule comes from Class Plan. Flag which classes a first-timer can book.</div></div><button class="close" onclick="closeSheet()">×</button></div>'
-    +'<div class="sheet-body">'+rows+'<button class="addopt" style="margin-top:6px" onclick="launchApp(\'classplan\')">Edit the schedule in Class Plan ↗</button></div>';
+/* ── Events: the Checkout Pages editor OWNS the events table ─────────────
+ * One record drives everything: this list, the POS "+ Event" picker, the
+ * participant list, Curriculum's display, and (next build) the public event
+ * page. Who is attending lives in event_registrations, written at the POS
+ * tender for the PARTICIPANT on each line, never for the invoice buyer. */
+let EV_SHOW_ARCHIVED = false, EV_COUNTS = {}, EV_COUNTS_LOADED = false, EV_EDIT = null;
+async function evLoadCounts(){
+  const { data, error } = await sb.from('event_registrations').select('event_id').eq('status','registered');
+  if(error){ console.error('registration counts', error); return; }
+  EV_COUNTS = {};
+  (data||[]).forEach(r=>{ EV_COUNTS[r.event_id] = (EV_COUNTS[r.event_id]||0)+1; });
+  EV_COUNTS_LOADED = true;
+  const v = document.getElementById('view-checkout');
+  if(v && v.classList.contains('on') && cpTab==='events') renderCheckout();
+}
+function evToday(){ return new Date().toLocaleDateString('en-CA', { timeZone:'America/Chicago' }); }
+function evStatusChips(e){
+  const past = !!e.date && e.date < evToday();
+  const chips = [];
+  if(e.archived) chips.push(['Archived','#EDEFF2','var(--muted)']);
+  else if(past) chips.push(['Date passed','#EDEFF2','var(--muted)']);
+  else if(e.sellable) chips.push(['Sellable in POS','#E4F5EE','var(--go)']);
+  else chips.push(['Not for sale','#FBF1DC','var(--gold)']);
+  if(!e.archived && e.publicOpen) chips.push(['Public page open','#E7F1FB','#2563EB']);
+  return chips.map(c=>'<span class="prog-count" style="background:'+c[1]+';color:'+c[2]+'">'+c[0]+'</span>').join(' ');
+}
+function evRenderTab(){
+  if(!EV_COUNTS_LOADED) evLoadCounts();
+  let html = '<button class="addopt" onclick="evEdit(null)">＋ New event</button>';
+  html += '<div class="ck-hint">Events are created here and sold in the POS from the same record, one seat per line. Participants are real registrations from those sales. The public event checkout page is the next build; "Public page open" is saved now and will control it then.</div>';
+  if(CATALOG.events==='error') html += '<div class="ag-empty">Events did not load. Reload the page.</div>';
+  else if(CATALOG.events==='loading') html += '<div class="ag-empty">Loading…</div>';
+  const rows = EVENTS_ALL.filter(e=>EV_SHOW_ARCHIVED || !e.archived);
+  if(CATALOG.events!=='loading' && CATALOG.events!=='error' && !rows.length) html += '<div class="ag-empty">No events yet. Create the first one above.</div>';
+  html += rows.map(e=>{
+    const n = EV_COUNTS[e.id]||0;
+    const when = [e.date?fmtDate(e.date):'', e.time].filter(Boolean).join(' at ');
+    const price = e.priceCents==null ? 'no price' : money(e.priceCents/100);
+    return '<div class="prog-card"><div class="prog-top"><div>'
+      + '<div class="prog-name">'+escHtml(e.title)+'</div>'
+      + '<div class="prog-ages">'+escHtml([when||'no date', price, n+' registered'].join(' · '))+(e.qty?' · multiple seats':'')+(e.waiver?' · waiver':'')+'</div></div>'
+      + '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">'+evStatusChips(e)+'</div></div>'
+      + (e.desc?'<div class="ck-hint" style="margin:10px 0 0;text-align:left">'+escHtml(e.desc)+'</div>':'')
+      + '<div class="ck-btns">'
+      + '<button class="prog-edit" onclick="evEdit(\''+escAttr(e.id)+'\')">Edit</button>'
+      + '<button class="prog-edit" onclick="evParticipants(\''+escAttr(e.id)+'\')">Participants ('+n+')</button>'
+      + '<button class="prog-edit ghost" onclick="evArchive(\''+escAttr(e.id)+'\','+(e.archived?'false':'true')+')">'+(e.archived?'Unarchive':'Archive')+'</button>'
+      + '</div></div>';
+  }).join('');
+  html += '<button class="addopt" style="margin-top:4px" onclick="EV_SHOW_ARCHIVED=!EV_SHOW_ARCHIVED;renderCheckout()">'+(EV_SHOW_ARCHIVED?'Hide archived':'Show archived')+'</button>';
+  html += '<div class="pos-sec-lbl" style="margin-top:18px">Services</div>'+cpPrivateCard();
+  return html;
+}
+function evEdit(id){
+  const e = id ? EVENTS_ALL.find(x=>x.id===id) : null;
+  EV_EDIT = e ? e.id : null;
+  const v = (e && e.raw) || {};
+  const chk = (idd, on, label, hint) => '<label style="display:flex;align-items:center;gap:10px;margin:10px 0 0;font-size:14px;cursor:pointer"><span class="sw"><input type="checkbox" id="'+idd+'"'+(on?' checked':'')+'><span class="track"></span><span class="knob"></span></span><span>'+label+(hint?'<div class="ck-hint" style="margin:2px 0 0">'+hint+'</div>':'')+'</span></label>';
+  $("#sheet").innerHTML='<div class="grab"></div>'
+   +'<div class="sheet-head"><div><h3>'+(e?"Edit event":"New event")+'</h3><div class="sub">Saved to the events table; the POS and the page read this record</div></div><button class="close" onclick="closeSheet()">×</button></div>'
+   +'<div class="sheet-body">'
+   +'<div class="medit"><label>Title</label><input id="ev-title" value="'+escAttr(v.label||'')+'" placeholder="e.g. Summer Camp 2026"></div>'
+   +'<div class="medit"><label>Description (page copy)</label><textarea id="ev-desc" rows="4" placeholder="What it is, who it is for, what to bring">'+escHtml(v.description||'')+'</textarea></div>'
+   +'<div class="frow2"><div class="medit"><label>Date</label><input id="ev-date" type="date" value="'+escAttr(v.event_date||'')+'"></div>'
+   +'<div class="medit"><label>Start time</label><input id="ev-time" value="'+escAttr(v.start_time||'')+'" placeholder="e.g. 9:00 AM"></div></div>'
+   +'<div class="frow2"><div class="medit"><label>Price ($)</label><input id="ev-price" inputmode="decimal" value="'+escAttr(v.price_cents!=null?dollarsFromCents(v.price_cents):'')+'" placeholder="blank = not priced"></div>'
+   +'<div class="medit"><label>Category</label><input id="ev-cat" value="'+escAttr(v.category||'Events')+'" placeholder="Events"></div></div>'
+   +chk('ev-qty', !!v.asks_quantity, 'More than one seat may be bought', 'e.g. camp spots for siblings; one line per participant at the POS')
+   +chk('ev-waiver', v.waiver_required!==false, 'Waiver required', 'The public page will show a waiver checkbox')
+   +chk('ev-sell', !!v.sellable, 'Sellable', 'Shows in the POS "+ Event" picker (needs a price; 0 is fine for a free event)')
+   +chk('ev-public', !!v.public_open, 'Public page open', 'Will control the public event checkout page once it is built')
+   +'<div class="medit" style="margin-top:12px"><label>Receipt note (optional)</label><textarea id="ev-rnote" rows="2" placeholder="Printed on the receipt: where to be, what to bring">'+escHtml(v.receipt_note||'')+'</textarea></div>'
+   +'<button class="savebtn" onclick="evSave()">'+(e?'Save changes':'Create event')+'</button></div>';
   openSheet();
 }
-function cpToggleTrialClass(id,on){ const s=SCHEDULE.find(x=>x.id===id); if(s) s.trial=on; }
-function cpManageEvent(eid){
-  const e=EVENTS.find(x=>x.id===eid);
-  let html='<div class="pubbar"><button class="back" onclick="cpBack()">‹ Back to checkout pages</button><span class="tag">Event · participants</span></div>';
-  html+='<div class="pub"><div class="pub-card">';
-  html+='<div class="pub-hero"><h1>'+e.title+'</h1><p>'+money(e.price)+' · '+e.participants.length+' signed up</p></div>';
-  html+='<div class="pub-sec"><div class="sh">Participants</div>';
-  if(e.participants.length){
-    html+=e.participants.map(p=>'<div class="cart-line"><div class="cl-info"><div class="cl-label">'+cpMemberName(p.memberId)+'</div><div class="cl-sub">'+(p.paid?("Paid "+money(e.price)):"Unpaid")+'</div></div><button class="cl-del" onclick="cpRemoveParticipant(\''+e.id+'\',\''+p.memberId+'\')">×</button></div>').join("");
-  } else { html+='<div class="cart-empty">No participants yet.</div>'; }
-  html+='</div>';
-  html+='<div class="pub-sec"><button class="paybtn" style="background:var(--ink)" onclick="cpAddParticipant(\''+e.id+'\')">＋ Add participant & charge</button><div class="ck-hint" style="margin:10px 0 0">Same list POS writes to. Ring this event up at the desk and the buyer shows here too.</div></div>';
-  html+='</div></div>';
-  $("#view-checkoutpub").innerHTML=html;
-  document.querySelectorAll(".view").forEach(v=>v.classList.remove("on"));
-  $("#view-checkoutpub").classList.add("on");
-  setNavActive("checkout"); document.querySelector("main").scrollTop=0; closeNav();
+async function evSave(){
+  const title=($("#ev-title").value||'').trim();
+  if(!title){ toast('Give the event a title'); return; }
+  const priceRaw=($("#ev-price").value||'').trim();
+  const price = priceRaw==='' ? null : centsFromInput(priceRaw);
+  const sellable = $("#ev-sell").checked;
+  if(sellable && price==null){ toast('A sellable event needs a price (0 is fine for a free event)'); return; }
+  const dateV = ($("#ev-date").value||'').trim();
+  const row = {
+    label: title,
+    description: ($("#ev-desc").value||'').trim() || null,
+    event_date: dateV || null,
+    date: dateV ? fmtDate(dateV) : null,      // the text label Curriculum prints
+    start_time: ($("#ev-time").value||'').trim() || null,
+    price_cents: price,
+    category: ($("#ev-cat").value||'').trim() || 'Events',
+    asks_quantity: $("#ev-qty").checked,
+    waiver_required: $("#ev-waiver").checked,
+    sellable: sellable,
+    public_open: $("#ev-public").checked,
+    receipt_note: ($("#ev-rnote").value||'').trim() || null,
+    updated_at: new Date().toISOString()
+  };
+  const r = EV_EDIT ? await sb.from('events').update(row).eq('id', EV_EDIT) : await sb.from('events').insert(row);
+  if(r.error){ toast('Could not save the event: '+(r.error.message||r.error)); return; }
+  closeSheet(); toast(EV_EDIT ? 'Event saved' : 'Event created');
+  EV_EDIT = null;
+  await loadEvents();
 }
-function cpAddParticipant(eid){
-  const e=EVENTS.find(x=>x.id===eid);
-  const avail=MEMBERS.filter(m=>!e.participants.some(p=>p.memberId===m.id));
-  const body = avail.length ? avail.map(m=>'<button class="opt-btn" onclick="cpDoAddParticipant(\''+eid+'\',\''+m.id+'\')"><span class="oi">'+m.first.charAt(0)+'</span>'+m.first+' '+m.last+'</button>').join("") : '<div class="cart-empty">Everyone is already signed up.</div>';
-  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Add participant</h3><div class="sub">'+e.title+' · '+money(e.price)+' will be charged</div></div><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'</div>';
+async function evArchive(id, on){
+  const patch = { archived: on, updated_at: new Date().toISOString() };
+  if(on){ patch.sellable = false; patch.public_open = false; }
+  const r = await sb.from('events').update(patch).eq('id', id);
+  if(r.error){ toast('Could not update the event: '+(r.error.message||r.error)); return; }
+  toast(on ? 'Event archived' : 'Event restored');
+  await loadEvents();
+}
+async function evParticipants(id){
+  const e = EVENTS_ALL.find(x=>x.id===id); if(!e) return;
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>'+escHtml(e.title)+'</h3><div class="sub">Participants · from event registrations</div></div><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body"><div class="inv-empty" style="padding:18px">Loading…</div></div>';
   openSheet();
-}
-function cpDoAddParticipant(eid,mid){
-  const e=EVENTS.find(x=>x.id===eid);
-  if(!e.participants.some(p=>p.memberId===mid)) e.participants.push({memberId:mid, paid:true});
-  closeSheet(); toast(money(e.price)+" charged to "+cpMemberName(mid)); cpManageEvent(eid);
-}
-function cpRemoveParticipant(eid,mid){
-  const e=EVENTS.find(x=>x.id===eid);
-  e.participants=e.participants.filter(p=>p.memberId!==mid);
-  cpManageEvent(eid);
+  const { data, error } = await sb.from('event_registrations').select('id,contact_id,buyer_contact_id,sale_id,source,status,created_at').eq('event_id', id).eq('status','registered').order('created_at');
+  if(error){ $("#sheet .sheet-body").innerHTML='<div class="ag-empty">Could not load registrations: '+escHtml(error.message||String(error))+'</div>'; return; }
+  const rows = data||[];
+  const saleStatus = {};
+  const sids = rows.map(r=>r.sale_id).filter(Boolean);
+  if(sids.length){ const s = await sb.from('pos_sales').select('id,status').in('id', sids); (s.data||[]).forEach(x=>{ saleStatus[x.id]=x.status; }); }
+  if(!rows.length){ $("#sheet .sheet-body").innerHTML='<div class="ag-empty">No one registered yet. Sell the event in the POS to register a participant.</div>'; return; }
+  let h='';
+  rows.forEach(r=>{
+    const st = r.sale_id ? (saleStatus[r.sale_id]||'') : '';
+    const pay = !r.sale_id ? 'no invoice' : st==='paid' ? 'paid' : st==='unpaid' ? 'unpaid' : st;
+    const buyer = (r.buyer_contact_id && r.buyer_contact_id!==r.contact_id) ? ' · paid by '+escHtml(posBuyerLabel(r.buyer_contact_id)) : '';
+    h+='<div class="opt-btn" onclick="closeSheet();openProfile(\''+escAttr(r.contact_id)+'\')"><div style="flex:1"><div style="font-weight:700">'+escHtml(posBuyerLabel(r.contact_id))+'</div>'
+      +'<div style="font-size:12px;color:var(--muted)">'+escHtml(pay)+buyer+' · '+escHtml(r.source||'')+'</div></div>'
+      +(r.sale_id?'<button class="pb-change" onclick="event.stopPropagation();closeSheet();showInvoice(\''+escAttr(r.sale_id)+'\',\'pos\')">Invoice</button>':'')+'</div>';
+  });
+  h+='<div class="ck-hint" style="margin-top:10px">'+rows.length+' registered. Paid or unpaid is read from each invoice.</div>';
+  $("#sheet .sheet-body").innerHTML=h;
 }
 
 /* ========== POS (memberships price from pricing_plans + BTKDPricing) ========== */
-/* Hardcoded fallback only - bootCrm() swaps in live `products` rows. A read
-   failure keeps the fallback so the POS still sells, loudly in the console. */
-let PRODUCTS = [
-  {id:"pr1", label:"Beginner uniform", amount:82.25},
-  {id:"pr2", label:"Testing fee", amount:60},
-  {id:"pr3", label:"Sparring gear package", amount:242.50}
-];
-/* Live events for the POS. Falls back to the hardcoded EVENTS mock until the
- * events table exists (SQL block delivered 2026-08-13); rows gain dbId so
- * tender can write real event_registrations. */
-let EVENTS_LIVE = false;
+/* ── catalog state ────────────────────────────────────────────────────────
+ * PRODUCTS and EVENTS start EMPTY and are filled from the products and events
+ * tables. There is deliberately no demo fallback: an empty read leaves the
+ * list empty, and a failed read is SHOWN (CATALOG.*='error') so nobody sells
+ * from a list that did not load. States: loading | ready | empty | error. */
+let PRODUCTS = [];
+const CATALOG = { products:'loading', events:'loading' };
+function catalogRepaint(){
+  if(document.querySelector('#view-pos .bld')) renderPOS();
+  const v = document.getElementById('view-checkout');
+  if(v && v.classList.contains('on')) renderCheckout();
+}
+/* Events: the Checkout Pages editor owns these rows. A row sells in the POS
+ * only when it is marked sellable, has a price, is not archived, and its
+ * date has not passed. EVENTS_ALL keeps every row for the editor. */
+function eventIsSellable(e){
+  const today = new Date().toLocaleDateString('en-CA', { timeZone:'America/Chicago' });
+  return e.sellable===true && e.archived!==true && e.price_cents!=null && (!e.event_date || e.event_date >= today);
+}
+function eventRow(e){
+  return { id:e.id, dbId:e.id, title:e.label||'', price:(e.price_cents||0)/100, priceCents:e.price_cents,
+    date:e.event_date||'', time:e.start_time||'', desc:e.description||e.note||'',
+    qty:!!e.asks_quantity, waiver:e.waiver_required!==false, sellable:e.sellable===true,
+    publicOpen:e.public_open===true, archived:e.archived===true, category:e.category||'', receiptNote:e.receipt_note||'', raw:e };
+}
 async function loadEvents(){
-  // Curriculum owns this table (label/date/category/note/link). An event with
-  // price_cents set is sellable in POS; null = info-only (Curriculum shows it,
-  // POS does not sell it). One table -> student events autopopulate.
-  const { data, error } = await sb.from('events').select('*').order('date', { ascending: true });
-  if(error){ console.error('events load (mock list stays)', error); return; }
-  // The column is `archived`, not `active`. Filtering on a column that does not
-  // exist made every archived event sellable, because undefined !== false.
-  const sellable = (data||[]).filter(e=>e.price_cents!=null && e.archived!==true);
-  if(sellable.length){
-    EVENTS = sellable.map(e=>({ id: e.id, dbId: e.id, title: e.label, price: e.price_cents/100,
-      date: e.date||'', desc: e.note||'', qty:false, participants:[] }));
-    EVENTS_LIVE = true;
-  }
+  const { data, error } = await sb.from('events').select('*').order('event_date', { ascending:true, nullsFirst:false });
+  if(error){ console.error('events load', error); CATALOG.events='error'; EVENTS=[]; EVENTS_ALL=[]; catalogRepaint(); return; }
+  const rows = data||[];
+  EVENTS_ALL = rows.map(eventRow);
+  EVENTS = rows.filter(eventIsSellable).map(eventRow);
+  CATALOG.events = EVENTS.length ? 'ready' : 'empty';
+  catalogRepaint();
 }
 async function loadProducts(){
   const { data, error } = await sb.from('products').select('*').eq('active', true).order('display_order');
-  if(error){ console.error('products load - POS is on the hardcoded fallback list', error); return; }
-  if(data && data.length){
-    PRODUCTS = data.map(p=>({ id:p.id, dbId:p.id, label:p.name, amount:p.price_cents/100, taxable:p.taxable!==false }));
-    if(document.querySelector('#view-pos .bld')) renderPOS(); // repaint if POS is on screen
-  }
+  if(error){ console.error('products load', error); CATALOG.products='error'; PRODUCTS=[]; catalogRepaint(); return; }
+  PRODUCTS = (data||[]).map(p=>({ id:p.id, dbId:p.id, label:p.name, amount:p.price_cents/100, taxable:p.taxable!==false }));
+  CATALOG.products = PRODUCTS.length ? 'ready' : 'empty';
+  catalogRepaint();
 }
 /* Receipt identity. The legal entity is always safe to print; the DBAs are
  * PENDING state filings - until Race flips `effective`, receipts print the
@@ -2246,20 +2409,24 @@ function renderPOS(){
   // Both forms render; the stylesheet picks one - dropdown on phones, big tap
   // targets on desktop (owner call 2026-08-15).
   html+='<div class="pos-sec-lbl">Quick List Products</div>';
+  if(CATALOG.products==='error') html+='<div class="ck-hint" style="color:var(--warn);background:#FDEBEC;border:1px solid #F5C6CB;border-radius:10px;padding:10px 12px;margin:0 0 10px">Product catalog did not load. Reload the page before selling products. One-off items still work.</div>';
+  else if(CATALOG.products==='loading') html+='<div class="ck-hint">Loading products…</div>';
+  else if(CATALOG.products==='empty') html+='<div class="ck-hint">No active products in the catalog.</div>';
+  const prodOk = CATALOG.products==='ready';
   html+='<div class="pos-prodsel"><select onchange="posQuickPick(this)">'
     +'<option value="">Add a product…</option>'
     +'<option value="__oneoff">One-off item… (not saved to your list)</option>'
-    +PRODUCTS.map(p=>'<option value="'+escAttr(p.id)+'">'+escHtml(p.label)+' · '+money(p.amount)+'</option>').join("")
+    +(prodOk ? PRODUCTS.map(p=>'<option value="'+escAttr(p.id)+'">'+escHtml(p.label)+' · '+money(p.amount)+'</option>').join("") : '')
     +'</select></div>';
   html+='<div class="pos-prods">'
     +'<button onclick="posOneOff()" style="border-style:dashed">One-off item…<span class="pp-amt">not saved to your list</span></button>'
-    +PRODUCTS.map(p=>'<button onclick="posAddProdLine(\''+escAttr(p.id)+'\')">'+escHtml(p.label)+'<span class="pp-amt">'+money(p.amount)+'</span></button>').join("")+'</div>';
+    +(prodOk ? PRODUCTS.map(p=>'<button onclick="posAddProdLine(\''+escAttr(p.id)+'\')">'+escHtml(p.label)+'<span class="pp-amt">'+money(p.amount)+'</span></button>').join("") : '')+'</div>';
   html+='<div class="pos-sec-lbl">Reference</div><div class="inv-add">'+PACKETS.map(p=>'<button onclick="openPacket(\''+p.id+'\')">▤ '+p.label+(p.url?'':' · add')+'</button>').join("")+'</div>';
   html+='</div>';
   html+='<div><div class="inv pos-inv">';
   html+='<div class="inv-hd inv-hd-pc">';
-  html+='<div class="im-row"><span>Sold to</span><span class="im-buyer">'+posBuyerName()+' <button class="pb-change" style="font-size:11px;padding:1px 7px" onclick="posPickBuyer()">change</button></span></div>';
-  html+='<div class="im-row"><span>Staff</span><select class="im-field" onchange="posSale.staff=this.value">'+posStaffList().map(n=>'<option'+(n===s.staff?' selected':'')+'>'+n+'</option>').join("")+'</select></div>';
+  html+='<div class="im-row"><span>Sold to</span><span class="im-buyer">'+escHtml(posBuyerName())+' <button class="pb-change" style="font-size:11px;padding:1px 7px" onclick="posPickBuyer()">change</button></span></div>';
+  html+='<div class="im-row"><span>Staff</span><select class="im-field" onchange="posSale.staff=this.value">'+posStaffList().map(n=>'<option'+(n===s.staff?' selected':'')+'>'+escHtml(n)+'</option>').join("")+'</select></div>';
   html+='<div class="im-row"><span>Invoice Date</span><input type="date" class="im-field" value="'+s.date+'" onchange="posSale.date=this.value"></div>';
   html+='<div class="im-row"><span>Receipt as</span><select class="im-field" onchange="posSale.brand=this.value">'+RECEIPT_BRANDS.map(b=>'<option value="'+b.key+'"'+(b.key===s.brand?' selected':'')+'>'+escHtml(b.name)+(b.dba&&!b.effective?' (DBA pending)':'')+'</option>').join("")+'</select></div>';
   html+='</div>';
@@ -2271,7 +2438,7 @@ function renderPOS(){
         const nm = posStudentName(l.studentId);
         meta.push(nm ? ('For '+escHtml(nm)) : '<span style="color:var(--warn);font-weight:700">⚠ Member not attached</span>');
       }
-      if(l.sub) meta.push(l.sub);
+      if(l.sub) meta.push(escHtml(l.sub));
       if(l.override) meta.push("Override · "+escHtml(l.override.reason));
       if(l.discVal) meta.push("Discount "+(l.discType==="amt"?money(l.discVal)+" ea":l.discVal+"% off"));
       if(l.orderIt) meta.push("Order it");
@@ -2289,7 +2456,7 @@ function renderPOS(){
             : '<div class="agr-chip need" onclick="event.stopPropagation();agrOpenSign('+i+')">✍ Sign agreement</div>';
         }
       }
-      html+='<tr onclick="posEditLine('+i+')"><td class="qty">'+(l.qty||1)+'</td><td>'+l.label+sub+agr+'</td><td class="r">'+money(t.lineTotal(l))+'</td></tr>';
+      html+='<tr onclick="posEditLine('+i+')"><td class="qty">'+(l.qty||1)+'</td><td>'+escHtml(l.label)+sub+agr+'</td><td class="r">'+money(t.lineTotal(l))+'</td></tr>';
     });
   } else { html+='<tr><td colspan="3" class="inv-empty" style="padding:24px 15px">No items yet. Search or tap a product to add.</td></tr>'; }
   html+='</tbody></table>';
@@ -2303,7 +2470,7 @@ function renderPOS(){
   html+='<textarea class="inv-notes" placeholder="Invoice notes..." oninput="posSale.notes=this.value">'+(s.notes||"")+'</textarea>';
   if(s.lines.length) html+='<div class="tenders" style="margin-top:11px"><button class="tbtn" onclick="posPayOpen({mode:\'sale\'})">Add payment</button><button class="tbtn" style="background:var(--ink)" onclick="posTender(\'Unpaid\')">Save unpaid</button></div>';
   html+='</div></div>';
-  html+='<div class="proto-note">Every sale writes the pos_sales ledger (see Today\'s drawer). Memberships price live from pricing_plans and save frozen snapshots; products come from the products table. Invoice math is integer cents; discounts reduce the sales-tax base (accountant to confirm). Events are still a local list. Card/ACH arrive with the Stripe build - the fee model is with the attorney.</div></div>';
+  html+='<div class="proto-note">Every sale writes the pos_sales ledger (see Transactions). Memberships price live from pricing_plans and save frozen snapshots; products come from the products table, events from the events table. Invoice math is integer cents; discounts reduce the sales-tax base (accountant to confirm).</div></div>';
   $("#view-pos").innerHTML=html;
 }
 function posPickBuyer(){
@@ -2514,8 +2681,9 @@ function posAddMemLine(code){
 function posAttachSheet(i, isNew){
   const l=posSale.lines[i]; if(!l) return;
   const back = isNew?'true':'false';
+  const sub = l.kind==='event' ? 'Who is attending?' : 'Who receives this membership?';
   $("#sheet").innerHTML='<div class="grab"></div>'
-    +'<div class="sheet-head"><div><h3>Attach a member</h3><div class="sub">Who receives this membership?</div></div><button class="close" onclick="posEditMemLine('+i+','+back+')">×</button></div>'
+    +'<div class="sheet-head"><div><h3>Attach a member</h3><div class="sub">'+sub+'</div></div><button class="close" onclick="posEditLine('+i+','+back+')">×</button></div>'
     +'<div class="sheet-body">'
     +'<div class="search-wrap" style="padding:0"><span class="search-ico" style="left:14px">⌕</span>'
     +'<input id="pos-att-search" class="search" oninput="posAttachSearch('+i+','+back+')" placeholder="Search CRM contacts"></div>'
@@ -2529,12 +2697,13 @@ function posAttachSearch(i, isNew){
   const box=document.getElementById('pos-att-results'); if(!box) return;
   if(q.length<2){ box.innerHTML=''; return; }
   box.innerHTML = MEMBERS.filter(m=>(m.first+' '+m.last).toLowerCase().includes(q)).slice(0,8).map(m=>
-    '<button class="opt-btn" onclick="posPickStudentForLine('+i+',\''+m.id+'\','+(isNew?"true":"false")+')"><span class="oi">'+m.first.charAt(0)+'</span><div style="flex:1">'+escHtml(m.first+' '+m.last)+'<div style="font-size:12px;color:var(--muted)">'+escHtml(m.rank||m.segment||'')+'</div></div></button>'
+    '<button class="opt-btn" onclick="posPickStudentForLine('+i+',\''+m.id+'\','+(isNew?"true":"false")+')"><span class="oi">'+escHtml(m.first.charAt(0))+'</span><div style="flex:1">'+escHtml(m.first+' '+m.last)+'<div style="font-size:12px;color:var(--muted)">'+escHtml(m.rank||m.segment||'')+'</div></div></button>'
   ).join('') || '<div class="ag-empty">No matches.</div>';
 }
 async function posPickStudentForLine(i, id, isNew){
   const l=posSale.lines[i]; if(!l) return;
   l.studentId = id;
+  if(l.kind!=='mem'){ posEditLine(i, isNew); return; }   // event participant: nothing to re-price
   await posRequoteLine(i);
   posEditMemLine(i, isNew);
 }
@@ -2602,13 +2771,25 @@ function posOneOffNext(){
   renderPOS();
   posEditLine(posSale.lines.length-1, true);   // price and the rest go here
 }
-function posAddProdLine(prid){ const p=PRODUCTS.find(x=>x.id===prid); posSale.lines.push({kind:"prod", label:p.label, amount:p.amount, retail:p.amount, taxable:(p.taxable!==undefined?p.taxable:true), productDbId:p.dbId||null}); renderPOS(); posEditLine(posSale.lines.length-1, true); }
+function posAddProdLine(prid){ const p=PRODUCTS.find(x=>x.id===prid); if(!p){ toast('That product is not in the catalog'); return; } posSale.lines.push({kind:"prod", label:p.label, amount:p.amount, retail:p.amount, taxable:(p.taxable!==undefined?p.taxable:true), productDbId:p.dbId||null}); renderPOS(); posEditLine(posSale.lines.length-1, true); }
 function posAddEvent(){
-  const body=EVENTS.map(e=>'<button class="opt-btn" onclick="posAddEventLine(\''+e.id+'\')"><div style="flex:1"><div style="font-weight:700">'+e.title+'</div><div style="font-size:12.5px;color:var(--muted)">adds buyer to the participant list</div></div><div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(e.price)+'</div></button>').join("");
-  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><h3>Add event</h3><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'</div>';
+  let body='';
+  if(CATALOG.events==='error') body='<div class="ag-empty">Events did not load. Reload the page before selling an event.</div>';
+  else if(CATALOG.events==='loading') body='<div class="ag-empty">Loading events…</div>';
+  else if(!EVENTS.length) body='<div class="ag-empty">No sellable events. Create one under Checkout pages → Events and mark it sellable.</div>';
+  else body=EVENTS.map(e=>'<button class="opt-btn" onclick="posAddEventLine(\''+escAttr(e.id)+'\')"><div style="flex:1"><div style="font-weight:700">'+escHtml(e.title)+'</div><div style="font-size:12.5px;color:var(--muted)">'+escHtml([e.date?fmtDate(e.date):'', e.time].filter(Boolean).join(' · ')||'one seat per line')+'</div></div><div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(e.price)+'</div></button>').join("");
+  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Add event</h3><div class="sub">One line per participant</div></div><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'</div>';
   openSheet();
 }
-function posAddEventLine(eid){ const e=EVENTS.find(x=>x.id===eid); posSale.lines.push({kind:"event", eventId:eid, eventDbId:e.dbId||null, label:e.title, amount:e.price}); renderPOS(); posEditLine(posSale.lines.length-1, true); }
+/* One seat per line: the participant (who attends) rides on the line the way
+   a membership line carries its student, defaulting to the "Sold to" contact.
+   An event with no database row can never be added. */
+function posAddEventLine(eid){
+  const e=EVENTS.find(x=>x.id===eid);
+  if(!e || !e.dbId){ toast('That event is not in the catalog'); return; }
+  posSale.lines.push({kind:"event", eventId:eid, eventDbId:e.dbId, label:e.title, amount:e.price, qty:1, studentId: posSale.memberId||null});
+  renderPOS(); posEditLine(posSale.lines.length-1, true);
+}
 function posRemoveLine(i){ posSale.lines.splice(i,1); closeSheet(); renderPOS(); }
 /* Enrollment programs a sold membership implies. pricing_plans.program already
    uses the canonical enrollment vocabulary, so it is used directly; a combined
@@ -3040,6 +3221,7 @@ function agrWaive(i){
 const POS_SERVER_SALES = false;
 
 function addWeeksYMD(ymd, weeks){ const d=new Date(ymd+'T00:00:00'); d.setDate(d.getDate()+weeks*7); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function addDaysYMD(ymd, days){ const d=new Date(ymd+'T00:00:00'); d.setDate(d.getDate()+days); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function posBuildSaleIntent(saleId, method){
   return {
     sale_id: saleId,
@@ -3056,9 +3238,9 @@ function posBuildSaleIntent(saleId, method){
         override: l.override ? { recurringCents:l.override.recurringCents, downCents:l.override.downCents, reason:l.override.reason } : null };
       if(l.kind==='prod') return { kind:'prod', product_id:l.productDbId||null, qty:l.qty||1,
         disc_type: l.discVal ? (l.discType==='amt'?'amt':'pct') : null, disc_val: l.discVal||0 };
-      // Real events send event_id (server prices + registers); mock events
-      // still pass net cents through (documented exception in pos-sale).
-      return { kind:'event', label:l.label, event_id: l.eventDbId||null, cents: Math.round(posLineNet(l)*100) };
+      // Events send the event id and the participant; the server prices from
+      // the events table and registers the participant (never the buyer).
+      return { kind:'event', event_id: l.eventDbId||null, participant_id: l.studentId||null };
     })
   };
 }
@@ -3078,16 +3260,14 @@ async function posTenderServer(method){
       +'<h2>Sale NOT recorded</h2><p>'+escHtml(e.message||String(e))+'</p>'
       +'<div class="ck-hint" style="margin:9px auto 0;max-width:420px;text-align:left">Nothing was written - the invoice you built is still here. If prices changed, reload and re-ring.</div>'
       +'<div style="margin-top:18px"><button class="newbtn" style="margin:0" onclick="renderPOS()">Back to the sale</button></div></div></div>';
-    return;
+    return null;
   }
   INV_BANNER = { saleId: res.sale_id, badges: res.badges||[], notes: res.notes||[], problems: res.problems||[] };
   posSale=posBlank(); POS_ADD={studentId:null}; POS_STUDENT_CTX={};
   showInvoice(res.sale_id, 'pos');
+  return { saleId: res.sale_id, badges: res.badges||[], notes: res.notes||[], problems: res.problems||[] };
 }
 
-/* The POS does not process cards yet - Stripe is a later phase. This confirm
-   exists so tapping "Card" can never quietly pretend the system charged one:
-   staff must assert the terminal already ran it before it is recorded. */
 /* Admin fee (owner rule 2026-08-15, final): pass Stripe's cost through, per
  * method - card 2.9% + 30¢ (admin_fee_bps/admin_fee_flat_cents), ACH 0.8%
  * capped  at the Stripe build (admin_fee_ach_* keys), cash/check never.
@@ -3282,6 +3462,8 @@ function posPayChange(){
   // field above it and in the invoice-total card.
 }
 
+/* A card is kept on file only when the sale has a buyer to attach it to. */
+function pmHasBuyer(){ return !!PAY && (PAY.mode==='sale' ? !!posSale.memberId : !!(PAY.who && PAY.who!=='Walk-in')); }
 function posPayRender(){
   const M = PAY.method;
   const tab = (key,label,ico) => '<button class="pm-tab'+(M===key?' on':'')+'" onclick="posPayTab(\''+key+'\')">'+ico+'<span>'+label+'</span></button>';
@@ -3310,7 +3492,7 @@ function posPayRender(){
       + '<div class="tt">No reader connected</div>'
       + '<div class="td">Once a Stripe smart reader is set up, this sends <b>'+money(PAY.balanceCents/100)+'</b> straight to it and the customer taps there - the result lands back on this invoice on its own.</div>'
       + '<div class="pm-pill"><span class="dot"></span>Not configured yet</div></div>'
-      + '<button class="tbtn" id="pmPay" style="width:100%;margin-top:14px;opacity:.45" onclick="toast(\'No card reader is set up yet - use Credit Card to record a payment run elsewhere.\')">Pay Now</button>'
+      + '<button class="tbtn" id="pmPay" style="width:100%;margin-top:14px;opacity:.45" onclick="toast(\'No card reader is set up yet - use the Card tab to charge it here.\')">Pay Now</button>'
       + '</div>';
     $("#sheet").innerHTML = h;
     return;
@@ -3350,7 +3532,8 @@ function posPayRender(){
     h += '<label class="ed-lbl">Card details</label>'
       + '<div id="pmCardBox" class="pm-cardbox"><div class="pm-cardload">Loading secure card field…</div></div>'
       + '<div id="pmCardErr" class="pm-carderr"></div>'
-      + '<div class="ck-hint" style="margin-top:9px">Charged through Stripe when you press Pay Now. The card is saved to their profile so you can charge it again later.</div>';
+      + '<div class="ck-hint" style="margin-top:9px">Charged through Stripe when you press Pay Now.'
+      + (pmHasBuyer() ? ' The card is saved to their profile so you can charge it again later.' : ' Walk-in sale: the card is not kept on file.')+'</div>';
   }
 
   h += '<div id="pmRemaining"></div>'
@@ -3418,9 +3601,12 @@ let PM_LIVE = false;
  *      ledger, so a tampered browser cannot charge a different number);
  *   2. confirm it here with the card the customer just handed over;
  *   3. ask pos-charge to FINALIZE, which re-reads the intent from Stripe and
- *      only then writes the payment row. The webhook does the same thing as a
+ *      only then writes the payment row, flips the invoice to paid and sends
+ *      the receipt. The webhook does the same thing as a
  *      backstop and both dedupe, so a closed laptop cannot lose the payment. */
-async function pmChargeCard(saleId, amountCents){
+/* paymentMethodId: a PaymentMethod created up front (new sales), so the
+   confirm does not depend on the card field still being on screen. */
+async function pmChargeCard(saleId, amountCents, paymentMethodId){
   try{
     const mk = await sb.functions.invoke('pos-charge', { body:{ action:'intent', sale_id:saleId } });
     if(mk.error || !mk.data || !mk.data.client_secret){
@@ -3432,7 +3618,7 @@ async function pmChargeCard(saleId, amountCents){
       return { ok:false, error:'Card payments must be for the full '+money(mk.data.amount_cents/100)+' balance.' };
     }
     const res = await PM_STRIPE.confirmCardPayment(mk.data.client_secret, {
-      payment_method: { card: PM_CARD }
+      payment_method: paymentMethodId ? paymentMethodId : { card: PM_CARD }
     });
     if(res.error) return { ok:false, error:res.error.message || 'The card was declined.' };
     if(!res.paymentIntent || res.paymentIntent.status !== 'succeeded'){
@@ -3525,10 +3711,10 @@ async function posPaySubmit(){
 
   const btn=document.getElementById('pmPay'); if(btn){ btn.disabled=true; btn.textContent='Recording…'; }
 
-  // ── a card typed at the desk: actually charge it, before anything is
-  // recorded. Only on an EXISTING invoice; a brand-new sale is written first
-  // (posTender) and then charged from its invoice, so there is always a sale
-  // id for Stripe's metadata to point at.
+  // ── Card, EXISTING invoice: charge it through pos-charge before anything
+  // is recorded. The server derives the amount from the ledger, verifies the
+  // PaymentIntent with Stripe, writes the payment row, flips the invoice to
+  // paid and emails the receipt. Nothing here touches the ledger.
   if(method==='Card' && PAY.mode!=='sale'){
     if(!PM_CARD){ toast('The card field did not load - reload and try again'); if(btn){btn.disabled=false;posPayChange();} return; }
     if(btn) btn.textContent='Charging card…';
@@ -3539,12 +3725,50 @@ async function posPaySubmit(){
       if(btn){ btn.disabled=false; posPayChange(); }
       return;
     }
-    // pos-charge already wrote pos_payments and flipped the invoice to paid.
     const sid = PAY.saleId, ro = PAY.reopen;
     PAY = null; PM_CARD = null; closeSheet();
     toast('Card approved. '+money(charged.amount_cents/100)+' paid');
-    posAutoReceipt(sid);
     if(ro==='profile' && currentMember) renderProfile(); else showInvoice(sid, ro||'pos');
+    return;
+  }
+
+  // ── Card, NEW sale. The membership does not wait for the money (owner
+  // rule): the sale is saved exactly as "Save unpaid" saves it - membership
+  // active, roster seeded, agreement filed, invoice open - and THEN the
+  // invoice is charged through pos-charge. A declined card leaves all of
+  // that in place with the invoice unpaid, and records nothing that did not
+  // happen. Staff retry from the invoice.
+  if(method==='Card' && PAY.mode==='sale'){
+    if(!PM_CARD || !PM_STRIPE){ toast('The card field did not load - reload and try again'); if(btn){btn.disabled=false;posPayChange();} return; }
+    if(amt!==PAY.balanceCents){ toast('Card payments are for the full '+money(PAY.balanceCents/100)+' - use Cash or Check for a partial'); if(btn){btn.disabled=false;posPayChange();} return; }
+    if(btn) btn.textContent='Checking card…';
+    // Tokenise first: an incomplete or invalid card fails here, before any
+    // database write, and the charge below no longer depends on the card
+    // field outliving this sheet.
+    let pm;
+    try{ pm = await PM_STRIPE.createPaymentMethod({ type:'card', card: PM_CARD }); }
+    catch(e){ pm = { error:{ message:(e&&e.message)||'Card check failed.' } }; }
+    if(!pm || pm.error || !pm.paymentMethod){
+      const msg = (pm && pm.error && pm.error.message) || 'Check the card details.';
+      pmCardErr(msg); toast(msg);
+      if(btn){ btn.disabled=false; posPayChange(); }
+      return;
+    }
+    const pmId = pm.paymentMethod.id, want = PAY.balanceCents;
+    PAY_DETAIL = null; PAY = null; closeSheet();
+    toast('Saving the sale…');
+    const res = await posTender('Unpaid', { deferNavigation:true, cardPending:true });
+    if(!res || !res.saleId) return;   // not recorded: posTender already said why
+    toast('Charging card…');
+    const charged = await pmChargeCard(res.saleId, want, pmId);
+    PM_CARD = null;
+    if(charged.ok){
+      INV_BANNER = { saleId: res.saleId, badges: res.badges.concat(['Card approved · '+money(charged.amount_cents/100)+' paid']), notes: res.notes, problems: res.problems };
+    } else {
+      INV_BANNER = { saleId: res.saleId, badges: res.badges, notes: res.notes,
+        problems: res.problems.concat(['Card not charged: '+(charged.error||'the card was declined')+'. The sale and membership are saved and the invoice is unpaid. Retry from Add payment, or collect another way.']) };
+    }
+    showInvoice(res.saleId, 'pos');
     return;
   }
 
@@ -3578,7 +3802,12 @@ async function posPaySubmit(){
   showInvoice(saleId, reopen==='inv' ? INV_CUR.from : reopen);
 }
 
-async function posTender(method){
+async function posTender(method, opts){
+  opts = opts || {};
+  // Card payments are never recorded by this client. Only pos-charge (after
+  // Stripe confirms) and the webhook write a card payment row, so a sale that
+  // arrives here as "Card" is saved UNPAID and charged from its invoice.
+  if(method==='Card') method='Unpaid';
   const t=posTotals(), total=t.total;
   const memLines=posSale.lines.filter(l=>l.kind==="mem");
   const eventLines=posSale.lines.filter(l=>l.kind==="event");
@@ -3590,7 +3819,15 @@ async function posTender(method){
   if(unattached.length){
     toast((unattached.length>1?'Attach a member to every membership line':'Attach a member to that membership')+' before completing the sale.');
     posEditMemLine(posSale.lines.indexOf(unattached[0]), false);
-    return;
+    return null;
+  }
+  // An event seat is for someone. The participant is who gets registered,
+  // and that is never assumed to be the buyer.
+  const unattachedEv = eventLines.filter(l=>!l.studentId);
+  if(unattachedEv.length){
+    toast('Attach the participant to every event line before completing the sale.');
+    posEditLine(posSale.lines.indexOf(unattachedEv[0]), false);
+    return null;
   }
 
   // Every tender funnels through here (including the server path below), so
@@ -3599,10 +3836,10 @@ async function posTender(method){
   // knowing who the participant is. Paid sales normally clear this back at
   // posPayOpen - before card details are entered - and arrive already signed
   // or knowingly waived.
-  if(!agrGate()) return;
+  if(!agrGate()) return null;
 
   // A2: hand the whole sale to the server once the pos-sale function is live.
-  if(POS_SERVER_SALES){ await posTenderServer(method); return; }
+  if(POS_SERVER_SALES){ return await posTenderServer(method); }
 
   let notes=[], badges=[], problems=[];
   const staff = await currentStaffEmail();
@@ -3630,7 +3867,7 @@ async function posTender(method){
       sale_date: posSale.date||attYMD(),
       staff_email: staff||posSale.staff||'unknown',
       brand: posSale.brand||'btkd',
-      tender_method: (isUnpaid||isPartial) ? null : (({Cash:'cash',Card:'card',Check:'check'})[method]||'cash'),
+      tender_method: (isUnpaid||isPartial) ? null : (({Cash:'cash',Check:'check'})[method]||'cash'),
       status: (isUnpaid||isPartial) ? 'unpaid' : 'paid',
       subtotal_cents: t.cents.subtotalCents,
       discount_cents: t.cents.discountCents,
@@ -3724,22 +3961,17 @@ async function posTender(method){
     }
   }
   if(eventLines.length){
-    const realEv = eventLines.filter(l=>l.eventDbId);
-    if(realEv.length && m){
-      // Real events: durable registrations, sale-linked. The unique
-      // (event_id, contact_id) index makes re-buying the same event a no-op.
-      const regs = realEv.map(l=>({ event_id: l.eventDbId, contact_id: m.id, sale_id: saleRecorded?saleId:null }));
-      const er = await sb.from('event_registrations').insert(regs);
-      if(er.error && String(er.error.code)!=='23505'){ console.error('event regs', er.error); problems.push('Event registration did not save: '+(er.error.message||er.error)); }
-      else { notes.push(m.first+' '+m.last+' registered for '+realEv.map(l=>l.label).join(', ')+'.'); badges.push('On event list'); }
-    } else if(realEv.length && !m){
-      problems.push('Event sold to a walk-in - no registration recorded. Attach a buyer and re-ring to register them.');
-    }
-    // Mock events (pre-table) keep the old in-memory behavior.
-    const mockEv = eventLines.filter(l=>!l.eventDbId);
-    if(mockEv.length && m){
-      mockEv.forEach(l=>{ const ev=EVENTS.find(x=>x.id===l.eventId); if(ev && ev.participants && !ev.participants.some(p=>p.memberId===m.id)) ev.participants.push({memberId:m.id, paid:true}); });
-      notes.push('Event sign-up noted (mock event - not durable).');
+    // One registration per line, for the PARTICIPANT on that line (who
+    // attends), with the invoice buyer and the sale alongside so it can be
+    // traced back. Registered at tender whether or not money was collected,
+    // like memberships; paid or unpaid is read off the sale. The partial
+    // unique index makes registering the same person twice a no-op.
+    for(const l of eventLines){
+      if(!l.eventDbId || !l.studentId){ problems.push('An event line had no event or no participant and was not registered.'); continue; }
+      const who = posStudentName(l.studentId) || 'participant';
+      const er = await sb.from('event_registrations').insert({ event_id: l.eventDbId, contact_id: l.studentId, buyer_contact_id: posSale.memberId||null, sale_id: saleRecorded?saleId:null, source:'pos' });
+      if(er.error && String(er.error.code)!=='23505'){ console.error('event registration', er.error); problems.push('Event registration for '+who+' did NOT save: '+(er.error.message||er.error)); }
+      else badges.push('Registered · '+who+' · '+l.label);
     }
   }
   // ── LEDGER: line detail + the money row. After memberships, so mem lines
@@ -3751,7 +3983,8 @@ async function posTender(method){
       discount_cents: Math.round(posLineDisc(l)*100),
       taxable: posLineTaxable(l),
       line_total_cents: Math.round(posLineNet(l)*100),
-      student_contact_id: l.kind==='mem' ? (l.studentId||null) : null,
+      student_contact_id: (l.kind==='mem'||l.kind==='event') ? (l.studentId||null) : null,
+      event_id: l.kind==='event' ? (l.eventDbId||null) : null,
       product_id: l.productDbId||null,
       membership_row: l.kind==='mem' ? (l.__snap||null) : null,
       membership_id: l.membershipId||null
@@ -3768,7 +4001,7 @@ async function posTender(method){
       if(pr.error){ console.error('pos_payments insert', pr.error); problems.push('Sale recorded but the payment row did not save: '+(pr.error.message||pr.error)); }
       if(isPartial) notes.push(money((t.cents.totalCents-payAmt)/100)+' still owed - the invoice stays open until it is paid.');
       if(PAY_DETAIL && PAY_DETAIL.changeCents>0) notes.push('Change given: '+money(PAY_DETAIL.changeCents/100)+'.');
-    } else {
+    } else if(!opts.cardPending) {
       notes.push('Saved as an unpaid invoice - collect it from Transactions.');
     }
   }
@@ -3794,11 +4027,15 @@ async function posTender(method){
   // Recorded sale → land straight on its invoice, tender messages riding
   // along as a one-time banner (per Race 2026-08-10). The standalone screen
   // survives only for the case where no invoice row exists to land on.
+  const result = { saleId: saleRecorded ? saleId : null, badges: badges, notes: notes, problems: problems };
   if(saleRecorded){
-    INV_BANNER = { saleId: saleId, badges: badges, notes: notes, problems: problems };
     posSale=posBlank(); POS_ADD={studentId:null}; POS_STUDENT_CTX={};
+    // deferNavigation: the caller (a card charge) lands on the invoice itself
+    // once it knows whether the card went through.
+    if(opts.deferNavigation) return result;
+    INV_BANNER = { saleId: saleId, badges: badges, notes: notes, problems: problems };
     showInvoice(saleId, 'pos');
-    return;
+    return result;
   }
   let h='<div class="bld"><div class="success"><div class="chk">!</div>'
     +'<h2>Sale taken - needs attention</h2>'
@@ -3809,6 +4046,7 @@ async function posTender(method){
     +'<button class="newbtn" style="margin:0" onclick="posPrintReceipt()">'+(isUnpaid?'Print invoice':'Print receipt')+'</button>'
     +'<button class="newbtn" style="margin:0" onclick="posReset()">New sale</button></div></div></div>';
   $("#view-pos").innerHTML=h;
+  return result;
 }
 
 function posBuyerLabel(cid){ if(!cid) return 'Walk-in'; const m=MEMBERS.find(x=>x.id===cid); return m?(m.first+' '+m.last):'Unknown'; }
@@ -3859,7 +4097,8 @@ async function posTransactions(){
  * Payments are rows AGAINST an invoice. Partial amounts are allowed; the
  * balance is the payments-table sum, and when it reaches zero the invoice
  * flips to paid automatically (tender_method = the method that finished it). */
-/* Compatibility shim: every old call site opens the unified modal. */
+/* Opens the unified payment modal against an existing unpaid invoice
+   (caller: the invoice view's "Add payment" button). */
 function posAddPaymentSheet(saleId, balanceCents, who, reopen){
   sb.from('pos_sales').select('total_cents,admin_fee_cents').eq('id', saleId).single().then(function(r){
     const s = r.data||{};
@@ -3867,73 +4106,6 @@ function posAddPaymentSheet(saleId, balanceCents, who, reopen){
                  totalCents: s.total_cents||balanceCents, feeCents: s.admin_fee_cents||0,
                  who:who, reopen:reopen });
   });
-}
-function posAddPaymentSheetLegacy(saleId, balanceCents, who, reopen){
-  const back = reopen==='inv' ? ('showInvoice(\''+saleId+'\')') : 'posTransactions()';
-  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Add payment</h3><div class="sub">'+escHtml(who)+' · '+money(balanceCents/100)+' owed</div></div><button class="close" onclick="closeSheet();'+back+'">×</button></div>'
-    +'<div class="sheet-body">'
-    +'<label class="ed-lbl">Amount ($)</label><input id="apAmt" class="ed-in" inputmode="decimal" value="'+dollarsFromCents(balanceCents)+'">'
-    +'<div class="ck-hint" style="margin:8px 0 11px">Partial payments are fine - the invoice stays open until the balance hits zero, then marks itself paid.</div>'
-    +['Cash','Check','Card'].map(m=>'<button class="addopt" onclick="posApMethod(\''+saleId+'\',\''+m+'\','+balanceCents+',\''+(reopen||'')+'\')">'+m+'</button>').join('')
-    +'</div>';
-  openSheet();
-}
-/* Method chosen while collecting: paper money on a fee-carrying UNPAID
- * invoice gets the same remove-fee question before the payment records.
- * Removing rewrites admin_fee_cents/total on the still-unpaid sale (its
- * totals are only frozen once money exists against them), then reopens the
- * sheet at the corrected balance. Card records straight through. */
-async function posApMethod(saleId, method, balanceCents, reopen){
-  if(method==='Card'){ posAddPayment(saleId, method, balanceCents, reopen); return; }
-  const r = await sb.from('pos_sales').select('admin_fee_cents,total_cents,status,buyer_contact_id').eq('id', saleId).single();
-  const s = r.data;
-  if(r.error || !s || s.status!=='unpaid' || !(s.admin_fee_cents>0)){ posAddPayment(saleId, method, balanceCents, reopen); return; }
-  const fee = s.admin_fee_cents;
-  $("#sheet").innerHTML='<div class="grab"></div>'
-    +'<div class="sheet-head"><div><h3>Remove admin fee?</h3><div class="sub">'+method+' payment · fee is '+money(fee/100)+'</div></div><button class="close" onclick="closeSheet()">×</button></div>'
-    +'<div class="sheet-body">'
-    +'<div class="ck-hint" style="margin-bottom:11px">'+method+' doesn\'t carry the card-processing fee. Remove it? The balance becomes '+money((balanceCents-fee)/100)+'.</div>'
-    +'<button class="addopt" onclick="posApRemoveFee(\''+saleId+'\','+fee+',\''+(reopen||'')+'\')">Yes - remove it</button>'
-    +'<button class="addopt" style="margin-top:8px" onclick="posAddPaymentSheet(\''+saleId+'\','+balanceCents+',\''+escJs(posBuyerLabel(s.buyer_contact_id))+'\',\''+(reopen||'')+'\')">No - keep the fee</button>'
-    +'</div>';
-}
-async function posApRemoveFee(saleId, feeCents, reopen){
-  const upd = await sb.from('pos_sales')
-    .update({ admin_fee_cents: 0 })
-    .eq('id', saleId).eq('status','unpaid').gt('admin_fee_cents', 0).select('id,total_cents,buyer_contact_id');
-  if(upd.error){ toast('Could not remove the fee: '+(upd.error.message||upd.error)); return; }
-  if(!upd.data || !upd.data.length){ toast('Fee not removed - the invoice may no longer be unpaid.'); return; }
-  const row = upd.data[0];
-  const newTotal = row.total_cents - feeCents;
-  const tu = await sb.from('pos_sales').update({ total_cents: newTotal }).eq('id', saleId).eq('status','unpaid').select('id');
-  if(tu.error || !tu.data || !tu.data.length){ toast('Fee zeroed but total did not update - check the invoice.'); return; }
-  const pRes = await sb.from('pos_payments').select('amount_cents').eq('sale_id', saleId);
-  const paidNet = (pRes.data||[]).reduce((a,p)=>a+p.amount_cents,0);
-  toast('Admin fee removed');
-  posAddPaymentSheet(saleId, Math.max(newTotal - paidNet, 0), posBuyerLabel(row.buyer_contact_id), reopen);
-}
-async function posAddPayment(saleId, method, balanceCents, reopen){
-  const cents = centsFromInput(document.getElementById('apAmt').value||'');
-  if(cents<=0){ toast('Enter the payment amount'); return; }
-  if(cents>balanceCents){ toast('That is more than the '+money(balanceCents/100)+' owed'); return; }
-  const partial = cents < balanceCents;
-  const pr = await sb.from('pos_payments').insert({ sale_id: saleId, kind:'charge', amount_cents: cents, method: method.toLowerCase(), note: method+(partial?' (partial)':'') });
-  if(pr.error){ toast('Payment did not record: '+(pr.error.message||pr.error)); return; }
-  if(!partial){
-    // Balance is zero - auto-mark paid. The finishing method becomes the
-    // invoice's tender_method; the payments table holds the full story.
-    const upd = await sb.from('pos_sales')
-      .update({ status:'paid', tender_method:method.toLowerCase(), confirmed_at:new Date().toISOString() })
-      .eq('id', saleId).eq('status','unpaid').select('id');
-    if(upd.error) console.error('auto-paid update', upd.error);
-    // RLS can filter an update to zero rows without an error; the payment row
-    // still recorded, so just say what happened.
-    toast('Paid in full - '+money(cents/100)+' by '+method.toLowerCase());
-  } else {
-    toast('Payment recorded - '+money((balanceCents-cents)/100)+' still owed');
-  }
-  closeSheet();
-  if(reopen==='inv') showInvoice(saleId, INV_CUR.from); else posTransactions();
 }
 
 /* Print = the SAME card the screen shows, minus buttons (owner rule
@@ -4025,12 +4197,9 @@ const IV_ICO = {
   check: "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"2\" y=\"5\" width=\"20\" height=\"14\" rx=\"2\"/><path d=\"M6 10h6\"/><path d=\"m15.5 14.5 1.5 1.5 3-3\"/></svg>",
   nfc: "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 8.5a7 7 0 0 1 0 7\"/><path d=\"M9.5 6a11 11 0 0 1 0 12\"/><path d=\"M13 3.5a15 15 0 0 1 0 17\"/><path d=\"M17 7l4 5-4 5\"/></svg>",
   doc: "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z\"/><path d=\"M14 2v6h6\"/><line x1=\"8\" y1=\"13\" x2=\"14\" y2=\"13\"/><line x1=\"8\" y1=\"17\" x2=\"12\" y2=\"17\"/></svg>",
-  calc: "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"4\" y=\"2\" width=\"16\" height=\"20\" rx=\"2\"/><line x1=\"8\" y1=\"6\" x2=\"16\" y2=\"6\"/><line x1=\"8\" y1=\"11\" x2=\"8.01\" y2=\"11\"/><line x1=\"12\" y1=\"11\" x2=\"12.01\" y2=\"11\"/><line x1=\"16\" y1=\"11\" x2=\"16.01\" y2=\"11\"/><line x1=\"8\" y1=\"16\" x2=\"8.01\" y2=\"16\"/><line x1=\"12\" y1=\"16\" x2=\"12.01\" y2=\"16\"/><line x1=\"16\" y1=\"16\" x2=\"16.01\" y2=\"16\"/></svg>",
   checkcircle: "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"m8 12 3 3 5-6\"/></svg>",
   question: "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/></svg>",
-  bang: "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"12\" y1=\"7\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/></svg>",
   link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>',
-  wallet: "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"2\" y=\"5\" width=\"20\" height=\"14\" rx=\"2\"/><line x1=\"2\" y1=\"10\" x2=\"22\" y2=\"10\"/></svg>"
 };
 /* Circular brand avatar: dark circle + white wordmark for BTKD, light circle
    for the GBS bear, initials fallback for the plain LLC. */
@@ -4256,6 +4425,8 @@ async function posCopyInvoiceLink(saleId){
 
 async function showInvoice(saleId, from){
   INV_CUR = { id: saleId, from: from||INV_CUR.from||'pos' };
+  loadBalances();   // every money action lands here; keep the roster figures honest
+  loadMemberPlans();
   closeSheet();
   document.querySelectorAll(".view").forEach(v=>v.classList.remove("on"));
   $("#view-invoice").classList.add("on");
@@ -4578,12 +4749,14 @@ async function posCloseInvoice(saleId){
   closeSheet(); showInvoice(saleId, INV_CUR.from);
 }
 async function posDeleteInvoiceSheet(saleId){
-  const [mRes, eRes] = await Promise.all([
+  const [mRes, eRes, rRes] = await Promise.all([
     sb.from('memberships').select('id').eq('sale_id', saleId),
-    sb.from('enrollments').select('id').eq('sale_id', saleId)
+    sb.from('enrollments').select('id').eq('sale_id', saleId),
+    sb.from('event_registrations').select('id').eq('sale_id', saleId)
   ]);
-  const nm=(mRes.data||[]).length, ne=(eRes.data||[]).length;
-  const unwind = (nm||ne) ? '<div class="ck-hint" style="margin-bottom:11px;color:var(--warn)">Also removes what this sale created: '+(nm?nm+' membership'+(nm>1?'s':''):'')+(nm&&ne?' and ':'')+(ne?ne+' enrollment'+(ne>1?'s':''):'')+'.</div>' : '';
+  const nm=(mRes.data||[]).length, ne=(eRes.data||[]).length, nr=(rRes.data||[]).length;
+  const parts=[nm?nm+' membership'+(nm>1?'s':''):'', ne?ne+' enrollment'+(ne>1?'s':''):'', nr?nr+' event registration'+(nr>1?'s':''):''].filter(Boolean);
+  const unwind = parts.length ? '<div class="ck-hint" style="margin-bottom:11px;color:var(--warn)">Also removes what this sale created: '+parts.join(', ')+'.</div>' : '';
   $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Delete invoice</h3><div class="sub">As if it never happened</div></div><button class="close" onclick="closeSheet()">×</button></div>'
     +'<div class="sheet-body"><div class="ck-hint" style="margin-bottom:11px">Only unpaid invoices with no payments can be deleted. This cannot be undone.</div>'
     +unwind
@@ -4606,6 +4779,8 @@ async function posDeleteInvoice(saleId){
   const ri = await sb.from('membership_installments')
     .update({ status:'scheduled', sale_id:null }).eq('sale_id', saleId).select('id');
   if(ri.error){ toast('Could not release the scheduled payment: '+(ri.error.message||ri.error)); return; }
+  const rg = await sb.from('event_registrations').delete().eq('sale_id', saleId).select('id');
+  if(rg.error){ toast('Could not remove event registrations: '+(rg.error.message||rg.error)); return; }
   const mm = await sb.from('memberships').delete().eq('sale_id', saleId).select('id');
   if(mm.error){ toast('Could not remove memberships: '+(mm.error.message||mm.error)); return; }
   const ds = await sb.from('pos_sales').delete().eq('id', saleId).select('id');
@@ -4726,9 +4901,9 @@ function posSearch(q){
   const all = q==="*";
   let h="";
   MEMBERS.filter(m=>all||(m.first+" "+m.last).toLowerCase().includes(q)).slice(0,all?40:5)
-    .forEach(m=>h+='<button class="opt-btn" onclick="posSetBuyer(\''+m.id+'\')"><span class="oi">'+m.first.charAt(0)+'</span><div style="flex:1">'+m.first+' '+m.last+'<div style="font-size:12px;color:var(--muted)">set as buyer</div></div></button>');
+    .forEach(m=>h+='<button class="opt-btn" onclick="posSetBuyer(\''+m.id+'\')"><span class="oi">'+escHtml(m.first.charAt(0))+'</span><div style="flex:1">'+escHtml(m.first+' '+m.last)+'<div style="font-size:12px;color:var(--muted)">set as buyer</div></div></button>');
   PRODUCTS.filter(p=>all||p.label.toLowerCase().includes(q)).slice(0,all?40:5)
-    .forEach(p=>h+='<button class="opt-btn" onclick="posAddProdLine(\''+p.id+'\')"><span class="oi">▦</span><div style="flex:1">'+p.label+'</div><div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(p.amount)+'</div></button>');
+    .forEach(p=>h+='<button class="opt-btn" onclick="posAddProdLine(\''+p.id+'\')"><span class="oi">▦</span><div style="flex:1">'+escHtml(p.label)+'</div><div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(p.amount)+'</div></button>');
   box.innerHTML = h || '<div class="inv-empty" style="padding:14px">No matches.</div>';
 }
 function posLineTaxable(l){ return l.taxable!==undefined ? l.taxable : l.kind==="prod"; }
@@ -4807,24 +4982,30 @@ async function posSaveMemLine(i){
 function posEditLine(i,isNew){
   const l=posSale.lines[i];
   if(l && l.kind==="mem"){ posEditMemLine(i,isNew); return; }
+  const isEvent = l.kind==="event", backB = isNew?'true':'false';
+  const pname = isEvent ? posStudentName(l.studentId) : null;
+  // Who attends. Defaults to "Sold to"; a parent buying for a child changes it.
+  const participantRow = !isEvent ? '' : (pname
+    ? '<div class="im-row" style="margin-bottom:12px"><span>Participant</span><span class="im-buyer">'+escHtml(pname)+' <button class="pb-change" style="font-size:11px;padding:1px 7px" onclick="posAttachSheet('+i+','+backB+')">change</button></span></div>'
+    : '<div class="ck-hint" style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px"><span>⚠ No participant - who is attending?</span><button class="pb-change" style="font-size:11px;padding:1px 7px;flex-shrink:0;white-space:nowrap" onclick="posAttachSheet('+i+','+backB+')">Attach participant</button></div>');
   const taxable=posLineTaxable(l);
   const cat=l.category||posDefaultCat(l);
   posEditDiscType=l.discType||"pct";
-  const card='<div class="spk-card"><div class="spk-card-ttl">'+l.label+'</div>'
-    +(l.sub?'<div class="spk-card-desc">'+l.sub+'</div>':'')
+  const card='<div class="spk-card"><div class="spk-card-ttl">'+escHtml(l.label)+'</div>'
+    +(l.sub?'<div class="spk-card-desc">'+escHtml(l.sub)+'</div>':'')
     +'<div class="spk-card-row"><b>Price:</b> '+money(l.amount)+'</div></div>';
   const form='<div class="spk-form">'
     +'<label class="spk-label">Income Category</label>'
     +'<select id="edCat" class="ed-in spk-select">'+POS_CATEGORIES.map(c=>'<option'+(c===cat?" selected":"")+'>'+c+'</option>').join("")+'</select>'
     +'<label class="spk-label">Price</label>'
     +'<div class="spk-price"><span class="spk-dollar">$</span><input id="edPrice" class="ed-in" type="number" step="0.01" value="'+l.amount+'"></div>'
-    +'<div class="spk-qty-row"><label class="spk-label" style="margin:0">Qty</label><input id="edQty" class="ed-in spk-qty" type="number" min="1" value="'+(l.qty||1)+'"></div>'
+    +(isEvent ? '' : '<div class="spk-qty-row"><label class="spk-label" style="margin:0">Qty</label><input id="edQty" class="ed-in spk-qty" type="number" min="1" value="'+(l.qty||1)+'"></div>')
     +posSwitch("edTax",taxable,"Sales Tax")
     +posSwitch("edOrder",!!l.orderIt,"Order It")
     +'<div class="spk-disc-hd"><b>Apply Discount?</b> <span class="spk-disc-sub">applies to each qty.</span></div>'
     +'<div class="spk-disc-row"><div class="spk-seg"><button type="button" class="spk-seg-b'+(posEditDiscType==="pct"?" active":"")+'" id="discPct" onclick="posSetDiscType(\'pct\')">% Off</button><button type="button" class="spk-seg-b'+(posEditDiscType==="amt"?" active":"")+'" id="discAmt" onclick="posSetDiscType(\'amt\')">$ Off</button></div>'
     +'<div class="spk-disc-in"><input id="edDisc" class="ed-in" type="number" step="0.01" min="0" value="'+(l.discVal||0)+'"><span class="spk-suf" id="discSuf">'+(posEditDiscType==="amt"?"$":"%")+'</span></div></div>'
-    +'<label class="spk-label">Notes</label><textarea id="edNote" class="ed-in spk-note">'+(l.note||"")+'</textarea>'
+    +'<label class="spk-label">Notes</label><textarea id="edNote" class="ed-in spk-note">'+escHtml(l.note||"")+'</textarea>'
     +'</div>';
   const foot='<div class="spk-foot">'
     +'<button class="spk-cancel" onclick="posEditCancel('+i+','+(isNew?"true":"false")+')">Cancel</button>'
@@ -4832,7 +5013,7 @@ function posEditLine(i,isNew){
     +'<button class="spk-add" onclick="posSaveLine('+i+')">'+(isNew?"Add":"Save")+'</button></div>';
   $("#sheet").classList.add("sheet-lg");
   $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head spk-head"><h3>'+(isNew?"Add to invoice":"Edit line")+'</h3><button class="close" onclick="posEditCancel('+i+','+(isNew?"true":"false")+')">×</button></div>'
-    +'<div class="sheet-body spk-body"><div class="spk-grid">'+card+form+'</div></div>'+foot;
+    +'<div class="sheet-body spk-body">'+participantRow+'<div class="spk-grid">'+card+form+'</div></div>'+foot;
   openSheet();
 }
 function posSetDiscType(t){
@@ -4844,7 +5025,7 @@ function posSetDiscType(t){
 function posEditCancel(i,isNew){ if(isNew) posSale.lines.splice(i,1); closeSheet(); renderPOS(); }
 function posSaveLine(i){
   const l=posSale.lines[i];
-  l.qty=parseInt(document.getElementById("edQty").value,10)||1;
+  const qEl=document.getElementById("edQty"); l.qty = qEl ? (parseInt(qEl.value,10)||1) : 1;
   l.amount=parseFloat(document.getElementById("edPrice").value)||0;
   l.taxable=document.getElementById("edTax").checked;
   l.orderIt=document.getElementById("edOrder").checked;
@@ -4903,8 +5084,7 @@ function packetUpload(id,input){
 }
 
 /* ========== calendar ========== */
-// Live data: calendar_events (Supabase) + trial bookings. CAL stays for compat.
-let CAL = [];
+// Live data: calendar_events (Supabase) + trial_bookings.
 const CAL_TYPES = {
   event:{label:"Events", color:"#C98A1A"},
   testing:{label:"Testing", color:"#6D4FCF"},
@@ -4964,7 +5144,6 @@ function calAllItems(){
       memberId:e.member_id||null, linkUrl:e.link_url||null, paid:e.paid});
   });
   CAL_TRIALS.forEach(t=>items.push(t));
-  CAL.forEach(c=>{ items.push({type:c.type, title:c.title, time:c.time||"", date:new Date(c.date), srcId:c.id, memberId:c.memberId}); });
   return items.filter(i=>!isNaN(i.date));
 }
 function sameDay(a,b){ return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
@@ -4976,7 +5155,7 @@ function calRowHtml(i){
   const c=CAL_TYPES[i.type];
   const meta=(i.time?i.time+" · ":"")+c.label;
   let click="";
-  if(i.linkUrl) click=' onclick="window.open(\''+escAttr(i.linkUrl)+'\',\'_blank\')"';
+  if(i.linkUrl) click=' onclick="window.open(\''+escJs(i.linkUrl)+'\',\'_blank\')"';
   else if(i.memberId) click=' onclick="openProfile(\''+i.memberId+'\')"';
   const paidTag=i.paid===true?'<span class="seg active" style="margin-right:6px">Paid</span>'
               :i.paid===false?'<span class="seg" style="margin-right:6px">Unpaid</span>':"";
@@ -5206,10 +5385,10 @@ function renderProfile(){
   else if(m.entered) facts.push('Lead since '+escHtml(m.entered));
 
   html += '<div class="phead">'
-    + '<div class="pav" style="background:'+beltC+'">'+ring+'<span style="color:'+(m.belt==="White"||m.belt==="Yellow"?"#15171C":"#fff")+'">'+initials(m)+'</span></div>'
+    + '<div class="pav" style="background:'+beltC+'">'+ring+'<span style="color:'+(m.belt==="White"||m.belt==="Yellow"?"#15171C":"#fff")+'">'+escHtml(initials(m))+'</span></div>'
     + '<div class="phead-body">'
     + '<div class="pname">'+escHtml(m.first+' '+m.last)
-    + ' <span class="pseg" style="background:'+segBg+';color:'+segCol+'">'+m.segment+'</span></div>'
+    + ' <span class="pseg" style="background:'+segBg+';color:'+segCol+'">'+escHtml(m.segment)+'</span></div>'
     + '<div class="pmeta">'+escHtml([m.phase, m.rank||''].filter(Boolean).join(' · ')||m.segment)+'</div>'
     + beltBar
     + (facts.length?'<div class="phead-facts">'+facts.join(' · ')+'</div>':'')
@@ -5269,11 +5448,11 @@ function renderProfile(){
 
   // training & gear (martial-arts-native)
   html += '<div class="sec" data-ptab="overview"><div class="sec-h">Training &amp; gear</div><div class="card pad">';
-  if(m.belt) html += '<div class="kv"><span class="k">Belt</span><span class="v"><span class="belt-bar" style="background:'+beltC+'"></span>'+m.rank+'</span></div>';
-  if(m.beltSize) html += kv("Belt size", m.beltSize);
-  if(m.kickSize) html += kv("Kick size", m.kickSize);
+  if(m.belt) html += '<div class="kv"><span class="k">Belt</span><span class="v"><span class="belt-bar" style="background:'+beltC+'"></span>'+escHtml(m.rank)+'</span></div>';
+  if(m.beltSize) html += kv("Belt size", escHtml(m.beltSize));
+  if(m.kickSize) html += kv("Kick size", escHtml(m.kickSize));
   html += kv("Student app", m.app?"Yes":"No");
-  if(m.source) html += kv("Source", m.source);
+  if(m.source) html += kv("Source", escHtml(m.source));
   html += '</div></div>';
 
   // attendance (real, from the attendance table)
@@ -5305,10 +5484,6 @@ function renderProfile(){
     + '<button class="fchip" data-f="paid" onclick="profInvFilter(\'paid\')">Paid</button>'
     + '<button class="fchip" data-f="unpaid" onclick="profInvFilter(\'unpaid\')">Unpaid</button>'
     + '</div><div id="prof-invoices"><div class="card pad" style="color:var(--muted);font-size:14px">Loading…</div></div></div>';
-
-  // access & role (authorization)
-  const _role = m.role || "Student";
-  html += '<div class="sec" data-ptab="overview"><div class="sec-h">Access &amp; role</div><div class="card pad role-row"><div><span class="role-badge '+_role.toLowerCase()+'">'+_role+'</span><div class="role-desc">'+roleDesc(_role)+'</div></div><button class="pb-change" onclick="openRole()">Set access</button></div></div>';
 
   // household (billing family - filled async by loadProfileHousehold)
   html += '<div class="sec"><div class="sec-h">Household</div><div class="card pad" id="prof-hh">Loading…</div></div>';
@@ -5348,7 +5523,6 @@ function renderProfile(){
 }
 
 /* ── profile redesign engine (2026-08-17) ─────────────────────────────────*/
-const BELT_ORDER = ['White','Yellow','Orange','Green','Purple','Blue','Brown','Red','Black'];
 let PROF_TAB = 'invoices';  // no Overview tab: the overview is always on screen
 
 /* Tabs exist on desktop; the phone shows every section stacked, same data.
@@ -5733,7 +5907,7 @@ async function memEditSave(){
   // The trail is best-effort: a failure here must not undo a saved change,
   // but it must be loud, because a silent gap in an audit trail is worse
   // than no audit trail at all.
-  const who = (typeof currentEmail!=='undefined' && currentEmail) ? currentEmail : 'staff';
+  const who = await currentStaffEmail();
   const rows = changed.map(f => ({
     membership_id: before.id, contact_id: before.contact_id, field: f.label,
     old_value: String(before[f.key] ?? ""), new_value: String(next[f.key] ?? ""),
@@ -5867,7 +6041,7 @@ async function memSchedSave(){
   });
   if(!edits.length){ closeSheet(); toast("Nothing changed"); return; }
   if(!reason){ toast("Say why - it goes on the record"); $("#sc-reason").focus(); return; }
-  const who=(typeof currentEmail!=="undefined"&&currentEmail)?currentEmail:"staff";
+  const who=await currentStaffEmail();
   // Record what actually landed. A failure partway through used to return
   // early and skip the audit insert, leaving changed money with no trail.
   const done=[]; let failed=null;
@@ -5894,7 +6068,7 @@ async function memSchedWaive(id){
   const x=SCHED.insts.find(r=>r.id===id); if(!x) return;
   const { error } = await sb.from("membership_installments").update({ status:"waived", note:reason }).eq("id", id);
   if(error){ toast("Could not waive it"); return; }
-  const who=(typeof currentEmail!=="undefined"&&currentEmail)?currentEmail:"staff";
+  const who=await currentStaffEmail();
   await sb.from("membership_edits").insert({ membership_id:SCHED.ms.id, contact_id:SCHED.ms.contact_id,
     field:"installment "+x.seq+" status", old_value:x.status, new_value:"waived", reason:reason, edited_by:who });
   // Waiving settles that date, so move the member past it. Otherwise the
@@ -5956,7 +6130,7 @@ async function memSchedInvoice(id){
       if(up.error){ console.error("installment reprice", up.error); toast("Could not save the new price"); MEM_SCHED_BUSY=false; return; }
       await sb.from("membership_edits").insert({ membership_id:ms.id, contact_id:ms.contact_id,
         field:"installment "+x.seq+" amount", old_value:String(x.amount_cents), new_value:String(typed),
-        reason:why, edited_by:(typeof currentEmail!=="undefined"&&currentEmail)?currentEmail:"staff" });
+        reason:why, edited_by:await currentStaffEmail() });
       x.amount_cents=typed;
     }
   }
@@ -5969,7 +6143,7 @@ async function memSchedInvoice(id){
   }
   let brand="btkd";
   try{ const c=await sb.from("contacts").select("brand").eq("id", ms.contact_id).maybeSingle(); if(c.data&&c.data.brand) brand=c.data.brand; }catch(e){}
-  const who=(typeof currentEmail!=="undefined"&&currentEmail)?currentEmail:"staff";
+  const who=await currentStaffEmail();
   const saleId=crypto.randomUUID();
   const label=(ms.program||"Membership")+" - installment "+x.seq+" of "+SCHED.insts.length;
   const { error:sErr } = await sb.from("pos_sales").insert({
@@ -6030,7 +6204,6 @@ async function loadProfileMemberships(contactId){
     if(aErr) console.error('agreements load', aErr);
     else (ags||[]).forEach(a=>{ if(!agrBy[a.membership_id]) agrBy[a.membership_id]=a; });
   }
-  PROF_AGR = agrBy;
   // Payment schedules for these memberships, one query for the whole card.
   let instBy = {};
   if(rows.length){
@@ -6124,7 +6297,6 @@ async function loadProfileMemberships(contactId){
   h += '<div class="ccg-sub" style="margin-top:2px">Agreement status is required for all memberships.</div>';
   box.innerHTML = h;
 }
-let PROF_AGR = {};
 let PROF_INST = {};
 
 /* Read a stored agreement back. The document is re-rendered from the frozen
@@ -6198,7 +6370,7 @@ async function loadProfileAttendance(id){
   h+='<div class="kv"><span class="k">Last seen</span><span class="v">'+(last||'-')+'</span></div>';
   if(rows.length){
     h+='<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:6px;">';
-    rows.slice(0,15).forEach(r=>{ h+='<div class="tc-row"><div class="tc-info"><div class="tc-name">'+String(r.class_label||'').replace(/\s{2,}/g,' · ')+'</div><div class="tc-when">'+r.class_date+'</div></div></div>'; });
+    rows.slice(0,15).forEach(r=>{ h+='<div class="tc-row"><div class="tc-info"><div class="tc-name">'+escHtml(String(r.class_label||'').replace(/\s{2,}/g,' · '))+'</div><div class="tc-when">'+escHtml(r.class_date)+'</div></div></div>'; });
     h+='</div>';
   } else { h+='<div style="color:var(--muted);font-size:13px;margin-top:6px;">No check-ins in this window.</div>'; }
   box.innerHTML=h;
@@ -6207,82 +6379,6 @@ function profAttSetWindow(w){ PROF_ATT_WIN=w;
   document.querySelectorAll('.prof-att-tg').forEach(b=>{ const on=b.dataset.w===w;
     b.style.background=on?'var(--surface)':'#fff'; b.style.color=on?'var(--ink)':'var(--muted)'; b.style.borderColor=on?'var(--ink)':'var(--line)'; });
   loadProfileAttendance(currentMember.id);
-}
-
-/* ========== membership actions sheet ========== */
-function roleDesc(role){
-  return (role==="Owner"||role==="Admin") ? "Full access: front office (this CRM) and the floor apps."
-   : role==="Instructor" ? "Floor apps only (Testing, Curriculum, Class Plan, Leadership). No office or money screens."
-   : role==="Leader" ? "On the leadership team. Student app access plus leadership tools."
-   : "Student and parent app access. No staff tools.";
-}
-function openRole(){
-  const cur=currentMember.role||"Student";
-  const roles=[["Student","Student & parent app only"],["Leader","Leadership team member"],["Instructor","Floor apps · no office or money"],["Admin","Full office + floor access"]];
-  const body=roles.map(r=>'<button class="opt-btn'+(cur===r[0]?' on':'')+'" onclick="setRole(\''+r[0]+'\')"><span class="oi">'+r[0].charAt(0)+'</span><div style="flex:1"><div style="font-weight:700">'+r[0]+'</div><div style="font-size:12.5px;color:var(--muted)">'+r[1]+'</div></div>'+(cur===r[0]?'<span style="color:var(--go);font-weight:700">✓</span>':'')+'</button>').join("");
-  $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Access &amp; role</h3><div class="sub">Sets what '+currentMember.first+' can open. This is the permission line into the floor apps.</div></div><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'<div class="proto-note" style="margin-top:6px">Leadership is a program they enroll in. Leader and Instructor here are access roles, separate from what they pay for.</div></div>';
-  openSheet();
-}
-function setRole(r){ currentMember.role=r; closeSheet(); renderProfile(); toast("Access set to "+r); }
-function memActions(i){
-  const ms = currentMember.memberships[i];
-  $("#sheet").innerHTML = '<div class="grab"></div>'
-    + '<div class="sheet-head"><div><h3>'+ms.program+'</h3><div class="sub">'+ms.plan+'</div></div>'
-    + '<button class="close" onclick="closeSheet()">×</button></div>'
-    + '<div class="sheet-body">'
-    + '<button class="opt-btn" onclick="openMemEdit('+i+')"><span class="oi">✎</span>Edit plan &amp; payments</button>'
-    + '<button class="opt-btn" onclick="memAgreement('+i+')"><span class="oi">▤</span>'+(ms.agreementId?'View signed agreement':'Agreement: none on file')+'</button>'
-    + (ms.status==="active"
-        ? '<button class="opt-btn" onclick="setMemStatus('+i+',\'paused\')"><span class="oi">❙❙</span>Pause membership</button>'
-        : ms.status==="paused"
-          ? '<button class="opt-btn" onclick="setMemStatus('+i+',\'active\')"><span class="oi">▶</span>Resume membership</button>' : '')
-    + (ms.status!=="cancelled" ? '<button class="opt-btn danger" onclick="setMemStatus('+i+',\'cancelled\')"><span class="oi">✕</span>Cancel membership</button>' : '')
-    + '</div>';
-  openSheet();
-}
-/* The in-memory membership list on `currentMember` is the session-local view
- * (it predates the real table), so it has no agreement id of its own - fall
- * back to telling the truth rather than guessing. */
-function memAgreement(i){
-  const ms = currentMember.memberships[i];
-  if(ms && ms.agreementId){ closeSheet(); agrView(ms.agreementId); return; }
-  closeSheet();
-  agrMissing(ms ? ms.program : '');
-}
-function setMemStatus(i, status){
-  currentMember.memberships[i].status = status;
-  if(status==="cancelled" || status==="paused") currentMember.memberships[i].overdue = currentMember.memberships[i].overdue; // keep balance
-  closeSheet();
-  renderProfile();
-  renderChips();
-  toast("Membership "+status);
-}
-function openMemEdit(i){
-  const ms = currentMember.memberships[i];
-  $("#sheet").innerHTML = '<div class="grab"></div>'
-    + '<div class="sheet-head"><div><h3>Edit membership</h3><div class="sub">'+ms.program+'</div></div>'
-    + '<button class="close" onclick="closeSheet()">×</button></div>'
-    + '<div class="sheet-body">'
-    + '<div class="medit"><label>Plan</label><input id="me-plan" value="'+ms.plan+'"></div>'
-    + '<div class="frow2"><div class="medit"><label>Down payment</label><input id="me-down" inputmode="decimal" value="'+(ms.down!=null?ms.down:0)+'"></div>'
-    + '<div class="medit"><label>Monthly</label><input id="me-monthly" inputmode="decimal" value="'+(ms.monthly!=null?ms.monthly:0)+'"></div></div>'
-    + '<div class="frow2"><div class="medit"><label>Total payments</label><input id="me-total" inputmode="numeric" placeholder="ongoing" value="'+(ms.total!=null?ms.total:"")+'"></div>'
-    + '<div class="medit"><label>Payments remaining</label><input id="me-rem" inputmode="numeric" placeholder="ongoing" value="'+(ms.remaining!=null?ms.remaining:"")+'"></div></div>'
-    + '<button class="savebtn" onclick="saveMemEdit('+i+')">Save changes</button>'
-    + '</div>';
-  openSheet();
-}
-function saveMemEdit(i){
-  const ms = currentMember.memberships[i];
-  ms.plan = ($("#me-plan").value||"").trim() || ms.plan;
-  ms.down = parseFloat($("#me-down").value)||0;
-  ms.monthly = parseFloat($("#me-monthly").value)||0;
-  const tot = $("#me-total").value.trim(), rem = $("#me-rem").value.trim();
-  ms.total = tot==="" ? null : parseInt(tot,10);
-  ms.remaining = rem==="" ? null : parseInt(rem,10);
-  closeSheet();
-  renderProfile();
-  toast("Membership updated");
 }
 
 /* ========== sheet + toast plumbing ========== */
@@ -6394,7 +6490,7 @@ async function loadProfileHousehold(contactId){
       const label = m ? (m.first+' '+m.last) : '(not on this roster)';
       const sub = m ? (m.rank||m.segment||'') : id;
       html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">'
-        + (m ? '<button class="mrow" style="margin:0;flex:1" onclick="openProfile(\''+id+'\')"><div class="c-name"><div class="av" style="background:'+(BELT[m.belt]||'#C7CCD2')+'"><span style="color:'+((m.belt==='White'||m.belt==='Yellow')?'#15171C':'#fff')+'">'+initials(m)+'</span></div><div class="minfo"><div class="mname">'+escHtml(label)+'</div><div class="msub">'+escHtml(sub)+'</div></div></div></button>'
+        + (m ? '<button class="mrow" style="margin:0;flex:1" onclick="openProfile(\''+id+'\')"><div class="c-name"><div class="av" style="background:'+(BELT[m.belt]||'#C7CCD2')+'"><span style="color:'+((m.belt==='White'||m.belt==='Yellow')?'#15171C':'#fff')+'">'+escHtml(initials(m))+'</span></div><div class="minfo"><div class="mname">'+escHtml(label)+'</div><div class="msub">'+escHtml(sub)+'</div></div></div></button>'
              : '<div class="mrow" style="margin:0;flex:1;color:var(--muted)">'+escHtml(label)+'</div>')
         + '<button class="pb-change" onclick="hhRemove(\''+id+'\',\''+contactId+'\')">Remove</button></div>';
     });
@@ -6465,7 +6561,7 @@ function hhSearch(mode, a, b){
                                : (inHh ? 'Already in a household' : 'Add to this household');
     const dim = mode==='join' ? !inHh : inHh;
     return '<button class="mrow"'+(dim?' disabled style="opacity:.45"':'')+' onclick="'+act+'">'
-      + '<div class="c-name"><div class="av" style="background:'+(BELT[m.belt]||'#C7CCD2')+'"><span style="color:'+((m.belt==='White'||m.belt==='Yellow')?'#15171C':'#fff')+'">'+initials(m)+'</span></div>'
+      + '<div class="c-name"><div class="av" style="background:'+(BELT[m.belt]||'#C7CCD2')+'"><span style="color:'+((m.belt==='White'||m.belt==='Yellow')?'#15171C':'#fff')+'">'+escHtml(initials(m))+'</span></div>'
       + '<div class="minfo"><div class="mname">'+escHtml(m.first+' '+m.last)+'</div><div class="msub">'+note+'</div></div></div></button>';
   }).join('') || '<div class="ag-empty">No matches.</div>';
 }
@@ -6505,254 +6601,6 @@ async function hhRemove(contactId, backTo){
 async function currentStaffEmail(){
   try{ const s = await BTKD.getSession(); return (s && s.user && s.user.email) || 'staff'; }
   catch(e){ return 'staff'; }
-}
-
-/* ─── Memberships section ─────────────────────────────────────────────────── */
-let MB_PERSON = null, MB_CTX = null, MB_PLAN = null, MB_CALC = null;
-let MB_OVERRIDE = false, MB_OV_REC = '', MB_OV_DOWN = '', MB_OV_REASON = '';
-let MB_TKD_TRACK = 'Juniors', MB_ROSTER = true;
-
-const MB_CAT_LABEL = {
-  core_tkd:'Taekwondo', cubs:'Cubs', specialty:'Specialty (standalone)',
-  addon:'Taekwondo member add-ons', weekly_bundle:'Weekly bundles', other:'Other'
-};
-const MB_CAT_ORDER = ['core_tkd','cubs','specialty','addon','weekly_bundle','other'];
-
-async function renderMembershipsPricing(){
-  await Promise.all([loadCatalog(), loadHouseholds()]);
-
-  let html = '<div class="bld"><div class="bld-hd" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">'
-    + '<div><h2>Memberships</h2><p>Household-aware pricing. Pick a member, pick a program, and the recommended price accounts for their household.</p></div>'
-    + '</div>';
-
-  if(!PLAN_ROWS.length){
-    html += '<div class="ag-empty">No pricing plans found. Run <strong>sql/membership-schema.sql</strong> once in the Supabase SQL editor, then reload.</div></div>';
-    $("#view-memberships").innerHTML = html; return;
-  }
-
-  // 1 - member picker
-  html += '<div class="sec" style="padding:0 0 4px"><div class="sec-h">Member</div>';
-  if(MB_PERSON){
-    const m = MEMBERS.find(x=>x.id===MB_PERSON);
-    html += '<div style="display:flex;gap:8px;align-items:center;">'
-      + '<div class="mrow" style="margin:0;flex:1"><div class="c-name"><div class="av" style="background:'+(BELT[m.belt]||'#C7CCD2')+'"><span style="color:'+((m.belt==='White'||m.belt==='Yellow')?'#15171C':'#fff')+'">'+initials(m)+'</span></div>'
-      + '<div class="minfo"><div class="mname">'+escHtml(m.first+' '+m.last)+'</div><div class="msub">'+escHtml(m.rank||m.segment||'')+'</div></div></div></div>'
-      + '<button class="pb-change" onclick="mbClearPerson()">Change</button></div>';
-  } else {
-    html += '<div class="search-wrap" style="padding:0"><span class="search-ico" style="left:14px">⌕</span>'
-      + '<input id="mb-search" class="search" oninput="mbSearch()" placeholder="Search members"></div>'
-      + '<div id="mb-results" style="margin-top:8px"></div>';
-  }
-  html += '</div>';
-
-  if(MB_PERSON && MB_CTX){
-    // 2 - household summary
-    const ctx = MB_CTX;
-    const activeOf = list => (list||[]).filter(x=>x.status==='active');
-    const tkdCount = [ctx.person].concat(ctx.householdMembers)
-      .filter(p=>activeOf(p.activeMemberships).some(x=>x.category==='core_tkd')).length;
-    const specCount = [ctx.person].concat(ctx.householdMembers)
-      .filter(p=>activeOf(p.activeMemberships).some(x=>x.category==='specialty'||x.category==='addon')).length;
-    const own = activeOf(ctx.person.activeMemberships);
-
-    html += '<div class="sec"><div class="sec-h">Household</div><div class="card pad">'
-      + '<div class="kv"><span class="k">Household</span><span class="v">'+(ctx.household?escHtml(ctx.household.name):'None (priced as a single member)')+'</span></div>'
-      + '<div class="kv"><span class="k">Members in household</span><span class="v">'+(ctx.householdMembers.length+1)+'</span></div>'
-      + '<div class="kv"><span class="k">Active Taekwondo</span><span class="v">'+tkdCount+'</span></div>'
-      + '<div class="kv"><span class="k">Active specialty participants</span><span class="v">'+specCount+'</span></div>'
-      + '<div class="kv" style="border-bottom:none"><span class="k">Their memberships</span><span class="v">'
-      + (own.length ? own.map(x=>{ const pl=planByCode(x.plan_code); return escHtml(pl?pl.name:x.plan_code); }).join(', ') : 'None yet') + '</span></div>'
-      + '</div></div>';
-
-    // 3 - program picker
-    html += '<div class="sec"><div class="sec-h">Program</div>';
-    MB_CAT_ORDER.forEach(cat=>{
-      const rows = PLAN_ROWS.filter(p=>p.active && p.category===cat);
-      if(!rows.length) return;
-      html += '<div class="opt-h">'+MB_CAT_LABEL[cat]+'</div>';
-      rows.forEach(p=>{
-        const on = MB_PLAN === p.code;
-        const amt = p.billing_frequency==='one_time' ? money((p.pif_cents||0)/100)+' one time'
-                  : money((p.recurring_cents||0)/100) + (p.billing_frequency==='weekly'?'/wk':'/mo');
-        const down = p.down_cents ? ' · '+money(p.down_cents/100)+' down' : '';
-        html += '<button class="mrow" onclick="mbPickPlan(\''+p.code+'\')" style="'+(on?'background:#E4F5EE;border-color:var(--go);':'')+'">'
-          + '<div class="minfo" style="flex:1"><div class="mname">'+escHtml(p.name)+(p.promo_label?' <span class="seg trial">'+escHtml(p.promo_label)+'</span>':'')+'</div>'
-          + '<div class="msub">'+amt+down+'</div></div>'
-          + (on?'<span class="seg active">Selected</span>':'')+'</button>';
-      });
-    });
-    html += '</div>';
-
-    // 4 - recommendation
-    if(MB_CALC){
-      const c = MB_CALC;
-      const freq = c.billingFrequency==='monthly'?'/month':c.billingFrequency==='weekly'?'/week':' one time';
-      html += '<div class="sec"><div class="sec-h">Recommended price</div><div class="card pad">'
-        + '<div class="kv"><span class="k">Plan</span><span class="v">'+escHtml(c.planName||c.planCode)+'</span></div>'
-        + '<div class="kv"><span class="k">Base</span><span class="v">'+money(c.baseCents/100)+freq+'</span></div>'
-        + '<div class="kv"><span class="k">Down payment</span><span class="v">'+money(c.finalDownCents/100)+'</span></div>';
-      c.adjustments.forEach(a=>{
-        html += '<div class="kv"><span class="k">'+escHtml(a.label)+'</span><span class="v" style="color:var(--go)">-'+money(Math.abs(a.amountCents)/100)+'</span></div>';
-      });
-      html += '<div class="kv"><span class="k" style="font-weight:700">Final</span><span class="v" style="font-weight:800">'+money(c.finalRecurringCents/100)+freq+'</span></div>'
-        + (c.paymentCount?'<div class="kv"><span class="k">Payments</span><span class="v">'+c.paymentCount+'</span></div>':'')
-        + '<div class="kv" style="border-bottom:none"><span class="k">Household rank</span><span class="v">'+c.householdRank+(c.householdRank===1?' (founding)':'')+'</span></div>'
-        + '<div class="rec-note" style="margin-top:8px;color:var(--muted);font-size:13.5px">'+escHtml(c.explanation)+'</div>'
-        + (c.substituted?'<div class="ck-hint" style="margin-top:6px">Plan adjusted: '+escHtml(c.substitutionNote)+'</div>':'')
-        + (!c.eligible?'<div class="ck-hint" style="margin-top:6px;color:var(--warn)">'+escHtml(c.eligibilityReason)+'</div>':'')
-        + '</div></div>';
-
-      // 5 - override
-      html += '<div class="sec"><div class="sec-h">Override price</div><div class="card pad">'
-        + '<button class="pb-change" onclick="mbToggleOverride()">'+(MB_OVERRIDE?'Cancel override':'Override this price')+'</button>';
-      if(MB_OVERRIDE){
-        const manual = centsFromInput(MB_OV_REC);
-        const diff = manual - c.finalRecurringCents;
-        html += '<div style="margin-top:11px">'
-          + '<div class="fld"><label>Manual price ('+(c.billingFrequency==='weekly'?'per week':c.billingFrequency==='monthly'?'per month':'one time')+')</label>'
-          + '<input id="mb-ov-rec" inputmode="decimal" value="'+escAttr(MB_OV_REC)+'" oninput="mbOvInput()" placeholder="'+dollarsFromCents(c.finalRecurringCents)+'"></div>'
-          + '<div class="fld"><label>Manual down payment</label>'
-          + '<input id="mb-ov-down" inputmode="decimal" value="'+escAttr(MB_OV_DOWN)+'" oninput="mbOvInput()" placeholder="'+dollarsFromCents(c.finalDownCents)+'"></div>'
-          + '<div class="fld"><label>Reason (required)</label>'
-          + '<input id="mb-ov-reason" value="'+escAttr(MB_OV_REASON)+'" oninput="mbOvInput()" placeholder="Why this price differs"></div>'
-          + '<div class="kv"><span class="k">Recommended</span><span class="v">'+money(c.finalRecurringCents/100)+'</span></div>'
-          + '<div class="kv"><span class="k">Manual</span><span class="v" id="mb-ov-manual">'+money(manual/100)+'</span></div>'
-          + '<div class="kv" style="border-bottom:none"><span class="k">Difference</span><span class="v" id="mb-ov-diff" style="color:'+(diff<0?'var(--go)':diff>0?'var(--warn)':'var(--muted)')+'">'+(diff>0?'+':'')+money(diff/100)+'</span></div>'
-          + '</div>';
-      }
-      html += '</div></div>';
-
-      // 6 - save
-      html += '<div class="sec"><div class="sec-h">Save</div><div class="card pad">';
-      if(c.category==='core_tkd' || c.category==='weekly_bundle'){
-        html += '<div class="fld"><label>Class roster track</label><div class="seg-pick">'
-          + '<button class="'+(MB_TKD_TRACK==='Juniors'?'on':'')+'" onclick="mbSetTrack(\'Juniors\')">Juniors</button>'
-          + '<button class="'+(MB_TKD_TRACK==='Teens/Adults'?'on':'')+'" onclick="mbSetTrack(\'Teens/Adults\')">Teens/Adults</button>'
-          + '</div></div>';
-      }
-      html += '<label style="display:flex;align-items:center;gap:9px;font-size:14.5px;margin:4px 0 12px;">'
-        + '<input type="checkbox" id="mb-roster" '+(MB_ROSTER?'checked':'')+' onchange="MB_ROSTER=this.checked"> Also add to class rosters</label>'
-        + '<button class="savebtn" onclick="mbSave()">Save membership</button></div></div>';
-    }
-  }
-
-  html += '<div class="proto-note">Memberships are the billing record. Class rosters (attendance) stay separate - the checkbox above only seeds them.</div></div>';
-  $("#view-memberships").innerHTML = html;
-}
-
-function mbSearch(){
-  const q = ($("#mb-search").value||'').trim().toLowerCase();
-  const box = document.getElementById('mb-results');
-  if(q.length < 2){ box.innerHTML=''; return; }
-  box.innerHTML = MEMBERS.filter(m=>((m.first+' '+m.last).toLowerCase().includes(q))).slice(0,8).map(m=>
-    '<button class="mrow" onclick="mbPickPerson(\''+m.id+'\')"><div class="c-name"><div class="av" style="background:'+(BELT[m.belt]||'#C7CCD2')+'"><span style="color:'+((m.belt==='White'||m.belt==='Yellow')?'#15171C':'#fff')+'">'+initials(m)+'</span></div>'
-    + '<div class="minfo"><div class="mname">'+escHtml(m.first+' '+m.last)+'</div><div class="msub">'+escHtml(m.rank||m.segment||'')+'</div></div></div></button>'
-  ).join('') || '<div class="ag-empty">No matches.</div>';
-}
-async function mbPickPerson(id){
-  MB_PERSON = id; MB_PLAN = null; MB_CALC = null; MB_OVERRIDE = false;
-  MB_OV_REC = ''; MB_OV_DOWN = ''; MB_OV_REASON = '';
-  MB_CTX = await pricingContext(id);
-  const m = MEMBERS.find(x=>x.id===id);
-  MB_TKD_TRACK = (m && m.age && m.age >= 13) ? 'Teens/Adults' : 'Juniors';
-  renderMembershipsPricing();
-}
-function mbClearPerson(){ MB_PERSON=null; MB_CTX=null; MB_PLAN=null; MB_CALC=null; renderMembershipsPricing(); }
-function mbPickPlan(code){
-  MB_PLAN = code;
-  MB_CALC = BTKDPricing.calculatePrice({
-    plan: planByCode(code), settings: PRICE_SETTINGS,
-    person: MB_CTX.person, householdMembers: MB_CTX.householdMembers, plans: PLAN_ROWS
-  });
-  renderMembershipsPricing();
-}
-function mbSetTrack(t){ MB_TKD_TRACK = t; renderMembershipsPricing(); }
-function mbToggleOverride(){ MB_OVERRIDE = !MB_OVERRIDE; renderMembershipsPricing(); }
-/* Keeps state and the three readouts in sync WITHOUT re-rendering the section,
-   so typing never loses the caret. */
-function mbOvInput(){
-  MB_OV_REC = ($("#mb-ov-rec")||{}).value || '';
-  MB_OV_DOWN = ($("#mb-ov-down")||{}).value || '';
-  MB_OV_REASON = ($("#mb-ov-reason")||{}).value || '';
-  const c = MB_CALC; if(!c) return;
-  const manual = centsFromInput(MB_OV_REC);
-  const diff = manual - c.finalRecurringCents;
-  const mEl = $("#mb-ov-manual"), dEl = $("#mb-ov-diff");
-  if(mEl) mEl.textContent = money(manual/100);
-  if(dEl){
-    dEl.textContent = (diff>0?'+':'')+money(diff/100);
-    dEl.style.color = diff<0?'var(--go)':diff>0?'var(--warn)':'var(--muted)';
-  }
-}
-
-/* core TKD -> the chosen track; Cubs -> Cubs; specialties by program name.
-   A one-specialty weekly bundle cannot tell which specialty was chosen, so it
-   seeds the Taekwondo track only (noted for the owner). */
-function mbRosterPrograms(c){
-  if(c.category==='core_tkd') return [MB_TKD_TRACK];
-  if(c.category==='cubs') return ['Cubs'];
-  if(c.category==='weekly_bundle'){
-    return c.planCode==='bundle_tkd_both_specialties'
-      ? [MB_TKD_TRACK,'Kickboxing','Jiu Jitsu'] : [MB_TKD_TRACK];
-  }
-  const p = c.program||'';
-  if(p==='Kickboxing + Jiu Jitsu') return ['Kickboxing','Jiu Jitsu'];
-  if(p==='Kickboxing') return ['Kickboxing'];
-  if(p==='Jiu Jitsu') return ['Jiu Jitsu'];
-  if(p==="AMP'D") return ["AMP'D"];
-  return [];
-}
-
-async function mbSave(){
-  const c = MB_CALC; if(!c || !MB_PERSON){ toast('Pick a member and a program'); return; }
-  if(!c.eligible){ toast(c.eligibilityReason || 'That plan is not valid for this member'); return; }
-
-  let override = null;
-  if(MB_OVERRIDE){
-    const rec = centsFromInput(MB_OV_REC);
-    if(!MB_OV_REASON.trim()){ toast('An override needs a reason'); return; }
-    if(rec <= 0){ toast('Enter the manual price'); return; }
-    override = {
-      active: true, recurringCents: rec,
-      downCents: MB_OV_DOWN.trim() ? centsFromInput(MB_OV_DOWN) : null,
-      reason: MB_OV_REASON.trim(),
-      by: await currentStaffEmail(),
-      at: new Date().toISOString()
-    };
-  }
-
-  const row = BTKDPricing.buildMembershipSnapshot({
-    calc: c, contactId: MB_PERSON,
-    startedOn: attYMD(),
-    createdBy: await currentStaffEmail(),
-    override: override
-  });
-
-  const { error } = await sb.from('memberships').insert(row);
-  if(error){ toast('Save failed: '+(error.message||error)); return; }
-
-  if(MB_ROSTER){
-    const programs = mbRosterPrograms(c);
-    if(programs.length){
-      // "on conflict do nothing" without assuming a unique constraint exists:
-      // read what is already there, insert only what is missing.
-      const { data: have } = await sb.from('enrollments')
-        .select('program').eq('student_id', MB_PERSON);
-      const existing = (have||[]).map(r=>r.program);
-      const add = programs.filter(p=>existing.indexOf(p)===-1)
-        .map(p=>({ student_id: MB_PERSON, program: p, status: 'active' }));
-      if(add.length){
-        const er = await sb.from('enrollments').insert(add);
-        if(er.error) console.error('roster seed', er.error);
-      }
-    }
-  }
-
-  MB_CTX = await pricingContext(MB_PERSON);
-  MB_PLAN = null; MB_CALC = null; MB_OVERRIDE = false;
-  MB_OV_REC=''; MB_OV_DOWN=''; MB_OV_REASON='';
-  renderMembershipsPricing();
-  toast('Membership saved');
 }
 
 /* ─── Price editing (ADMIN ONLY) ──────────────────────────────────────────────
@@ -6910,7 +6758,7 @@ async function bootCrm(){
   _crmBooted = true;
   await loadMembers();
   loadProducts();  // async - POS quick-list swaps in live rows when it lands
-  loadEvents();    // async - real events replace the mock list when the table exists
+  loadEvents();    // async - events table (Checkout Pages owns it); the POS sells the sellable ones
   loadStaffDir();  // async - real staff names for picker/created-by/receipts
   loadTesting();   // async - real testing groups + the public-page switch
   // PRICE_SETTINGS lives here, and the admin fee needs it on EVERY sale - not
@@ -6926,6 +6774,8 @@ async function bootCrm(){
   renderChips();
   renderList();
   renderDashboard();
+  loadBalances();      // async - Balance due chip + row amounts, from the ledger
+  loadMemberPlans();   // async - Plan column, from the memberships table
 }
 
 function showCrmApp(){

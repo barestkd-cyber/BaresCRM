@@ -219,5 +219,14 @@ test('the blackout scope toggles survive a sheet type switch', () => {
     'a partial closure must not silently become a full one');
 });
 
+test('membership edits are attributed to the signed-in staff email, never a placeholder', () => {
+  assert.ok(!/\bcurrentEmail\b/.test(html), 'currentEmail was never defined and must not be referenced');
+  ['memEditSave', 'memSchedSave', 'memSchedWaive', 'memSchedInvoice'].forEach((fn) => {
+    const m = new RegExp('async function ' + fn + '\\([\\s\\S]*?\\n\\}').exec(html);
+    assert.ok(m, fn + ' not found');
+    assert.ok(/await currentStaffEmail\(\)/.test(m[0]), fn + ' must take the staff email from the session');
+  });
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
 process.exit(failed ? 1 : 0);

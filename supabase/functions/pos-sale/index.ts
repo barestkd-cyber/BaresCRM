@@ -13,7 +13,7 @@
 // HARD RULES:
 //   1. STAFF-ONLY. Deployed WITH JWT verification; also checks is_staff().
 //   2. The client never supplies a money amount that reaches the database —
-//      EXCEPT event lines (the events catalog is still a client-side mock;
+//      EXCEPT event lines (HISTORICAL: events now live in the events table and
 //      documented exception, dies when real events land).
 //   3. sale_id is client-minted and is the idempotency key: a duplicate
 //      submit (PK conflict) returns the existing sale as success.

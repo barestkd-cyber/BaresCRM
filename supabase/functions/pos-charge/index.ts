@@ -15,7 +15,9 @@
 //              browser to confirm. The client never states an amount.
 //   finalize-> after the browser confirms, re-reads the PaymentIntent FROM
 //              STRIPE and writes pos_payments only if Stripe says succeeded.
-//              A lying client cannot mark an invoice paid.
+//              A lying client cannot mark an invoice paid. When the invoice
+//              is settled here, the receipt is sent from here too (service
+//              key, so send-receipt dedupes it against the webhook's copy).
 //
 // The webhook also handles payment_intent.succeeded as a backstop; both paths
 // dedupe on stripe_object_id, so whichever lands first wins and the second is
@@ -68,6 +70,20 @@ async function stripe(path: string, key: string, form?: URLSearchParams, method 
   return body;
 }
 
+/** Automatic receipt, authenticated with the service key so send-receipt
+ *  treats it as a system send and claims receipt_sent_at (one receipt per
+ *  payment, whichever of finalize and the webhook gets there first). */
+async function sendReceipt(url: string, serviceKey: string, saleId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${url}/functions/v1/send-receipt`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${serviceKey}`, "Content-Type": "application/json", "Origin": "https://crm.barestkd.fit" },
+      body: JSON.stringify({ sale_id: saleId, notify_owner: true }),
+    });
+    if (!res.ok) { console.error("receipt send failed", res.status, await res.text().catch(() => "")); return false; }
+    return true;
+  } catch (e) { console.error("receipt send threw", e); return false; }
+}
 Deno.serve(async (req) => {
   const cors = corsHeaders(req.headers.get("Origin"));
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -102,7 +118,7 @@ Deno.serve(async (req) => {
     if (!UUID_RE.test(saleId)) return json({ error: "Bad sale id" }, 400, cors);
 
     const saleRes = await admin.from("pos_sales")
-      .select("id,status,total_cents,buyer_contact_id,stripe_customer_id")
+      .select("id,status,total_cents,buyer_contact_id,stripe_customer_id,stripe_payment_intent")
       .eq("id", saleId).single();
     if (saleRes.error || !saleRes.data) return json({ error: "Invoice not found" }, 404, cors);
     const s = saleRes.data;
@@ -137,6 +153,27 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Reuse an intent this invoice already has, so a retry after a failed
+      // finalize can never charge the card twice. Succeeded or processing
+      // means the money moved (or is moving): refuse, the ledger catches up
+      // through finalize or the webhook.
+      const priorId = s.stripe_payment_intent as string | null;
+      if (priorId && priorId.startsWith("pi_")) {
+        const prior = await stripe("payment_intents/" + encodeURIComponent(priorId), secretKey, undefined, "GET").catch(() => null);
+        if (prior) {
+          if (prior.status === "succeeded" || prior.status === "processing") {
+            return json({ error: "This invoice already has a card payment " + (prior.status === "succeeded" ? "recorded with Stripe" : "in progress") + ". Reload the invoice before charging again." }, 409, cors);
+          }
+          const reusable = ["requires_payment_method", "requires_confirmation", "requires_action"].includes(prior.status);
+          if (reusable && Number(prior.amount) === balance) {
+            return json({ client_secret: prior.client_secret, amount_cents: balance, id: prior.id, reused: true }, 200, cors);
+          }
+          if (reusable) {
+            // The balance moved since (fee removed, partial cash): retire it.
+            await stripe("payment_intents/" + encodeURIComponent(priorId) + "/cancel", secretKey).catch(() => null);
+          }
+        }
+      }
       const f = new URLSearchParams();
       f.set("amount", String(balance));
       f.set("currency", "usd");
@@ -180,7 +217,9 @@ Deno.serve(async (req) => {
           method: "card", stripe_object_id: pi.id,
           note: "Card payment (keyed at the desk)",
         });
-        if (ins.error) throw ins.error;
+        // 23505: the webhook landed between our check and our insert. Same
+        // payment, already on the books (unique index on stripe_object_id).
+        if (ins.error && String(ins.error.code) !== "23505") throw ins.error;
       }
 
       const pays2 = await admin.from("pos_payments").select("amount_cents").eq("sale_id", saleId);
@@ -193,9 +232,14 @@ Deno.serve(async (req) => {
         }).eq("id", saleId);
         if (!upd.error) nowPaid = true;
       }
+      // The receipt goes out from here, server-to-server, so send-receipt's
+      // claim on receipt_sent_at dedupes it against the webhook's copy. The
+      // CRM no longer sends one for card payments.
+      let receiptSent = false;
+      if (nowPaid) receiptSent = await sendReceipt(url, serviceKey, saleId);
       return json({
         ok: true, amount_cents: amount, paid_in_full: nowPaid,
-        balance_cents: Math.max(0, s.total_cents - net),
+        balance_cents: Math.max(0, s.total_cents - net), receipt_sent: receiptSent,
       }, 200, cors);
     }
 
