@@ -710,6 +710,13 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .unsg-more{font-size:12.5px;color:var(--muted);padding-top:9px}
 /* the same fact on one profile */
 .punsg{border:1.5px solid #EBC2C2;background:#FFF8F8;color:var(--accent);border-radius:11px;padding:12px 14px;font-size:13.5px;font-weight:800;margin-bottom:14px}
+/* pick a card already on file, or type a new one */
+.pmpick{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.pmpick label{display:flex;gap:11px;align-items:flex-start;border:1.5px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;background:#fff}
+.pmpick label.on{border-color:var(--accent);background:#FFF6F6}
+.pmpick input{margin-top:2px;width:17px;height:17px;flex:none}
+.pmpick b{display:block;font-size:14px}
+.pmpick i{display:block;font-style:normal;font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:2px}
 .pm-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:2px}
 .pm-link{border:none;background:none;font:inherit;font-size:12.5px;font-weight:700;color:var(--go);cursor:pointer;padding:0}
 /* which card a single scheduled payment goes on */
@@ -3570,8 +3577,12 @@ async function posPayOpen(opts){
   } else {
     PAY = { mode:'invoice', saleId:opts.saleId, totalCents:opts.totalCents||opts.balanceCents,
             balanceCents:opts.balanceCents, who:opts.who||'', reopen:opts.reopen||null,
+            buyerId:opts.buyerId||null,
             method:'Card', tendered:'', feeCents:opts.feeCents||0, feeOriginal:opts.feeCents||0 };
   }
+  // Fresh cards for a fresh sheet. Cached across openings, the list would
+  // still show a card removed a minute ago, and offer to charge it.
+  PM_SAVED = { forWho:null, cards:[] };
   const n = pmNowParts();
   PAY.date = n.date; PAY.time = n.time;
   PAY.amount = dollarsFromCents(PAY.balanceCents);
@@ -3763,13 +3774,19 @@ function posPayRender(){
     h += '<label class="ed-lbl">Name on check</label><input id="pmCheckName" class="ed-in" placeholder="Name as written">'
       + '<label class="ed-lbl">Check number</label><input id="pmCheckNo" class="ed-in" inputmode="numeric" placeholder="e.g. 1042">';
   } else {
+    // Which card. The saved ones arrive from Stripe after this paints, so the
+    // slot starts empty and the typed-card field stays the default until they
+    // land. Nothing here ever holds a card number.
+    h += '<div id="pmPick"></div>';
     // Real card entry. The number is typed into Stripe's own iframe, never
     // into this page, so no card data touches the CRM or the database.
-    h += '<label class="ed-lbl">Card details</label>'
+    h += '<div id="pmNewCard"' + (PAY.pm ? ' style="display:none"' : '') + '>'
+      + '<label class="ed-lbl">Card details</label>'
       + '<div id="pmCardBox" class="pm-cardbox"><div class="pm-cardload">Loading secure card field…</div></div>'
       + '<div id="pmCardErr" class="pm-carderr"></div>'
       + '<div class="ck-hint" style="margin-top:9px">Charged through Stripe when you press Pay Now.'
-      + (pmHasBuyer() ? ' The card is saved to their profile so you can charge it again later.' : ' Walk-in sale: the card is not kept on file.')+'</div>';
+      + (pmHasBuyer() ? ' The card is saved to their profile so you can charge it again later.' : ' Walk-in sale: the card is not kept on file.')+'</div>'
+      + '</div>';
   }
 
   h += '<div id="pmRemaining"></div>'
@@ -3777,7 +3794,63 @@ function posPayRender(){
     + '</div>';
   $("#sheet").innerHTML = h;
   posPayChange();
-  if(M==='Card') pmCardMount();
+  if(M==='Card'){ pmCardMount(); pmLoadSaved(); }
+}
+
+/* ── cards already on file, in the payment sheet ──────────────────────────
+ * A saved card is charged off_session by the server, which is what charging
+ * somebody who is not standing there actually means. The picker only appears
+ * once Stripe has answered, so an empty list never reads as "no cards".
+ *
+ * PAY.pm is the chosen card, or null for "type a new one". */
+let PM_SAVED = { forWho:null, cards:[] };
+async function pmLoadSaved(){
+  const who = pmBuyerId();
+  if(!who){ PM_SAVED = { forWho:null, cards:[] }; return; }
+  if(PM_SAVED.forWho !== who){
+    PM_SAVED = { forWho:who, cards:[] };
+    const r = await sb.functions.invoke('payment-methods', { body:{ action:'list', contact_id:who } });
+    // Still the same invoice, same buyer, same tab? Otherwise this answer is
+    // about a payment nobody is looking at any more.
+    if(!PAY || PAY.method!=='Card' || pmBuyerId()!==who) return;
+    if(r.error || !r.data || r.data.error){ console.error('pay cards', r.error||r.data); return; }
+    PM_SAVED = { forWho:who, cards:r.data.cards||[] };
+  }
+  pmDrawPicker();
+}
+function pmDrawPicker(){
+  const box = document.getElementById('pmPick');
+  if(!box) return;
+  const cards = PM_SAVED.cards;
+  if(!cards.length){ box.innerHTML=''; return; }
+  const opt = (val, on, title, sub) =>
+    '<label class="'+(on?'on':'')+'" onclick="pmPick('+(val===null?'null':"'"+escJs(val)+"'")+')">'
+    + '<input type="radio" name="pmpick"'+(on?' checked':'')+'>'
+    + '<span><b>'+title+'</b><i>'+sub+'</i></span></label>';
+  let h = '<label class="ed-lbl">Which card</label><div class="pmpick">';
+  cards.forEach(c=>{
+    h += opt(c.id, PAY.pm===c.id,
+      'Charge '+escHtml(c.brand)+' ••••'+escHtml(c.last4)+' on file',
+      'Runs straight away. Nothing to type.'+(c.def?' Their default card.':''));
+  });
+  h += opt(null, !PAY.pm, 'Use a different card', 'Type it into the Stripe field below. It saves for next time.');
+  box.innerHTML = h + '</div>';
+}
+function pmPick(id){
+  PAY.pm = id || null;
+  pmDrawPicker();
+  const box = document.getElementById('pmNewCard');
+  if(box) box.style.display = PAY.pm ? 'none' : '';
+  // Mounting Stripe's field costs a network round trip, so it only happens
+  // when the typed-card option is actually chosen.
+  if(!PAY.pm) pmCardMount();
+}
+/* Who the card belongs to: the invoice's buyer in invoice mode, the cart's in
+ * sale mode. */
+function pmBuyerId(){
+  if(!PAY) return null;
+  if(PAY.mode==='sale') return posSale.memberId || null;
+  return PAY.buyerId || null;
 }
 
 /* ── Stripe Elements: the card field in the payment modal ──────────────────
@@ -3842,6 +3915,26 @@ let PM_LIVE = false;
  *      backstop and both dedupe, so a closed laptop cannot lose the payment. */
 /* paymentMethodId: a PaymentMethod created up front (new sales), so the
    confirm does not depend on the card field still being on screen. */
+/* Charge a card already on file. Everything happens on the server: it
+ * derives the amount from the ledger, confirms off_session with Stripe, and
+ * writes the payment through the same recorder the keyed path uses.
+ *
+ * A bank that wants the cardholder to approve is a real answer, not a retry.
+ * Saying so is the difference between "ask them to pay from the link" and
+ * pressing the button until something happens. */
+async function pmChargeSaved(saleId, amountCents, pmId){
+  try{
+    const r = await sb.functions.invoke('pos-charge', {
+      body:{ action:'charge-saved', sale_id:saleId, payment_method_id:pmId }
+    });
+    const out = r.error ? (await profFnError(r.error)) : r.data;
+    if(!out || out.error || !out.ok) return { ok:false, error:(out&&out.error)||'The card was declined.' };
+    return { ok:true, amount_cents: out.amount_cents };
+  }catch(e){
+    return { ok:false, error:(e&&e.message)||'Card charge failed.' };
+  }
+}
+
 async function pmChargeCard(saleId, amountCents, paymentMethodId){
   try{
     const mk = await sb.functions.invoke('pos-charge', { body:{ action:'intent', sale_id:saleId } });
@@ -3952,9 +4045,12 @@ async function posPaySubmit(){
   // PaymentIntent with Stripe, writes the payment row, flips the invoice to
   // paid and emails the receipt. Nothing here touches the ledger.
   if(method==='Card' && PAY.mode!=='sale'){
-    if(!PM_CARD){ toast('The card field did not load - reload and try again'); if(btn){btn.disabled=false;posPayChange();} return; }
+    // A card on file needs no card field at all; only the typed path does.
+    if(!PAY.pm && !PM_CARD){ toast('The card field did not load - reload and try again'); if(btn){btn.disabled=false;posPayChange();} return; }
+    if(PAY.pm && amt!==PAY.balanceCents){ toast('A card on file charges the full '+money(PAY.balanceCents/100)+' - use Cash or Check for a partial'); if(btn){btn.disabled=false;posPayChange();} return; }
     if(btn) btn.textContent='Charging card…';
-    const charged = await pmChargeCard(PAY.saleId, amt);
+    const charged = PAY.pm ? await pmChargeSaved(PAY.saleId, amt, PAY.pm)
+                           : await pmChargeCard(PAY.saleId, amt);
     if(!charged.ok){
       pmCardErr(charged.error || 'The card was declined.');
       toast(charged.error || 'The card was declined.');
@@ -3975,8 +4071,25 @@ async function posPaySubmit(){
   // that in place with the invoice unpaid, and records nothing that did not
   // happen. Staff retry from the invoice.
   if(method==='Card' && PAY.mode==='sale'){
-    if(!PM_CARD || !PM_STRIPE){ toast('The card field did not load - reload and try again'); if(btn){btn.disabled=false;posPayChange();} return; }
     if(amt!==PAY.balanceCents){ toast('Card payments are for the full '+money(PAY.balanceCents/100)+' - use Cash or Check for a partial'); if(btn){btn.disabled=false;posPayChange();} return; }
+    // A card on file skips the tokenising step entirely: the sale is saved
+    // the same way, then the server charges the card it already holds.
+    if(PAY.pm){
+      const savedPm = PAY.pm, want = PAY.balanceCents;
+      PAY_DETAIL = null; PAY = null; closeSheet();
+      toast('Saving the sale…');
+      const res0 = await posTender('Unpaid', { deferNavigation:true, cardPending:true });
+      if(!res0 || !res0.saleId) return;   // not recorded: posTender already said why
+      toast('Charging card on file…');
+      const done = await pmChargeSaved(res0.saleId, want, savedPm);
+      INV_BANNER = done.ok
+        ? { saleId: res0.saleId, badges: res0.badges.concat(['Card approved · '+money(done.amount_cents/100)+' paid']), notes: res0.notes, problems: res0.problems }
+        : { saleId: res0.saleId, badges: res0.badges, notes: res0.notes,
+            problems: res0.problems.concat(['Card not charged: '+(done.error||'the card was declined')+'. The sale and membership are saved and the invoice is unpaid. Retry from Add payment, or collect another way.']) };
+      showInvoice(res0.saleId, 'pos');
+      return;
+    }
+    if(!PM_CARD || !PM_STRIPE){ toast('The card field did not load - reload and try again'); if(btn){btn.disabled=false;posPayChange();} return; }
     if(btn) btn.textContent='Checking card…';
     // Tokenise first: an incomplete or invalid card fails here, before any
     // database write, and the charge below no longer depends on the card
@@ -4336,11 +4449,11 @@ async function posTransactions(){
 /* Opens the unified payment modal against an existing unpaid invoice
    (caller: the invoice view's "Add payment" button). */
 function posAddPaymentSheet(saleId, balanceCents, who, reopen){
-  sb.from('pos_sales').select('total_cents,admin_fee_cents').eq('id', saleId).single().then(function(r){
+  sb.from('pos_sales').select('total_cents,admin_fee_cents,buyer_contact_id').eq('id', saleId).single().then(function(r){
     const s = r.data||{};
     posPayOpen({ mode:'invoice', saleId:saleId, balanceCents:balanceCents,
                  totalCents: s.total_cents||balanceCents, feeCents: s.admin_fee_cents||0,
-                 who:who, reopen:reopen });
+                 who:who, reopen:reopen, buyerId: s.buyer_contact_id||null });
   });
 }
 

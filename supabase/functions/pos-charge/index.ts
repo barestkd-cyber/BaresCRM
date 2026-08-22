@@ -54,15 +54,23 @@ function json(obj: unknown, status: number, cors: Record<string, string>) {
 }
 const str = (v: unknown) => (v == null ? "" : String(v)).trim();
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Stripe ids are opaque but never arbitrary text; refusing anything else
+// keeps a typo or a hostile string out of a URL path.
+const PM_RE = /^pm_[A-Za-z0-9]+$/;
 
 /** Stripe REST call, form-encoded. No SDK: one less dependency to pin. */
-async function stripe(path: string, key: string, form?: URLSearchParams, method = "POST") {
+async function stripe(path: string, key: string, form?: URLSearchParams, method = "POST", idem?: string) {
+  const headers: Record<string, string> = {
+    "Authorization": "Bearer " + key,
+    "Content-Type": "application/x-www-form-urlencoded",
+  };
+  // An idempotency key makes a repeated POST return the FIRST result rather
+  // than doing it again, which is the whole defence against a double-press
+  // taking the money twice.
+  if (idem) headers["Idempotency-Key"] = idem;
   const res = await fetch("https://api.stripe.com/v1/" + path, {
     method,
-    headers: {
-      "Authorization": "Bearer " + key,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
+    headers,
     body: method === "POST" ? (form ?? new URLSearchParams()) : undefined,
   });
   const body = await res.json().catch(() => ({}));
@@ -84,6 +92,53 @@ async function sendReceipt(url: string, serviceKey: string, saleId: string): Pro
     return true;
   } catch (e) { console.error("receipt send threw", e); return false; }
 }
+/** Put a SUCCEEDED PaymentIntent on the books, settle the invoice if it is
+ *  now covered, and send the receipt. Shared by finalize (customer present,
+ *  browser confirmed) and charge-saved (card on file, nobody present) so the
+ *  two can never disagree about what a paid invoice looks like.
+ *
+ *  Dedupes on stripe_object_id, the same key the webhook uses, so whichever
+ *  path arrives first wins and the rest are no-ops. */
+async function recordSucceeded(
+  admin: ReturnType<typeof createClient>,
+  url: string, serviceKey: string, saleId: string,
+  sale: Record<string, any>, pi: Record<string, any>, note: string,
+) {
+  const amount = Number(pi.amount_received ?? pi.amount ?? 0);
+  if (amount <= 0) throw new Error("No amount on that payment.");
+
+  const existing = await admin.from("pos_payments")
+    .select("id").eq("sale_id", saleId).eq("stripe_object_id", pi.id).maybeSingle();
+  if (!existing.data) {
+    const ins = await admin.from("pos_payments").insert({
+      sale_id: saleId, kind: "charge", amount_cents: amount,
+      method: "card", stripe_object_id: pi.id, note,
+    });
+    // 23505: the webhook landed between our check and our insert. Same
+    // payment, already on the books (unique index on stripe_object_id).
+    if (ins.error && String(ins.error.code) !== "23505") throw ins.error;
+  }
+
+  const pays = await admin.from("pos_payments").select("amount_cents").eq("sale_id", saleId);
+  const net = (pays.data ?? []).reduce((a, p) => a + p.amount_cents, 0);
+  let nowPaid = false;
+  if (net >= sale.total_cents && sale.status !== "paid") {
+    const upd = await admin.from("pos_sales").update({
+      status: "paid", tender_method: "card",
+      confirmed_at: new Date().toISOString(), stripe_payment_intent: pi.id,
+    }).eq("id", saleId);
+    if (!upd.error) nowPaid = true;
+  }
+  // The receipt goes out from here, server-to-server, so send-receipt's claim
+  // on receipt_sent_at dedupes it against the webhook's copy.
+  let receiptSent = false;
+  if (nowPaid) receiptSent = await sendReceipt(url, serviceKey, saleId);
+  return {
+    ok: true, amount_cents: amount, paid_in_full: nowPaid,
+    balance_cents: Math.max(0, sale.total_cents - net), receipt_sent: receiptSent,
+  };
+}
+
 Deno.serve(async (req) => {
   const cors = corsHeaders(req.headers.get("Origin"));
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -215,42 +270,88 @@ Deno.serve(async (req) => {
       if (str(pi.metadata?.sale_id).toLowerCase() !== saleId) {
         return json({ error: "That payment belongs to a different invoice." }, 409, cors);
       }
-      const amount = Number(pi.amount_received ?? pi.amount ?? 0);
-      if (amount <= 0) return json({ error: "No amount on that payment." }, 409, cors);
+      const out = await recordSucceeded(admin, url, serviceKey, saleId, s, pi,
+        "Card payment (keyed at the desk)");
+      return json(out, 200, cors);
+    }
 
-      // Same dedupe key the webhook uses, so whichever arrives first wins.
-      const existing = await admin.from("pos_payments")
-        .select("id").eq("sale_id", saleId).eq("stripe_object_id", pi.id).maybeSingle();
-      if (!existing.data) {
-        const ins = await admin.from("pos_payments").insert({
-          sale_id: saleId, kind: "charge", amount_cents: amount,
-          method: "card", stripe_object_id: pi.id,
-          note: "Card payment (keyed at the desk)",
-        });
-        // 23505: the webhook landed between our check and our insert. Same
-        // payment, already on the books (unique index on stripe_object_id).
-        if (ins.error && String(ins.error.code) !== "23505") throw ins.error;
+    // ── charge-saved: run a card already on file, customer not present ────
+    // The card is charged off_session, which is what it means to charge
+    // somebody who is not standing there. Stripe may still demand the
+    // cardholder authenticate, and when it does the honest answer is "it did
+    // not go through, ask them", not a silent retry.
+    if (action === "charge-saved") {
+      const pm = str(body.payment_method_id);
+      if (!PM_RE.test(pm)) return json({ error: "Which card?" }, 400, cors);
+      if (balance <= 0) return json({ error: "Nothing is owed on this invoice." }, 409, cors);
+      if (balance < 50) return json({ error: "Card minimum is $0.50." }, 409, cors);
+      if (!s.buyer_contact_id) return json({ error: "A walk-in sale has nobody to charge. Use the card field." }, 409, cors);
+
+      const buyer = await admin.from("contacts")
+        .select("stripe_customer_id").eq("id", s.buyer_contact_id).maybeSingle();
+      const customerId = str(buyer.data?.stripe_customer_id);
+      if (!customerId) return json({ error: "No card on file for the buyer." }, 409, cors);
+
+      // The card must belong to the buyer. Without this, a caller could name
+      // any pm_ id and charge somebody else's card.
+      const owned = await stripe("payment_methods/" + encodeURIComponent(pm), secretKey, undefined, "GET");
+      if (str(owned.customer) !== customerId) {
+        return json({ error: "That card is not on this account." }, 409, cors);
       }
 
-      const pays2 = await admin.from("pos_payments").select("amount_cents").eq("sale_id", saleId);
-      const net = (pays2.data ?? []).reduce((a, p) => a + p.amount_cents, 0);
-      let nowPaid = false;
-      if (net >= s.total_cents && s.status !== "paid") {
-        const upd = await admin.from("pos_sales").update({
-          status: "paid", tender_method: "card",
-          confirmed_at: new Date().toISOString(), stripe_payment_intent: pi.id,
-        }).eq("id", saleId);
-        if (!upd.error) nowPaid = true;
+      // Same double-charge guard as intent: an invoice that already has a
+      // live or recorded payment intent does not get a second one.
+      const priorId = str(s.stripe_payment_intent);
+      if (priorId.startsWith("pi_")) {
+        const prior = await stripe("payment_intents/" + encodeURIComponent(priorId), secretKey, undefined, "GET").catch(() => null);
+        if (prior) {
+          if (prior.status === "processing") {
+            return json({ error: "This invoice already has a card payment in progress. Reload the invoice before charging again." }, 409, cors);
+          }
+          if (prior.status === "succeeded") {
+            const onBooks = await admin.from("pos_payments").select("id").eq("stripe_object_id", prior.id).limit(1);
+            if (!onBooks.data || !onBooks.data.length) {
+              return json({ error: "This invoice already has a card payment recorded with Stripe. Reload the invoice before charging again." }, 409, cors);
+            }
+          }
+          if (["requires_payment_method", "requires_confirmation", "requires_action"].includes(prior.status)) {
+            await stripe("payment_intents/" + encodeURIComponent(priorId) + "/cancel", secretKey).catch(() => null);
+          }
+        }
       }
-      // The receipt goes out from here, server-to-server, so send-receipt's
-      // claim on receipt_sent_at dedupes it against the webhook's copy. The
-      // CRM no longer sends one for card payments.
-      let receiptSent = false;
-      if (nowPaid) receiptSent = await sendReceipt(url, serviceKey, saleId);
-      return json({
-        ok: true, amount_cents: amount, paid_in_full: nowPaid,
-        balance_cents: Math.max(0, s.total_cents - net), receipt_sent: receiptSent,
-      }, 200, cors);
+
+      const f = new URLSearchParams();
+      f.set("amount", String(balance));
+      f.set("currency", "usd");
+      f.set("customer", customerId);
+      f.set("payment_method", pm);
+      f.set("off_session", "true");
+      f.set("confirm", "true");
+      f.set("description", "Invoice " + saleId.slice(0, 8).toUpperCase());
+      f.set("metadata[sale_id]", saleId);
+      f.set("metadata[source]", "pos-card-on-file");
+      let pi: Record<string, any>;
+      try {
+        // The key is the sale plus the amount: pressing the button twice for
+        // the same balance returns the FIRST charge instead of making another.
+        pi = await stripe("payment_intents", secretKey, f, "POST", "cof-" + saleId + "-" + balance);
+      } catch (e) {
+        const msg = String((e as Error)?.message || e);
+        return json({ error: "The card was declined: " + msg }, 402, cors);
+      }
+      await admin.from("pos_sales")
+        .update({ stripe_payment_intent: pi.id, stripe_customer_id: customerId })
+        .eq("id", saleId);
+      if (pi.status !== "succeeded") {
+        return json({
+          error: pi.status === "requires_action"
+            ? "The bank wants the cardholder to approve this one. Ask them to pay from the invoice link, or take the card in person."
+            : "The card did not go through (" + pi.status + ").",
+        }, 402, cors);
+      }
+      const out = await recordSucceeded(admin, url, serviceKey, saleId, s, pi,
+        "Card on file (charged at the desk)");
+      return json(out, 200, cors);
     }
 
     return json({ error: "Unknown action" }, 400, cors);

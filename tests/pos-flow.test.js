@@ -116,6 +116,9 @@ const FNS = [
   'posAutoReceipt',
   // keyed-card entry: lifted so posPayRender's mount call resolves
   'pmCardMount', 'pmCardErr', 'pmLoadStripeJs', 'pmChargeCard',
+  // cards already on file: posPayRender draws the picker and posPaySubmit
+  // routes past the card field when one is chosen
+  'pmLoadSaved', 'pmDrawPicker', 'pmPick', 'pmBuyerId', 'pmChargeSaved', 'profFnError',
   'pmNowParts', 'pmOccurredAt',
   'posAddMembership', 'posPickProgram', 'posAddMemLine',
   'posAttachSheet', 'posAttachSearch', 'posPickStudentForLine', 'posRequoteLine', 'posSetBuyer',
@@ -131,7 +134,7 @@ const FNS = [
 ];
 const VARS = ['\\$', 'escHtml', 'escAttr', 'escJs', 'money', 'centsFromInput', 'dollarsFromCents', 'POS_ANON_CTX', 'POS_STUDENT_CTX', 'POS_ADD', 'PAY', 'PAY_DETAIL', 'IV_ICO',
   'LEGAL_ENTITY', 'RECEIPT_BRANDS', 'POS_LAST_RECEIPT', 'INV_BANNER',
-  'STAFF_DIR', 'STAFF_LIST', 'CURRENT_STAFF_EMAIL', 'POS_SERVER_SALES'];
+  'STAFF_DIR', 'STAFF_LIST', 'CURRENT_STAFF_EMAIL', 'POS_SERVER_SALES', 'PM_SAVED'];
 
 // ── minimal DOM ──────────────────────────────────────────────────────────────
 const registry = {};
@@ -223,13 +226,20 @@ const RECEIPTS = [];
 // pos-charge is scripted per test: CHARGE decides whether the intent or the
 // finalize fails; CHARGES records every call so tests can assert order.
 const CHARGES = [];
-const CHARGE = { intentError: null, finalizeError: null, amount: null, receiptSent: true };
+const CHARGE = { intentError: null, finalizeError: null, savedError: null, amount: null, receiptSent: true };
+// Cards Stripe says are on file for the buyer, and every ask for them.
+let SAVED_CARDS = [];
+const PM_CALLS = [];
 let LAST_INTENT_AMOUNT = 0;
 const sbShim = {
   from: table => qb(table),
   functions: {
     invoke: (name, opts) => {
       const body = (opts && opts.body) || {};
+      if (name === 'payment-methods') {
+        PM_CALLS.push(body);
+        return Promise.resolve({ data: { cards: SAVED_CARDS, usage: {}, email: 'buyer@test' }, error: null });
+      }
       if (name === 'send-receipt') { RECEIPTS.push(body); return Promise.resolve({ data: { ok: true, to: ['buyer@test'] }, error: null }); }
       if (name === 'pos-charge') {
         if (body.action === 'config') { CHARGES.push(body); return Promise.resolve({ data: { publishable_key: 'pk_test_x', live: false }, error: null }); }
@@ -240,6 +250,13 @@ const sbShim = {
           if (CHARGE.intentError) return Promise.resolve({ data: { error: CHARGE.intentError }, error: null });
           LAST_INTENT_AMOUNT = CHARGE.amount != null ? CHARGE.amount : (sale ? sale.rows.total_cents : 0);
           return Promise.resolve({ data: { client_secret: 'cs_test_' + body.sale_id, amount_cents: LAST_INTENT_AMOUNT, id: 'pi_' + body.sale_id }, error: null });
+        }
+        if (body.action === 'charge-saved') {
+          const sale = ALL_CALLS.filter(c => c.table === 'pos_sales' && c.op === 'insert' && c.rows && c.rows.id === body.sale_id).pop();
+          CHARGES.push(Object.assign({}, body, { saleKnown: !!sale }));
+          if (CHARGE.savedError) return Promise.resolve({ data: { error: CHARGE.savedError }, error: null });
+          const amt = CHARGE.amount != null ? CHARGE.amount : (sale ? sale.rows.total_cents : 0);
+          return Promise.resolve({ data: { ok: true, amount_cents: amt, paid_in_full: true, receipt_sent: CHARGE.receiptSent }, error: null });
         }
         if (body.action === 'finalize') {
           CHARGES.push(body);
@@ -998,6 +1015,78 @@ await test('28 a refund that leaves a balance puts the invoice back to unpaid an
   // writes when the sale cannot be read.
   await run('posReopenAfterRefund("sale-x")');
   assert.ok(!ALL_CALLS.some(c => c.table === 'pos_sales' && c.op === 'update' && c.patch && c.patch.status === 'unpaid'), 'no reopen without a readable paid sale');
+});
+
+/* ── cards already on file ────────────────────────────────────────────── */
+
+await test('29 a card on file charges on the server, with no card field and no client-side confirm', async () => {
+  cardSale();
+  SAVED_CARDS = [{ id: 'pm_visa', brand: 'visa', last4: '4242', exp: '04/29', def: true }];
+  PM_CALLS.length = 0;
+  await openCard();
+  await run('pmLoadSaved()');
+  assert.ok(PM_CALLS.some(c => c.action === 'list'), 'the sheet asks Stripe whose cards these are');
+  run("pmPick('pm_visa')");
+  assert.strictEqual(run('PAY.pm'), 'pm_visa', 'the chosen card is remembered');
+  await call('posPaySubmit()');
+  const sale = saleInsert();
+  assert.ok(sale && sale.rows.status === 'unpaid', 'the sale is still saved unpaid first');
+  const cof = CHARGES.find(c => c.action === 'charge-saved');
+  assert.ok(cof, 'charged through charge-saved');
+  assert.strictEqual(cof.payment_method_id, 'pm_visa', 'and with the card that was picked');
+  assert.ok(cof.saleKnown, 'the sale row exists before the charge');
+  // The whole point: nothing about this went through the browser's card field.
+  assert.ok(!CHARGES.find(c => c.action === 'intent'), 'no client-confirmed intent');
+  assert.ok(!CHARGES.find(c => c.action === 'finalize'), 'no finalize; the server records it');
+  assert.ok(!clientCardRow() && !paidFlip(), 'the client never writes the payment or flips the invoice');
+  assert.strictEqual(RECEIPTS.length, 0, 'the receipt is the server\'s to send');
+  const banner = run('INV_BANNER');
+  assert.ok(banner.badges.some(b => /Card approved/.test(b)), 'success rides the invoice');
+});
+
+await test('30 a declined card on file leaves the membership standing and the invoice unpaid', async () => {
+  cardSale();
+  SAVED_CARDS = [{ id: 'pm_visa', brand: 'visa', last4: '4242', exp: '04/29', def: true }];
+  await openCard();
+  await run('pmLoadSaved()');
+  run("pmPick('pm_visa')");
+  CHARGE.savedError = 'The card was declined: insufficient funds';
+  await call('posPaySubmit()');
+  CHARGE.savedError = null;
+  const sale = saleInsert();
+  assert.ok(sale && sale.rows.status === 'unpaid', 'the sale stays unpaid');
+  assert.ok(!clientCardRow() && !paidFlip(), 'nothing fake recorded');
+  assert.strictEqual(RECEIPTS.length, 0, 'no receipt for money that did not move');
+  const banner = run('INV_BANNER');
+  assert.ok(banner.problems.some(p => /declined/.test(p)), "Stripe's reason reaches the banner");
+  assert.ok(banner.problems.some(p => /unpaid/.test(p) && /Add payment/.test(p)), 'says how to retry');
+});
+
+await test('31 no saved cards means no picker at all, and the typed card still works', async () => {
+  cardSale();
+  SAVED_CARDS = [];
+  await openCard();
+  await run('pmLoadSaved()');
+  assert.strictEqual(run('PAY.pm') || null, null, 'nothing is preselected');
+  await call('posPaySubmit()');
+  assert.ok(CHARGES.find(c => c.action === 'intent'), 'the keyed path is untouched');
+  assert.ok(!CHARGES.find(c => c.action === 'charge-saved'), 'and charge-saved is not used');
+});
+
+await test('32 a partial amount cannot be taken from a card on file', async () => {
+  // Not a limitation for its own sake: the server charges the LEDGER balance,
+  // so letting a smaller number be typed would silently take the full amount.
+  cardSale();
+  SAVED_CARDS = [{ id: 'pm_visa', brand: 'visa', last4: '4242', exp: '04/29', def: true }];
+  await openCard();
+  await run('pmLoadSaved()');
+  run("pmPick('pm_visa')");
+  const el = sandbox.document.getElementById('pmAmt');
+  if (el) { el.value = '5.00'; run('posPayChange()'); }
+  SB_CALLS.length = 0; CHARGES.length = 0;
+  await call('posPaySubmit()');
+  assert.ok(!CHARGES.find(c => c.action === 'charge-saved'), 'refused before any charge');
+  assert.ok(!saleInsert(), 'and before anything is written');
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
