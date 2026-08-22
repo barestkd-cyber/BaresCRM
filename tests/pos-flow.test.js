@@ -130,11 +130,17 @@ const FNS = [
   'posTender', 'posBuildSaleIntent',
   'posEditMemLine', 'posSaveMemLine',
   'posOpenMembershipFor',
+  // add a membership from the profile, in three steps
+  'memAddOpen', 'memAddClose', 'memAddPickProgram', 'memAddPickOption', 'memAddQuote',
+  'memAddOverride', 'memAddDueCents', 'memAddSet', 'memAddDueHtml', 'memAddRender',
+  'memAddStep1', 'memAddStep2', 'memAddStep3', 'memAddPay', 'memAddLoadCards',
+  'memAddSign', 'memAddBack', 'memAddNext', 'memAddToPayment', 'memAddTakePayment',
+  'memAddChargeNewCard', 'memAddFinish',
   'openSheet', 'closeSheet', 'setNavActive', 'closeNav', 'showSection', 'posCloseInvoice', 'posReopenAfterRefund'
 ];
 const VARS = ['\\$', 'escHtml', 'escAttr', 'escJs', 'money', 'centsFromInput', 'dollarsFromCents', 'POS_ANON_CTX', 'POS_STUDENT_CTX', 'POS_ADD', 'PAY', 'PAY_DETAIL', 'IV_ICO',
   'LEGAL_ENTITY', 'RECEIPT_BRANDS', 'POS_LAST_RECEIPT', 'INV_BANNER',
-  'STAFF_DIR', 'STAFF_LIST', 'CURRENT_STAFF_EMAIL', 'POS_SERVER_SALES', 'PM_SAVED'];
+  'STAFF_DIR', 'STAFF_LIST', 'CURRENT_STAFF_EMAIL', 'POS_SERVER_SALES', 'PM_SAVED', 'MADD', 'selectedId'];
 
 // ── minimal DOM ──────────────────────────────────────────────────────────────
 const registry = {};
@@ -333,11 +339,16 @@ const sandbox = {
   // A recorded tender lands on the invoice view; the view itself is
   // DB-rendering chrome, so the sim only records that we navigated there.
   showInvoice: (id, from) => { sandboxNav.push({ id, from }); },
+  loadProfileMemberships: id => { REFRESHED.push('profile:' + id); },
+  dashLoadUnsigned: () => { REFRESHED.push('dash'); },
+  agrSignMembership: id => { REFRESHED.push('sign:' + id); },
+  agrSendMembership: id => { REFRESHED.push('send:' + id); },
   // ONE window only — a second `window:` key in this literal silently wins and
   // would leave agrResolve believing the templates never loaded.
   window: { open: () => null, BTKDAgreements: A, devicePixelRatio: 1, Stripe: () => STRIPE_STUB },
   navigator: { userAgent: 'test-agent/1.0' },   // stamped onto signed agreements
 };
+const REFRESHED = [];
 const sandboxNav = [];
 sandbox.sandboxNav = sandboxNav;
 vm.createContext(sandbox);
@@ -1087,6 +1098,171 @@ await test('32 a partial amount cannot be taken from a card on file', async () =
   await call('posPaySubmit()');
   assert.ok(!CHARGES.find(c => c.action === 'charge-saved'), 'refused before any charge');
   assert.ok(!saleInsert(), 'and before anything is written');
+});
+
+/* ── add a membership, in three steps ─────────────────────────────────────
+ * Terms, money, paperwork. The flow owns no pricing and no ledger writes of
+ * its own; these pin that it really does drive the same machinery, and that
+ * the till's cart survives being interrupted by it. */
+
+async function addOpen(opts) {
+  opts = opts || {};
+  sandbox.PRICE_SETTINGS.admin_fee_bps = 0;
+  sandbox.PRICE_SETTINGS.admin_fee_flat_cents = 0;
+  sandbox.posSale = sandbox.posBlank();
+  if (opts.cartFirst) {
+    sandbox.posSale.lines.push({ kind: 'prod', label: 'Belt', amount: 12, qty: 1, taxable: true });
+  }
+  SAVED_CARDS = opts.cards || [];
+  // The flow is launched FROM a profile, so that profile is the one open.
+  run("selectedId = 'kidA'");
+  SB_SELECT['memberships'] = SB_SELECT['memberships'] || [];
+  STRIPE_STUB.confirm = 'succeeded'; STRIPE_STUB.pmError = null;
+  CHARGE.intentError = null; CHARGE.finalizeError = null; CHARGE.savedError = null; CHARGE.amount = null;
+  SB_CALLS.length = 0; CHARGES.length = 0; RECEIPTS.length = 0; sandboxNav.length = 0; PM_CALLS.length = 0;
+  await call("memAddOpen('kidA')");
+}
+
+await test('33 step one quotes through the pricing engine, and an override with no reason is refused', async () => {
+  await addOpen();
+  assert.strictEqual(run('MADD.step'), 1);
+  const calc = run('MADD.calc');
+  assert.ok(calc && calc.eligible, 'it opens on a real, sellable quote');
+  // The engine's number, not one this sheet worked out.
+  const engine = run("posQuote(MADD.code, MADD.ctx)");
+  assert.strictEqual(calc.finalRecurringCents, engine.finalRecurringCents, 'the price is BTKDPricing\'s');
+  assert.strictEqual(run('memAddDueCents()'), run('posMemDueCents(MADD.calc, null)'), 'due today is the engine\'s too');
+
+  run("memAddSet('priceRaw','55.00')");
+  await call('memAddNext()');
+  assert.strictEqual(run('MADD.step'), 1, 'an override with no reason does not move on');
+  run("memAddSet('reason','sibling rate agreed at the desk')");
+  await call('memAddNext()');
+  assert.strictEqual(run('MADD.step'), 2, 'with a reason it does');
+  assert.strictEqual(run('memAddOverride().recurringCents'), 5500, 'and the override is what will be sold');
+});
+
+await test('34 an empty override box is left alone, never read as free', async () => {
+  await addOpen();
+  const asked = run('MADD.calc').finalRecurringCents;
+  run("memAddSet('priceRaw','')");
+  run("memAddSet('downRaw','')");
+  assert.strictEqual(run('memAddOverride()'), null, 'blank boxes mean sell the recommended price');
+  // Only the down payment moved: the recurring price must not fall to zero.
+  run("memAddSet('downRaw','0')");
+  run("memAddSet('reason','waived joining fee')");
+  assert.strictEqual(run('memAddOverride()').recurringCents, asked, 'the untouched price is preserved');
+  assert.strictEqual(run('memAddOverride()').downCents, 0, 'and the one he did type is honoured');
+});
+
+await test('35 the money goes through posTender and the server, and the membership never waits for it', async () => {
+  await addOpen({ cards: [{ id: 'pm_visa', brand: 'visa', last4: '4242', exp: '04/29', def: true }] });
+  await call('memAddNext()');
+  await call('memAddLoadCards()');
+  assert.strictEqual(run('MADD.pay'), 'pm_visa', 'their default card is the obvious answer');
+  await call('memAddNext()');
+
+  const sale = saleInsert();
+  assert.ok(sale, 'the sale is recorded');
+  assert.strictEqual(sale.rows.status, 'unpaid', 'saved unpaid first, as the till does');
+  assert.ok(SB_CALLS.find(c => c.table === 'memberships' && c.op === 'insert'), 'the membership exists before the money');
+  const cof = CHARGES.find(c => c.action === 'charge-saved');
+  assert.ok(cof && cof.payment_method_id === 'pm_visa', 'charged through charge-saved with the chosen card');
+  assert.ok(!clientCardRow() && !paidFlip(), 'this flow writes no payment row and flips nothing');
+  assert.strictEqual(RECEIPTS.length, 0, 'the receipt is the server\'s to send');
+  assert.strictEqual(run('MADD.step'), 3, 'and it lands on the paperwork');
+  assert.strictEqual(run('MADD.paidOk'), true);
+});
+
+await test('36 a declined card still leaves the membership standing, and says so', async () => {
+  await addOpen({ cards: [{ id: 'pm_visa', brand: 'visa', last4: '4242', exp: '04/29', def: true }] });
+  await call('memAddNext()');
+  await call('memAddLoadCards()');
+  CHARGE.savedError = 'The card was declined: insufficient funds';
+  await call('memAddNext()');
+  CHARGE.savedError = null;
+  assert.ok(SB_CALLS.find(c => c.table === 'memberships' && c.op === 'insert'), 'the membership is created anyway');
+  assert.strictEqual(saleInsert().rows.status, 'unpaid', 'the invoice stays open');
+  assert.strictEqual(run('MADD.paidOk'), false);
+  assert.ok(/declined/.test(run('MADD.paidNote')), 'the reason is carried to the last step');
+  assert.ok(/retry/.test(run('MADD.paidNote')), 'and it says what to do about it');
+});
+
+await test('37 an invoice creates the membership and takes no money', async () => {
+  await addOpen();
+  await call('memAddNext()');
+  run("memAddPay('invoice')");
+  await call('memAddNext()');
+  assert.ok(SB_CALLS.find(c => c.table === 'memberships' && c.op === 'insert'), 'the membership is created');
+  assert.strictEqual(saleInsert().rows.status, 'unpaid');
+  assert.strictEqual(CHARGES.length, 0, 'nothing was charged');
+  assert.ok(/owing/.test(run('MADD.paidNote')), 'and it says the invoice is open');
+});
+
+await test('38 skipping the signature flags the membership rather than hiding it', async () => {
+  await addOpen();
+  await call('memAddNext()');
+  run("memAddPay('invoice')");
+  await call('memAddNext()');
+  // Payment before signature is deliberate, so the line is waived on purpose;
+  // step three is what stops that being forgotten.
+  assert.ok(!/No agreement on file/.test(run('memAddStep3()')), 'no warning until skip is actually chosen');
+  run("memAddSign('skip')");
+  assert.ok(/No agreement on file/.test(run('memAddStep3()')), 'choosing skip says where it will show');
+  assert.ok(/dashboard/.test(run('memAddStep3()')), 'and that the dashboard carries it too');
+  await call('memAddNext()');
+  assert.strictEqual(run('MADD'), null, 'the sheet closes');
+});
+
+await test('39 the till\'s cart survives being interrupted, and after a cancel too', async () => {
+  await addOpen({ cartFirst: true });
+  assert.strictEqual(sandbox.posSale.lines.length, 1, 'the cart is still there while step one is open');
+  run('memAddClose()');
+  assert.strictEqual(sandbox.posSale.lines.length, 1, 'and after cancelling');
+  assert.strictEqual(sandbox.posSale.lines[0].label, 'Belt', 'unchanged');
+
+  await addOpen({ cartFirst: true });
+  await call('memAddNext()');
+  run("memAddPay('invoice')");
+  await call('memAddNext()');
+  // The sale this flow recorded must not have swept the desk's cart with it.
+  assert.strictEqual(sandbox.posSale.lines.length, 1, 'the cart survives a completed sale');
+  assert.strictEqual(sandbox.posSale.lines[0].label, 'Belt');
+  const sold = saleInsert();
+  assert.ok(sold.rows.total_cents > 0, 'and the belt was not billed to the member');
+  const lines = SB_CALLS.filter(c => c.table === 'pos_sale_lines' && c.op === 'insert');
+  const labels = lines.flatMap(c => (Array.isArray(c.rows) ? c.rows : [c.rows])).map(r => r.label);
+  assert.ok(!labels.includes('Belt'), 'the belt is not on the membership invoice');
+});
+
+await test('40 each paperwork choice goes where it says, and a lost membership row is not papered over', async () => {
+  for (const pick of [['person', 'sign:'], ['email', 'send:']]) {
+    await addOpen();
+    await call('memAddNext()');
+    run("memAddPay('invoice')");
+    await call('memAddNext()');
+    const mid = run('MADD.membershipId');
+    assert.ok(mid, 'the membership row id came back from the tender');
+    REFRESHED.length = 0;
+    run("memAddSign('" + pick[0] + "')");
+    await call('memAddNext()');
+    assert.ok(REFRESHED.includes(pick[1] + mid), pick[0] + ' opens the right thing for THIS membership');
+    assert.ok(REFRESHED.includes('profile:kidA'), 'and the profile is refreshed either way');
+  }
+
+  // If the membership row did not save, posTender has already said so. Sending
+  // somebody an agreement for a membership that does not exist would be worse
+  // than saying nothing.
+  await addOpen();
+  await call('memAddNext()');
+  run("memAddPay('invoice')");
+  await call('memAddNext()');
+  run('MADD.membershipId = null');
+  REFRESHED.length = 0; TOASTS.length = 0;
+  run("memAddSign('email')");
+  await call('memAddNext()');
+  assert.ok(!REFRESHED.some(r => /^send:/.test(r)), 'nothing is sent without a membership to attach it to');
+  assert.ok(TOASTS.some(t => /No membership row/.test(t)), 'and it says why');
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');

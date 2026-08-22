@@ -717,6 +717,17 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .pmpick input{margin-top:2px;width:17px;height:17px;flex:none}
 .pmpick b{display:block;font-size:14px}
 .pmpick i{display:block;font-style:normal;font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:2px}
+/* add a membership, in three steps */
+.madd-steps{display:flex;gap:5px;margin:-4px 0 14px}
+.madd-steps i{flex:1;height:3px;border-radius:99px;background:var(--line)}
+.madd-steps i.on{background:var(--accent)}
+.madd-due{background:var(--surface);border-radius:11px;padding:14px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.madd-due span{font-size:13px;color:var(--muted);line-height:1.5}
+.madd-due b{font-size:21px;white-space:nowrap}
+.madd-done{background:#E4F5EE;color:#0B6B4A;border-radius:11px;padding:13px;font-size:13.5px;line-height:1.55;margin-bottom:14px}
+.madd-done.bad{background:#FFF4F4;color:var(--accent)}
+.madd-warn{background:#FFF8F8;border:1.5px solid #EBC2C2;color:var(--accent);border-radius:11px;padding:12px 14px;font-size:12.5px;font-weight:700;margin-top:12px;line-height:1.5}
+.madd-has{font-size:12px;color:var(--gold);font-weight:700;margin-top:5px}
 .pm-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:2px}
 .pm-link{border:none;background:none;font:inherit;font-size:12.5px;font-weight:700;color:var(--go);cursor:pointer;padding:0}
 /* which card a single scheduled payment goes on */
@@ -4330,7 +4341,10 @@ async function posTender(method, opts){
           problems.push('The signed agreement for '+who+' did NOT save: '+(ar.error.message||ar.error)+' - have them sign again from their profile.');
         } else badges.push('Agreement signed · '+who);
       }
-      const unsigned = lines.filter(l=>!l.__agreement).length;
+      // agreementHandled: the caller's very next screen asks about signing,
+      // so raising it as a problem here would mean warning about something
+      // that is being dealt with in the same breath. Nobody else passes it.
+      const unsigned = opts.agreementHandled ? 0 : lines.filter(l=>!l.__agreement).length;
       if(unsigned) problems.push(who+' has '+(unsigned>1?unsigned+' memberships':'a membership')+' with NO signed agreement - capture it from their profile.');
       if(student){
         lines.forEach(l=>{
@@ -5949,7 +5963,9 @@ function renderProfile(){
   // memberships - live from the memberships table (frozen snapshots), async
   html += '<div class="sec" data-ptab="memberships"><div class="sec-h">Memberships and agreements</div>'
     + '<div id="prof-mems"><div class="card pad" style="color:var(--muted);font-size:14px">Loading…</div></div>'
-    + '<button class="add-mem" onclick="posOpenMembershipFor(\''+m.id+'\')">＋ Sell / add membership</button></div>';
+    + '<button class="add-mem" onclick="memAddOpen(\''+m.id+'\')">＋ Add a membership</button>'
+    + '<div class="ccg-sub" style="margin-top:6px;text-align:center">Selling more than one thing at once? '
+    + '<a href="javascript:void(0)" style="color:var(--accent);font-weight:700" onclick="posOpenMembershipFor(\''+m.id+'\')">Use the till</a>.</div></div>';
 
   // stub accordions (fed by other apps)
   html += '<div class="sec" data-ptab="overview"><div class="sec-h">More</div>';
@@ -6660,6 +6676,372 @@ async function memEditSave(){
 
   closeSheet();
   if(before.contact_id) loadProfileMemberships(before.contact_id);
+}
+
+/* ── ADD A MEMBERSHIP, IN THREE STEPS ─────────────────────────────────────
+ * Terms, money, paperwork. Every number and every write goes through the same
+ * machinery the POS uses: BTKDPricing quotes it, posTender records it,
+ * pos-charge takes the money. This file draws the sheet and nothing else.
+ *
+ * The POS cart is stashed on the way in and put back on the way out, so
+ * starting this from a profile never eats a sale somebody was mid-way
+ * through building at the desk. */
+let MADD = null;
+
+async function memAddOpen(contactId){
+  const who = MEMBERS.find(x=>x.id===contactId);
+  if(!who){ toast('Open the member first'); return; }
+  await loadCatalog();
+  const ctx = await posStudentContext(contactId);
+
+  // What they already train in, so an option they hold is marked rather than
+  // hidden. Hiding it would take away a re-sell he might legitimately want.
+  const { data:existing } = await sb.from('memberships')
+    .select('program,plan_code,status').eq('contact_id', contactId).eq('status','active');
+
+  MADD = {
+    contactId: contactId, who: who, step: 1, ctx: ctx,
+    stash: posSale,                       // the cart at the desk, put back on close
+    programs: posProgramBuckets(),
+    program: null, code: null, calc: null,
+    priceRaw: '', downRaw: '', reason: '',
+    startYmd: attYMD(),
+    has: (existing||[]).map(r=>({ program:r.program, code:r.plan_code })),
+    pay: null, cards: [], cardsAsked: false,
+    saleId: null, membershipId: null, paidNote: null, paidOk: false,
+    sign: 'person'
+  };
+  if(!MADD.programs.length){ toast('No sellable plans in the catalog'); MADD=null; return; }
+  MADD.program = MADD.programs[0].key;
+  memAddPickProgram(MADD.program);
+  memAddRender();
+  openSheet();
+}
+
+function memAddClose(){
+  // Put the desk's cart back exactly as it was.
+  if(MADD && MADD.stash) posSale = MADD.stash;
+  MADD = null; PM_CARD = null;
+  closeSheet();
+}
+
+/* The option list belongs to the program, and the first sellable one is the
+ * default so the sheet always opens on a real quote. */
+function memAddPickProgram(key){
+  const b = MADD.programs.filter(x=>x.key===key)[0];
+  MADD.program = key;
+  MADD.code = b && b.rows.length ? b.rows[0].code : null;
+  MADD.priceRaw = ''; MADD.downRaw = ''; MADD.reason = '';
+  memAddQuote();
+}
+function memAddPickOption(code){
+  MADD.code = code;
+  MADD.priceRaw = ''; MADD.downRaw = ''; MADD.reason = '';
+  memAddQuote();
+}
+function memAddQuote(){
+  MADD.calc = MADD.code ? posQuote(MADD.code, MADD.ctx) : null;
+}
+
+/* What the override actually is, or null for "sell the recommended price".
+ * An empty box means LEAVE IT ALONE, never zero: coercing a blank to nothing
+ * would quietly make a membership free. */
+function memAddOverride(){
+  const rec = (MADD.priceRaw||'').trim();
+  const dn  = (MADD.downRaw||'').trim();
+  if(!rec && !dn) return null;
+  const c = MADD.calc;
+  return {
+    recurringCents: rec ? centsFromInput(rec) : c.finalRecurringCents,
+    downCents: dn ? centsFromInput(dn) : c.finalDownCents,
+    reason: (MADD.reason||'').trim()
+  };
+}
+function memAddDueCents(){
+  return MADD.calc ? posMemDueCents(MADD.calc, memAddOverride()) : 0;
+}
+function memAddSet(k, v){
+  MADD[k] = v;
+  if(k==='priceRaw' || k==='downRaw'){
+    const el = document.getElementById('madd-due');
+    if(el) el.innerHTML = memAddDueHtml();
+  }
+}
+function memAddDueHtml(){
+  const c = MADD.calc, ov = memAddOverride();
+  if(!c) return '';
+  const oneTime = c.billingFrequency==='one_time';
+  const rec = ov ? ov.recurringCents : c.finalRecurringCents;
+  const down = ov && ov.downCents!=null ? ov.downCents : c.finalDownCents;
+  const per = c.billingFrequency==='weekly' ? 'week' : 'month';
+  const parts = oneTime ? 'Paid in full'
+    : (down ? 'Down '+money(down/100)+' plus the first '+per+' '+money(rec/100)
+            : 'The first '+per);
+  return '<span>Due today<br>'+escHtml(parts)+'</span><b>'+money(memAddDueCents()/100)+'</b>';
+}
+
+function memAddRender(){
+  const st = MADD.step;
+  const dots = '<div class="madd-steps">'+[1,2,3].map(n=>'<i class="'+(n<=st?'on':'')+'"></i>').join('')+'</div>';
+  let body = dots, foot;
+
+  if(st===1) { body += memAddStep1(); foot = ['Cancel','memAddClose()','Next','memAddNext()']; }
+  else if(st===2){ body += memAddStep2(); foot = ['Back','memAddBack()', MADD.pay==='invoice'?'Save and send the invoice':'Take payment','memAddNext()']; }
+  else           { body += memAddStep3(); foot = ['','', 'Finish','memAddNext()']; }
+
+  $("#sheet").classList.add("sheet-lg");
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head spk-head"><div><h3>Add a membership</h3>'
+    + '<div class="sub">'+escHtml(MADD.who.first+' '+MADD.who.last)+' · step '+st+' of 3</div></div>'
+    + '<button class="close" onclick="memAddClose()">&times;</button></div>'
+    + '<div class="sheet-body spk-body">'+body+'</div>'
+    + '<div class="spk-foot">'
+    + (foot[0] ? '<button class="spk-cancel" onclick="'+foot[1]+'">'+escHtml(foot[0])+'</button>' : '')
+    + '<button class="spk-add" id="madd-go" onclick="'+foot[3]+'">'+escHtml(foot[2])+'</button></div>';
+  if(st===2 && MADD.pay==='new') pmCardMount();
+}
+
+/* ── 1: what they are joining ─────────────────────────────────────────── */
+function memAddStep1(){
+  const c = MADD.calc;
+  const b = MADD.programs.filter(x=>x.key===MADD.program)[0];
+  const has = MADD.has.filter(h=>h.program===MADD.program);
+  let h = '<div class="spk-form">'
+    + '<label class="spk-label">Program</label>'
+    + '<select class="ed-in spk-select" onchange="memAddPickProgram(this.value);memAddRender()">'
+    + MADD.programs.map(p=>'<option value="'+escAttr(p.key)+'"'+(p.key===MADD.program?' selected':'')
+        +'>'+escHtml(p.title)+'</option>').join('')
+    + '</select>'
+    // Marked, never hidden. He asks for exceptions often enough that removing
+    // an option because they already hold one would get in his way.
+    + (has.length ? '<div class="madd-has">Already on an active '+escHtml(b?b.title:'')+' membership.</div>' : '')
+    + '<label class="spk-label">Option</label>'
+    + '<select class="ed-in spk-select" onchange="memAddPickOption(this.value);memAddRender()">'
+    + (b?b.rows:[]).map(p=>'<option value="'+escAttr(p.code)+'"'+(p.code===MADD.code?' selected':'')
+        +'>'+escHtml(p.name||p.code)+'</option>').join('')
+    + '</select></div>';
+
+  if(!c || !c.eligible){
+    return h + '<div class="madd-warn">'
+      + escHtml((c && c.explanation) || 'That option cannot be sold to this member.')+'</div>';
+  }
+
+  // The engine's working, shown rather than summarised, so an unexpected price
+  // can be understood at the desk instead of argued with.
+  const freq = c.billingFrequency==='monthly'?'/month':c.billingFrequency==='weekly'?'/week':' one time';
+  h += '<div class="spk-card" style="margin-top:14px"><div class="spk-card-ttl">'+escHtml(c.planName||MADD.code)+'</div>'
+    + '<div class="spk-card-row"><b>Base:</b> '+money(c.baseCents/100)+freq+'</div>'
+    + c.adjustments.map(a=>'<div class="spk-card-row"><b>'+escHtml(a.label)+':</b> −'+money(Math.abs(a.amountCents)/100)+'</div>').join('')
+    + '<div class="spk-card-row"><b>Recurring:</b> '+money(c.finalRecurringCents/100)+freq+'</div>'
+    + (c.finalDownCents?'<div class="spk-card-row"><b>Down payment:</b> '+money(c.finalDownCents/100)+'</div>':'')
+    + (c.paymentCount?'<div class="spk-card-row"><b>Payments:</b> '+c.paymentCount+'</div>':'')
+    + '<div class="spk-card-row"><b>Household rank:</b> '+c.householdRank+(c.householdRank===1?' (founding)':'')+'</div>'
+    + '<div class="spk-card-desc">'+escHtml(c.explanation)+'</div>'
+    + (c.substituted?'<div class="ck-hint" style="margin-top:6px">Rate adjusted: '+escHtml(c.substitutionNote)+'</div>':'')
+    + '</div>';
+
+  const per = c.billingFrequency==='weekly'?'per week':c.billingFrequency==='monthly'?'per month':'one time';
+  h += '<div class="spk-form">'
+    + '<div class="spk-disc-hd"><b>Override the price?</b> <span class="spk-disc-sub">leave blank to sell the recommended price.</span></div>'
+    + '<label class="spk-label">Manual price ('+escHtml(per)+')</label>'
+    + '<div class="spk-price"><span class="spk-dollar">$</span><input class="ed-in" inputmode="decimal" value="'+escAttr(MADD.priceRaw)+'" placeholder="'+dollarsFromCents(c.finalRecurringCents)+'" oninput="memAddSet(\'priceRaw\',this.value)"></div>'
+    + '<label class="spk-label">Manual down payment</label>'
+    + '<div class="spk-price"><span class="spk-dollar">$</span><input class="ed-in" inputmode="decimal" value="'+escAttr(MADD.downRaw)+'" placeholder="'+dollarsFromCents(c.finalDownCents)+'" oninput="memAddSet(\'downRaw\',this.value)"></div>'
+    + '<label class="spk-label">Reason (required for an override)</label>'
+    + '<input class="ed-in" value="'+escAttr(MADD.reason)+'" placeholder="Why this price differs" oninput="memAddSet(\'reason\',this.value)">'
+    + '<label class="spk-label">Starts on</label>'
+    + '<input class="ed-in" type="date" value="'+escAttr(MADD.startYmd)+'" onchange="memAddSet(\'startYmd\',this.value)">'
+    + '</div>'
+    + '<div class="madd-due" id="madd-due" style="margin-top:14px">'+memAddDueHtml()+'</div>';
+  return h;
+}
+
+/* ── 2: the money ─────────────────────────────────────────────────────── */
+function memAddStep2(){
+  const opt = (val, on, title, sub) =>
+    '<label class="'+(on?'on':'')+'" onclick="memAddPay('+(val===null?'null':"'"+escJs(val)+"'")+')">'
+    + '<input type="radio" name="maddpay"'+(on?' checked':'')+'>'
+    + '<span><b>'+title+'</b><i>'+sub+'</i></span></label>';
+  const due = money(memAddDueCents()/100);
+  let h = '<div class="madd-due">'+memAddDueHtml()+'</div>';
+  if(!MADD.cardsAsked){
+    h += '<div class="ccg-sub">Checking what they have on file…</div>';
+  }
+  h += '<div class="pmpick">';
+  MADD.cards.forEach(c=>{
+    h += opt(c.id, MADD.pay===c.id,
+      'Charge '+escHtml(c.brand)+' ••••'+escHtml(c.last4)+' on file',
+      'Takes '+due+' straight away.'+(c.def?' Their default card.':''));
+  });
+  h += opt('new', MADD.pay==='new', 'Take a new card',
+        'Typed into Stripe\'s own field. The studio never sees the number, and it saves for next time.')
+    + opt('invoice', MADD.pay==='invoice', 'Send an invoice',
+        'Emails a pay link. The membership starts now and shows as owing until it is paid.')
+    + '</div>';
+  if(MADD.pay==='new'){
+    h += '<label class="ed-lbl" style="margin-top:14px">Card details</label>'
+      + '<div id="pmCardBox" class="pm-cardbox"><div class="pm-cardload">Loading secure card field…</div></div>'
+      + '<div id="pmCardErr" class="pm-carderr"></div>';
+  }
+  h += '<div class="ck-hint" style="margin-top:12px">The membership is created either way. '
+    + 'A declined card leaves it standing with the invoice unpaid, to retry from there.</div>';
+  return h;
+}
+function memAddPay(v){ MADD.pay = v; memAddRender(); }
+
+/* Cards for whoever pays. Asked once, when step 2 is reached, so step 1 is
+ * not held up by a network call it does not need. */
+async function memAddLoadCards(){
+  const r = await sb.functions.invoke('payment-methods', {
+    body:{ action:'list', contact_id: MADD.contactId }
+  });
+  if(!MADD || MADD.step!==2) return;   // he moved on
+  if(r.error || !r.data || r.data.error){ console.error('add cards', r.error||r.data); }
+  MADD.cards = (r.data && r.data.cards) || [];
+  MADD.cardsAsked = true;
+  // Their default card is the obvious answer when there is one.
+  if(!MADD.pay) MADD.pay = (MADD.cards.filter(c=>c.def)[0] || MADD.cards[0] || {}).id || 'new';
+  memAddRender();
+}
+
+/* ── 3: the paperwork ─────────────────────────────────────────────────── */
+function memAddStep3(){
+  const opt = (val, title, sub) =>
+    '<label class="'+(MADD.sign===val?'on':'')+'" onclick="memAddSign(\''+val+'\')">'
+    + '<input type="radio" name="maddsign"'+(MADD.sign===val?' checked':'')+'>'
+    + '<span><b>'+title+'</b><i>'+sub+'</i></span></label>';
+  return '<div class="madd-done'+(MADD.paidOk?'':' bad')+'">'+MADD.paidNote+'</div>'
+    + '<div class="pmpick">'
+    + opt('person','Sign in person','Opens the agreement now. Hand them the screen.')
+    + opt('email','Send the agreement','Emails them a page already filled in. They read it and sign, nothing to retype.')
+    + opt('skip','Skip for now','Fine to do. The membership is flagged as unsigned until somebody signs it.')
+    + '</div>'
+    + (MADD.sign==='skip'
+        ? '<div class="madd-warn">This membership will show <b>No agreement on file</b> on the profile, and on the dashboard, until it is signed.</div>'
+        : '');
+}
+function memAddSign(v){ MADD.sign = v; memAddRender(); }
+
+/* ── moving between the steps ─────────────────────────────────────────── */
+function memAddBack(){
+  if(MADD.step===2){ MADD.step=1; memAddRender(); }
+}
+
+async function memAddNext(){
+  if(MADD.step===1) return memAddToPayment();
+  if(MADD.step===2) return memAddTakePayment();
+  return memAddFinish();
+}
+
+function memAddToPayment(){
+  const c = MADD.calc;
+  if(!c || !c.eligible){ toast('Pick an option that can be sold to them'); return; }
+  const ov = memAddOverride();
+  // An override without a reason is a price nobody can explain later.
+  if(ov && !ov.reason){ toast('Say why the price differs - it goes on the record'); return; }
+  if(ov && (!isFinite(ov.recurringCents) || ov.recurringCents<0 || !isFinite(ov.downCents) || ov.downCents<0)){
+    toast('Check the override amounts'); return;
+  }
+  if(!MADD.startYmd){ toast('When does it start?'); return; }
+  MADD.step = 2;
+  memAddRender();
+  if(!MADD.cardsAsked) memAddLoadCards();
+}
+
+/* Build the sale exactly as the POS would, record it unpaid, then take the
+ * money. The membership does not wait for the card: a decline leaves it
+ * standing with an open invoice, which is the owner's rule. */
+async function memAddTakePayment(){
+  if(!MADD.pay){ toast('How are they paying?'); return; }
+  const btn = document.getElementById('madd-go');
+  if(btn){ btn.disabled = true; btn.textContent = 'Saving the membership…'; }
+
+  const c = MADD.calc, ov = memAddOverride();
+  posSale = posBlank();
+  posSale.memberId = MADD.contactId;
+  posSale.date = MADD.startYmd;
+  const line = {
+    kind:'mem', label: c.planName || MADD.code, sub: posMemRecurringNote(c, ov),
+    amount: posMemDueCents(c, ov)/100, program: c.program || null,
+    requestedCode: MADD.code, studentId: MADD.contactId, calc: c, override: ov,
+    // Paperwork is step 3. Waiving here is the documented "take the money
+    // first" path, not an accident, and step 3 never lets it be forgotten.
+    __agreementWaived: true
+  };
+  posSale.lines.push(line);
+
+  const res = await posTender('Unpaid', { deferNavigation:true, cardPending: MADD.pay!=='invoice',
+                                          agreementHandled:true });
+  if(!res || !res.saleId){
+    // posTender already said what went wrong.
+    if(btn){ btn.disabled = false; btn.textContent = 'Take payment'; }
+    posSale = MADD.stash;
+    return;
+  }
+  MADD.saleId = res.saleId;
+  MADD.membershipId = line.membershipId || null;
+  MADD.tender = res;
+  posSale = MADD.stash;   // the desk's cart is not part of this
+
+  const due = posMemDueCents(c, ov);
+  if(MADD.pay === 'invoice'){
+    MADD.paidOk = true;
+    MADD.paidNote = 'Membership created. An invoice for <b>'+money(due/100)
+      + '</b> is open and shows as owing until it is paid.';
+  } else if(MADD.pay === 'new'){
+    if(btn) btn.textContent = 'Charging the card…';
+    const charged = await memAddChargeNewCard(res.saleId, due);
+    MADD.paidOk = charged.ok;
+    MADD.paidNote = charged.ok
+      ? 'Card approved. <b>'+money(charged.amount_cents/100)+'</b> taken, and the card is saved for next time.'
+      : 'Card not charged: '+escHtml(charged.error||'declined')+'. The membership is created and the invoice is open, to retry from there.';
+  } else {
+    if(btn) btn.textContent = 'Charging the card on file…';
+    const charged = await pmChargeSaved(res.saleId, due, MADD.pay);
+    MADD.paidOk = charged.ok;
+    MADD.paidNote = charged.ok
+      ? '<b>'+money(charged.amount_cents/100)+'</b> charged to their card on file.'
+      : 'Card not charged: '+escHtml(charged.error||'declined')+'. The membership is created and the invoice is open, to retry from there.';
+  }
+  // Anything posTender could not do is not swallowed by a success message.
+  if(MADD.tender.problems && MADD.tender.problems.length){
+    MADD.paidOk = false;
+    MADD.paidNote += '<br><br>' + MADD.tender.problems.map(escHtml).join('<br>');
+  }
+  MADD.step = 3;
+  memAddRender();
+}
+
+/* A card typed at the desk, tokenised here and charged by the server, exactly
+ * as the POS does it. */
+async function memAddChargeNewCard(saleId, amountCents){
+  if(!PM_CARD || !PM_STRIPE) return { ok:false, error:'the card field did not load' };
+  let pm;
+  try{ pm = await PM_STRIPE.createPaymentMethod({ type:'card', card: PM_CARD }); }
+  catch(e){ pm = { error:{ message:(e&&e.message)||'Card check failed.' } }; }
+  if(!pm || pm.error || !pm.paymentMethod){
+    return { ok:false, error:(pm && pm.error && pm.error.message) || 'check the card details' };
+  }
+  const out = await pmChargeCard(saleId, amountCents, pm.paymentMethod.id);
+  PM_CARD = null;
+  return out;
+}
+
+async function memAddFinish(){
+  const mid = MADD.membershipId, who = MADD.contactId, want = MADD.sign, sale = MADD.saleId;
+  memAddClose();
+  if(selectedId === who) loadProfileMemberships(who);
+  if(document.getElementById('dash-unsigned')) dashLoadUnsigned();
+  if(!mid){
+    // The sale saved but the membership row did not, which posTender already
+    // reported. There is nothing to sign, so do not pretend otherwise.
+    if(want!=='skip') toast('No membership row to attach an agreement to - check the invoice');
+    return;
+  }
+  if(want === 'person') return agrSignMembership(mid);
+  if(want === 'email')  return agrSendMembership(mid);
+  toast('Membership added, flagged as unsigned');
+  if(sale) showInvoice(sale, 'profile');
 }
 
 /* ── PAYMENT SCHEDULES ────────────────────────────────────────────────────────
