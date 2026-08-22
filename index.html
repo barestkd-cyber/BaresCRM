@@ -410,11 +410,11 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
   .pstats{grid-template-columns:repeat(2,minmax(0,240px));padding:18px 26px 0}
   .pstat .n{font-size:24px}
   .pstat .l{font-size:12px}
-  .phead{display:flex;text-align:left;align-items:flex-start;gap:22px;padding:22px 26px;margin:14px 26px 0;border-radius:16px}
-  .phead .pav{margin:0;flex:0 0 auto}
-  .phead-body{flex:1;min-width:0}
-  .phead .pseg{margin-top:0;margin-left:10px;vertical-align:middle}
-  .pact{margin-top:0;flex:0 0 auto}
+  /* The header is a card with TWO stacked children now (.phead-top and
+     .phead-facts), so it must not be a flex row: that put the facts beside
+     the avatar instead of under it. .phead-top does the row itself. */
+  .phead{padding:22px 26px;margin:14px 26px 0}
+  .phead-facts{gap:24px}
   .ptabs{display:flex;gap:2px;margin:16px 26px 0;border-bottom:2px solid var(--line);flex-wrap:wrap}
   .ptab{padding:12px 15px;font-weight:700;font-size:13.5px;color:var(--muted);border:none;background:none;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-2px;font-family:inherit;display:flex;align-items:center;gap:7px}
   .ptab.on{color:var(--accent);border-color:var(--accent)}
@@ -523,12 +523,13 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
   .pos-prods{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:11px}
   .pos-prodsel{display:none}
   .mright{flex-direction:column;align-items:flex-end}
-  /* profile is a normal full-width view with its back bar */
-  .phead{display:flex;align-items:center;text-align:left;gap:18px;padding:24px 28px}
-  .phead .pav{margin:0;width:62px;height:62px;font-size:23px}
+  /* profile is a normal full-width view with its back bar. The header keeps
+     its card layout; only the padding and type sizes change on a wide screen.
+     This block used to force display:flex and shrink the avatar back to 62px,
+     both written for a three-child header that no longer exists. */
+  .phead{padding:24px 28px}
   .phead .pname{font-size:25px}
   .phead .pmeta{margin-top:4px}
-  .phead .pseg{margin-top:8px}
   .psections{column-count:2;column-gap:20px;padding:14px 28px 0}
   .psections .sec{padding:0;margin-bottom:18px;break-inside:avoid}
   .spacer{height:30px}
@@ -1133,6 +1134,16 @@ async function renderAttendance(){
   await attRefresh();
 }
 function attYMD(dt){ const d=dt||new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+/* The STUDIO's date for a timestamp. Slicing the first ten characters off a
+ * UTC timestamptz reads a day early for anything after 7pm Central, which is
+ * most of the evening. Anything signed, paid or checked in at class needs
+ * this rather than the slice. */
+function studioYmd(ts){
+  if(!ts) return '';
+  const d = new Date(ts);
+  if(isNaN(d.getTime())) return String(ts).slice(0,10);
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+}
 // The selected class, or null when the day has none ("No classes" option = -1).
 function attSelectedClass(){
   const sel=document.getElementById('att-class');
@@ -5411,6 +5422,10 @@ async function calSaveSched(){
 function openProfile(id){
   selectedId = id;
   currentMember = MEMBERS.find(m=>m.id===id);
+  // The attendance window is per-profile in the eye of whoever is reading it.
+  // Left sticky, the toggle showed "This cycle" selected while the data was
+  // still the last profile's 20 weeks.
+  PROF_ATT_WIN = 'cycle';
   renderProfile();
   renderList();
   document.querySelectorAll(".view").forEach(v=>v.classList.remove("on"));
@@ -5666,6 +5681,7 @@ async function loadProfilePeople(contactId){
   const { data, error } = await sb.from('student_contacts')
     .select('kind,name,phone,relationship')
     .eq('student_id', contactId).order('created_at');
+  if(profStale(contactId)) return;   // they opened somebody else
   if(error){ console.error('student_contacts', error); return; }
   const rows = data||[];
   if(!rows.length) return;
@@ -5691,6 +5707,7 @@ async function loadProfileStats(contactId){
   const count = async (since) => {
     const r = await sb.from('attendance').select('id',{count:'exact',head:true})
       .eq('student_id', contactId).gte('class_date', since);
+    if(profStale(contactId)) return;   // they opened somebody else
     return r.count ?? 0;
   };
   const a30 = await count(ymd(30));
@@ -5709,6 +5726,7 @@ async function loadProfileMoney(contactId){
     .select('id,sale_date,status,total_cents')
     .eq('buyer_contact_id', contactId)
     .order('created_at', { ascending:false }).limit(100);
+  if(profStale(contactId)) return;   // they opened somebody else
   if(sRes.error){ console.error('profile money', sRes.error); return; }
   const sales = sRes.data||[];
   const ids = sales.map(s=>s.id);
@@ -5854,6 +5872,7 @@ async function loadProfileRosters(contactId){
   const box = document.getElementById('prof-rosters'); if(!box) return;
   const { data, error } = await sb.from('enrollments')
     .select('program,status').eq('student_id', contactId);
+  if(profStale(contactId)) return;   // they opened somebody else
   if(error){ box.textContent = 'Could not load rosters.'; return; }
   const rows = data||[];
   if(!rows.length){ box.textContent = 'Not on any class roster yet. A membership adds them automatically.'; return; }
@@ -5871,6 +5890,7 @@ async function loadProfileNotes(contactId){
     .select('id,body,created_by,created_at')
     .eq('contact_id', contactId)
     .order('created_at', { ascending:false }).limit(50);
+  if(profStale(contactId)) return;   // they opened somebody else
   if(error){ console.error('notes load', error); box.innerHTML = '<div class="note-empty">Could not load notes.</div>'; return; }
   const rows = data||[];
   if(!rows.length){ box.innerHTML = '<div class="note-empty">No notes yet.</div>'; return; }
@@ -5949,13 +5969,15 @@ async function memEditOpen(id){
   const payers = [];
   const meRow = MEMBERS.find(x=>x.id===data.contact_id);
   if(meRow) payers.push({ id: meRow.id, name: meRow.first+' '+meRow.last+' (the student)' });
+  // householdOf returns { household, contactIds }. Reading hh.id here made
+  // the filter compare against undefined, so this list never held anyone but
+  // the student and a parent could never be picked as the payer.
   const hh = (typeof householdOf==='function') ? householdOf(data.contact_id) : null;
-  if(hh){
-    HH_LINKS.filter(l=>l.household_id===hh.id && l.contact_id!==data.contact_id).forEach(l=>{
-      const c = MEMBERS.find(x=>x.id===l.contact_id);
-      if(c) payers.push({ id: c.id, name: c.first+' '+c.last });
-    });
-  }
+  (hh ? hh.contactIds : []).forEach(cid=>{
+    if(cid === data.contact_id) return;
+    const c = MEMBERS.find(x=>x.id===cid);
+    if(c) payers.push({ id: c.id, name: c.first+' '+c.last });
+  });
   if(data.payer_contact_id && !payers.some(p=>p.id===data.payer_contact_id)){
     const c = MEMBERS.find(x=>x.id===data.payer_contact_id);
     payers.push({ id: data.payer_contact_id, name: c ? c.first+' '+c.last : 'somebody else' });
@@ -5978,9 +6000,12 @@ async function memEditOpen(id){
       + programs.map(p=>'<option'+(p===data.program?' selected':'')+'>'+escHtml(p)+'</option>').join('')
       + '</select>'
     + '<label class="spk-label">Option</label>'
-    + '<select id="me-plan" class="ed-in spk-select">'
-      + optsFor(data.program).map(p=>'<option value="'+escAttr(p.code)+'"'
-          + (p.code===data.plan_code?' selected':'')+'>'+escHtml(p.name||p.code)+'</option>').join('')
+    // The membership's OWN plan is always offered, even when the catalog no
+    // longer carries it. A sold membership is a frozen snapshot: a retired or
+    // renamed plan must not be quietly swapped for a different one just
+    // because somebody opened this sheet to change the billing date.
+    + '<select id="me-plan" class="ed-in spk-select" onchange="memEditDrift()">'
+      + memPlanOptions(data.program, data.plan_code)
       + '</select>'
     + (ag && ag.document_title
         ? '<div class="spk-note-warn" id="me-agr-warn" style="display:none">The signed agreement is for '
@@ -6014,9 +6039,13 @@ async function memEditOpen(id){
       + '</select>'
     + '<div class="spk-hint">The card charged for this membership. For a child that is usually a parent, not the student.</div>'
     + '<label class="spk-label">Status</label>'
+    // The row's own status is always in the list. Without it, a membership
+    // sitting in any status this array does not know about (pending, say)
+    // would silently flip to active on the next unrelated save.
     + '<select id="me-status" class="ed-in spk-select">'
-      + ['active','paused','canceled','ended'].map(x=>'<option value="'+x+'"'+(x===(data.status||'active')?' selected':'')+'>'
-          + x.charAt(0).toUpperCase()+x.slice(1)+'</option>').join('')
+      + [...new Set([data.status||'active','active','paused','canceled','ended'])]
+          .map(x=>'<option value="'+escAttr(x)+'"'+(x===(data.status||'active')?' selected':'')+'>'
+          + escHtml(x.charAt(0).toUpperCase()+x.slice(1))+'</option>').join('')
       + '</select>'
     + '<label class="spk-label">Why (recorded)</label>'
     + '<input id="me-reason" class="ed-in" maxlength="200" placeholder="Moved billing to the 1st at her request">'
@@ -6032,14 +6061,31 @@ async function memEditOpen(id){
   openSheet();
 }
 
+/* The options a program offers, with the membership's CURRENT plan always
+ * present even if the catalog has since dropped or renamed it. A frozen
+ * snapshot must never be silently repointed at a different plan. */
+function memPlanOptions(program, keepCode){
+  const opts = PLAN_ROWS.filter(p=>p.program===program);
+  const known = opts.some(p=>p.code===keepCode);
+  let html = '';
+  if(keepCode && !known){
+    html += '<option value="'+escAttr(keepCode)+'" selected>'+escHtml(keepCode)
+      + ' (not in the catalog)</option>';
+  }
+  html += opts.map(p=>'<option value="'+escAttr(p.code)+'"'
+    + (p.code===keepCode?' selected':'')+'>'+escHtml(p.name||p.code)+'</option>').join('');
+  if(!html) html = '<option value="'+escAttr(keepCode||'')+'" selected>'
+    + escHtml(keepCode||'No options set up for this program')+'</option>';
+  return html;
+}
+
 /* The option list belongs to the program, so it follows it, and the agreement
  * warning appears the moment either leaves what was signed. */
 function memEditProgramChanged(){
   const prog = $("#me-program").value;
-  const opts = PLAN_ROWS.filter(p=>p.program===prog);
-  $("#me-plan").innerHTML = opts.length
-    ? opts.map(p=>'<option value="'+escAttr(p.code)+'">'+escHtml(p.name||p.code)+'</option>').join('')
-    : '<option value="">No options set up for this program</option>';
+  // Switching back to the original program restores its original plan.
+  const keep = (MEM_EDIT && prog === MEM_EDIT.program) ? MEM_EDIT.plan_code : null;
+  $("#me-plan").innerHTML = memPlanOptions(prog, keep);
   memEditDrift();
 }
 function memEditDrift(){
@@ -6053,8 +6099,12 @@ function memEditDrift(){
 async function memEditSave(){
   if(!MEM_EDIT) return;
   const before = MEM_EDIT;
-  const priceCents = Math.round(parseFloat($("#me-price").value||"0")*100);
-  if(!isFinite(priceCents) || priceCents < 0){ toast("Enter a price"); return; }
+  // An empty box is not a price of zero. Coercing it to 0 would quietly make
+  // a membership free, which is the one arithmetic mistake nobody notices.
+  const priceRaw = ($("#me-price").value||"").trim();
+  if(!priceRaw){ toast("Enter a price"); $("#me-price").focus(); return; }
+  const priceCents = Math.round(parseFloat(priceRaw)*100);
+  if(!isFinite(priceCents) || priceCents < 0){ toast("Enter a price"); $("#me-price").focus(); return; }
   const next = {
     program: $("#me-program").value,
     plan_code: $("#me-plan").value,
@@ -6358,6 +6408,12 @@ async function memSchedInvoice(id){
 }
 function memSchedInvoiceView(saleId){ closeSheet(); showInvoice(saleId, "profile"); }
 
+/* Has the reader moved on? renderProfile fires its loaders without waiting,
+ * so a slow answer for one student can land after another profile is open and
+ * write somebody else's numbers into it. Every loader checks this before it
+ * touches the DOM. */
+function profStale(contactId){ return selectedId !== contactId; }
+
 /* Prepaid private lessons still owed to this student. A pack is a balance,
  * so what is left is what was bought minus what has been booked against it.
  * Money credits have no concept behind them yet, so the profile shows $0.00
@@ -6367,6 +6423,7 @@ async function loadProfileCredits(contactId){
   if(!el) return;
   const { data, error } = await sb.from('private_lesson_packs')
     .select('lessons_total,lessons_used').eq('contact_id', contactId);
+  if(profStale(contactId)) return;   // they opened somebody else
   if(error){ console.error('profile credits', error); el.textContent = '–'; return; }
   const left = (data||[]).reduce((t,p)=>t + Math.max(0,(p.lessons_total||0)-(p.lessons_used||0)), 0);
   el.textContent = String(left);
@@ -6378,6 +6435,7 @@ async function loadProfileMemberships(contactId){
     .select('id,contact_id,payer_contact_id,program,plan_code,status,billing_frequency,started_on,ended_on,final_recurring_cents,final_down_cents,payment_count,sale_id,next_bill_on')
     .eq('contact_id', contactId)
     .order('created_at', { ascending:false });
+  if(profStale(contactId)) return;   // they opened somebody else
   if(error){ console.error('profile memberships', error); box.innerHTML='<div class="card pad" style="color:var(--muted);font-size:14px">Could not load memberships.</div>'; return; }
   const rows = data||[];
   if(!rows.length){ box.innerHTML='<div class="card pad" style="color:var(--muted);font-size:14px">No membership yet.</div>'; return; }
@@ -6407,7 +6465,12 @@ async function loadProfileMemberships(contactId){
         (ss||[]).forEach(r=>{ if(r.status==='paid') paidSale[r.id]=true; });
       }
       (insts||[]).forEach(x=>{
-        x.settled = x.status==='paid' || x.status==='waived' || x.status==='canceled' || (x.sale_id && paidSale[x.sale_id]);
+        // Two different questions. SETTLED means nothing more will be
+        // collected for it; PAID means money actually arrived. A waived
+        // payment is settled and was never paid, so counting it as paid
+        // would overstate what a member has handed over.
+        x.paid = x.status==='paid' || (x.sale_id && paidSale[x.sale_id]);
+        x.settled = x.paid || x.status==='waived' || x.status==='canceled';
         (instBy[x.membership_id]=instBy[x.membership_id]||[]).push(x);
       });
     }
@@ -6455,8 +6518,9 @@ async function loadProfileMemberships(contactId){
       : '–']);
     const instAll = PROF_INST[ms.id]||[];
     if(instAll.length){
-      const left = instAll.filter(x=>!x.settled).length;
-      facts.push(['Paid', (instAll.length-left)+' of '+instAll.length]);
+      const paid = instAll.filter(x=>x.paid).length;
+      const waived = instAll.filter(x=>!x.paid && x.settled).length;
+      facts.push(['Paid', paid+' of '+instAll.length + (waived?' · '+waived+' waived':'')]);
     } else if(ms.payment_count){
       facts.push(['Payments', String(ms.payment_count)]);
     }
@@ -6471,7 +6535,9 @@ async function loadProfileMemberships(contactId){
     const ag = agrBy[ms.id];
     const agr = ag
       ? '<div class="memx-agr"><b>✓ Agreement signed</b><br>Signed by '+escHtml(ag.signer_name||'?')
-        + (ag.signed_at?' on '+escHtml(fmtDate(String(ag.signed_at).slice(0,10))):'')
+        // Slicing the UTC timestamp read a day early for anything signed
+        // after 7pm Central, which is most of the evening classes.
+        + (ag.signed_at?' on '+escHtml(fmtDate(studioYmd(ag.signed_at))):'')
         + '<br><button class="vc" onclick="agrView(\''+ag.id+'\')">View agreement</button></div>'
       : '<div class="memx-agr miss"><b>⚠ No agreement on file</b><br>'
         + '<button class="vc" onclick="agrMissing(\''+escJs(ms.program||'')+'\')">What to do</button></div>';
@@ -6567,6 +6633,7 @@ async function loadProfileAttendance(id){
   if(PROF_ATT_WIN==='20wk'){ start=new Date(); start.setDate(start.getDate()-140); }
   else { start=await profCycleStart(); if(!start){ start=new Date(); start.setDate(start.getDate()-70); } }
   const startStr=start.toISOString().slice(0,10);
+  if(profStale(id)) return;   // they opened somebody else
   const {data,error}=await sb.from('attendance').select('class_date,class_label').eq('student_id',id).gte('class_date',startStr).order('class_date',{ascending:false});
   if(error){ box.innerHTML='<div style="color:var(--muted);font-size:14px">Could not load attendance.</div>'; return; }
   const rows=data||[]; const total=rows.length; const last=rows.length?rows[0].class_date:null;
@@ -6677,6 +6744,7 @@ async function loadProfileHousehold(contactId){
   const box = document.getElementById('prof-hh');
   if(!box) return;
   await loadHouseholds(true);
+  if(profStale(contactId)) return;   // they opened somebody else
   const hh = householdOf(contactId);
   if(!hh){
     box.innerHTML = '<div style="color:var(--muted);font-size:14px;margin-bottom:11px;">Not in a household yet. Households group family members so pricing can see them.</div>'

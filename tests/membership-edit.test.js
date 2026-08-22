@@ -249,5 +249,81 @@ test('membership edits are attributed to the signed-in staff email, never a plac
   });
 });
 
+/* ── found by adversarial review of the profile port, 2026-08-21 ────── */
+
+test('the payer list reads the shape householdOf actually returns', () => {
+  // It read hh.id, but householdOf returns { household, contactIds }. The
+  // filter compared against undefined, so the Who pays dropdown never
+  // listed a parent and the whole feature was dead on arrival.
+  const fn = /async function memEditOpen\(id\)\{([\s\S]*?)\n\}/.exec(html);
+  assert.ok(fn, 'memEditOpen not found');
+  // Comments stripped: the note explaining this very bug mentions hh.id, and
+  // a test that trips over its own explanation is worse than no test.
+  const code = fn[1].replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.ok(!/hh\.id\b/.test(code),
+    'householdOf has no .id; use hh.contactIds or hh.household.id');
+  assert.ok(/hh\.contactIds|hh\.household\.id/.test(code),
+    'the payer list must read the real household shape');
+});
+
+test('a membership keeps its own status and plan even when the lists lack them', () => {
+  // Both selects used to offer a fixed list. A membership sitting in any
+  // other status, or on a plan the catalog has since dropped, was silently
+  // rewritten by an unrelated save. A sold membership is a frozen snapshot.
+  const open = /async function memEditOpen\(id\)\{([\s\S]*?)\n\}/.exec(html)[1];
+  assert.ok(/new Set\(\[data\.status/.test(open),
+    'the row\'s own status must always be an option');
+  assert.ok(/memPlanOptions\(/.test(open),
+    'the option list must go through memPlanOptions, which keeps the current plan');
+  const plan = /function memPlanOptions\([\s\S]*?\n\}/.exec(html);
+  assert.ok(plan, 'memPlanOptions not found');
+  assert.ok(/not in the catalog/.test(plan[0]),
+    'a plan missing from the catalog must still be offered, and labelled');
+});
+
+test('an empty price box is refused, never treated as free', () => {
+  const fn = /async function memEditSave\(\)\{([\s\S]*?)\n\}/.exec(html);
+  assert.ok(fn, 'memEditSave not found');
+  const body = fn[1];
+  const guard = body.indexOf('priceRaw');
+  const write = body.indexOf('final_recurring_cents');
+  assert.ok(guard > -1 && guard < write,
+    'the empty check must run before the price is written');
+});
+
+test('a waived payment is settled but never counted as paid', () => {
+  // Counting a waiver as paid overstates what a member has handed over.
+  const fn = /async function loadProfileMemberships\(contactId\)\{([\s\S]*?)\n\}/.exec(html);
+  assert.ok(fn, 'loadProfileMemberships not found');
+  assert.ok(/x\.paid = /.test(fn[1]), 'paid must be tracked separately from settled');
+  assert.ok(!/x\.paid = [^;]*waived/.test(fn[1]), 'waived must not make something paid');
+});
+
+test('profile loaders drop their answer if the reader moved on', () => {
+  // The loaders are fired without waiting. A slow answer for one student
+  // used to paint itself into whichever profile was open when it landed.
+  assert.ok(/function profStale\(/.test(html), 'profStale is missing');
+  ['loadProfileCredits', 'loadProfileMemberships', 'loadProfileMoney',
+   'loadProfileAttendance', 'loadProfileNotes'].forEach((name) => {
+    const fn = new RegExp('function ' + name + '\\(([^)]*)\\)\\{([\\s\\S]*?)\\n\\}').exec(html);
+    assert.ok(fn, name + ' not found');
+    assert.ok(/profStale\(/.test(fn[2]), name + ' must check profStale before writing');
+  });
+});
+
+test('a signing date is read in studio time, not sliced off a UTC stamp', () => {
+  // Slicing the first ten characters read a day early for anything signed
+  // after 7pm Central, which is most of the evening classes.
+  assert.ok(/function studioYmd\(/.test(html), 'studioYmd is missing');
+  const fn = /async function loadProfileMemberships\(contactId\)\{([\s\S]*?)\n\}/.exec(html);
+  assert.ok(!/signed_at\)\.slice\(0,\s*10\)/.test(fn[1]),
+    'signed_at must not be date-sliced in UTC');
+});
+
+test('the agreement warning fires for the option, not only the program', () => {
+  assert.ok(/id="me-plan"[^>]*onchange="memEditDrift\(\)"/.test(html),
+    'changing the option alone must also raise the agreement warning');
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
 process.exit(failed ? 1 : 0);
