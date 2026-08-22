@@ -127,7 +127,7 @@ const FNS = [
   'posTender', 'posBuildSaleIntent',
   'posEditMemLine', 'posSaveMemLine',
   'posOpenMembershipFor',
-  'openSheet', 'closeSheet', 'setNavActive', 'closeNav', 'showSection'
+  'openSheet', 'closeSheet', 'setNavActive', 'closeNav', 'showSection', 'posCloseInvoice'
 ];
 const VARS = ['\\$', 'escHtml', 'escAttr', 'escJs', 'money', 'centsFromInput', 'dollarsFromCents', 'POS_ANON_CTX', 'POS_STUDENT_CTX', 'POS_ADD', 'PAY', 'PAY_DETAIL', 'IV_ICO',
   'LEGAL_ENTITY', 'RECEIPT_BRANDS', 'POS_LAST_RECEIPT', 'INV_BANNER',
@@ -969,6 +969,18 @@ await test('25 a buyer name with markup is escaped in the POS header', async () 
 await test('26 suite-wide: the client never wrote a card payment row', async () => {
   assert.ok(!ALL_CALLS.some(c => c.table === 'pos_payments' && c.op === 'insert' && c.rows && c.rows.method === 'card'),
     'a pos_payments row with method card may only come from pos-charge or the webhook');
+});
+
+await test('27 a paid invoice a refund re-opened can be closed; the filter never touches a closed one', async () => {
+  sandbox.INV_CUR = { from: 'pos' };
+  await run('posCloseInvoice("sale-refunded")');
+  const upd = ALL_CALLS.filter(c => c.table === 'pos_sales' && c.op === 'update').pop();
+  assert.ok(upd && upd.patch && upd.patch.status === 'closed', 'close writes status closed');
+  const src = /async function posCloseInvoice\(saleId\)\{[\s\S]*?\n\}/.exec(html)[0];
+  assert.ok(/\.in\('status', \['unpaid','paid'\]\)/.test(src), 'unpaid or paid-then-refunded may close');
+  assert.ok(!/eq\('status','unpaid'\)/.test(src), 'the old unpaid-only filter is gone');
+  assert.ok(/s\.status==='unpaid' \|\| \(s\.status==='paid' && balance>0\)\) h \+= '<button class="iv-abtn" onclick="posCloseInvoiceSheet/.test(html),
+    'Close is offered on a paid invoice once a refund leaves a balance');
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');

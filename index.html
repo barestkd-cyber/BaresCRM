@@ -4465,7 +4465,10 @@ async function showInvoice(saleId, from){
   h += '<button class="iv-abtn" onclick="posCopyInvoiceLink(\''+s.id+'\')">'+IV_ICO.link+'<span>Copy link</span></button>';
   if(s.status==='unpaid' && balance>0) h += '<button class="iv-abtn" onclick="posAddPaymentSheet(\''+s.id+'\','+balance+',\''+escJs(posBuyerLabel(s.buyer_contact_id))+'\',\'inv\')">'+IV_ICO.payadd+'<span>Add payment</span></button>';
   if(s.status==='paid' && paidNet>0) h += '<button class="iv-abtn" onclick="posRefundSheet(\''+s.id+'\','+paidNet+')">'+IV_ICO.refund+'<span>Refund</span></button>';
-  if(s.status==='unpaid') h += '<button class="iv-abtn" onclick="posCloseInvoiceSheet(\''+s.id+'\','+balance+')">'+IV_ICO.close+'<span>Close</span></button>';
+  // A refund re-opens the balance on a paid invoice and it stays owed until
+  // the owner closes it (owner rule 2026-08-21), so Close is offered there
+  // too. Closing waives the balance; the charge and the refund stay on record.
+  if(s.status==='unpaid' || (s.status==='paid' && balance>0)) h += '<button class="iv-abtn" onclick="posCloseInvoiceSheet(\x27'+s.id+'\x27,'+balance+')">'+IV_ICO.close+'<span>Close</span></button>';
   if(s.status==='unpaid' && paidNet===0 && pays.length===0) h += '<button class="iv-abtn danger" onclick="posDeleteInvoiceSheet(\''+s.id+'\')">'+IV_ICO.trash+'<span>Delete</span></button>';
   h += '</div>';
 
@@ -4742,9 +4745,11 @@ function posCloseInvoiceSheet(saleId, balanceCents){
 }
 async function posCloseInvoice(saleId){
   const upd = await sb.from('pos_sales').update({ status:'closed' })
-    .eq('id', saleId).eq('status','unpaid').select('id');
+    // unpaid, or paid-then-refunded: the balance a refund re-opens is waived
+    // the same way. Never an invoice that is already closed.
+    .eq('id', saleId).in('status', ['unpaid','paid']).select('id');
   if(upd.error){ toast('Could not close: '+(upd.error.message||upd.error)); return; }
-  if(!upd.data || !upd.data.length){ toast('Not closed - run sql/pos-invoice-lifecycle.sql, or the invoice is no longer unpaid.'); return; }
+  if(!upd.data || !upd.data.length){ toast('Not closed - run sql/pos-invoice-lifecycle.sql, or the invoice is already closed.'); return; }
   toast('Invoice closed - balance waived');
   closeSheet(); showInvoice(saleId, INV_CUR.from);
 }
