@@ -127,7 +127,7 @@ const FNS = [
   'posTender', 'posBuildSaleIntent',
   'posEditMemLine', 'posSaveMemLine',
   'posOpenMembershipFor',
-  'openSheet', 'closeSheet', 'setNavActive', 'closeNav', 'showSection', 'posCloseInvoice'
+  'openSheet', 'closeSheet', 'setNavActive', 'closeNav', 'showSection', 'posCloseInvoice', 'posReopenAfterRefund'
 ];
 const VARS = ['\\$', 'escHtml', 'escAttr', 'escJs', 'money', 'centsFromInput', 'dollarsFromCents', 'POS_ANON_CTX', 'POS_STUDENT_CTX', 'POS_ADD', 'PAY', 'PAY_DETAIL', 'IV_ICO',
   'LEGAL_ENTITY', 'RECEIPT_BRANDS', 'POS_LAST_RECEIPT', 'INV_BANNER',
@@ -981,6 +981,23 @@ await test('27 a paid invoice a refund re-opened can be closed; the filter never
   assert.ok(!/eq\('status','unpaid'\)/.test(src), 'the old unpaid-only filter is gone');
   assert.ok(/s\.status==='unpaid' \|\| \(s\.status==='paid' && balance>0\)\) h \+= '<button class="iv-abtn" onclick="posCloseInvoiceSheet/.test(html),
     'Close is offered on a paid invoice once a refund leaves a balance');
+});
+
+await test('28 a refund that leaves a balance puts the invoice back to unpaid and resets the receipt claim', async () => {
+  // Source-level: the desk refund reopens through one helper, the helper only
+  // touches a paid invoice whose net is short of the total, and the Refund
+  // button no longer needs status paid (a partly refunded invoice is unpaid).
+  const save = /async function posRefundSave\(saleId, maxCents\)\{[\s\S]*?\n\}/.exec(html)[0];
+  assert.ok(/await posReopenAfterRefund\(saleId\);/.test(save), 'desk refund reopens the invoice');
+  const helper = /async function posReopenAfterRefund\(saleId\)\{[\s\S]*?\n\}/.exec(html)[0];
+  assert.ok(/status:'unpaid', receipt_sent_at:null/.test(helper), 'reopen = unpaid + receipt claim cleared');
+  assert.ok(/\.eq\('status','paid'\)/.test(helper), 'only a paid invoice reopens');
+  assert.ok(/net >= sRes\.data\.total_cents\) return;/.test(helper), 'an overpayment refund leaves it paid');
+  assert.ok(/if\(paidNet>0 && s\.status!=='closed'\) h \+= '<button class="iv-abtn" onclick="posRefundSheet/.test(html), 'Refund offered on any open invoice with money on it');
+  // Behaviour: the helper runs against the shim without throwing and never
+  // writes when the sale cannot be read.
+  await run('posReopenAfterRefund("sale-x")');
+  assert.ok(!ALL_CALLS.some(c => c.table === 'pos_sales' && c.op === 'update' && c.patch && c.patch.status === 'unpaid'), 'no reopen without a readable paid sale');
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');

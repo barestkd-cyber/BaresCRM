@@ -4464,7 +4464,7 @@ async function showInvoice(saleId, from){
   h += '<button class="iv-abtn" onclick="posEmailReceiptSheet(\''+s.id+'\')">'+IV_ICO.mail+'<span>Email</span></button>';
   h += '<button class="iv-abtn" onclick="posCopyInvoiceLink(\''+s.id+'\')">'+IV_ICO.link+'<span>Copy link</span></button>';
   if(s.status==='unpaid' && balance>0) h += '<button class="iv-abtn" onclick="posAddPaymentSheet(\''+s.id+'\','+balance+',\''+escJs(posBuyerLabel(s.buyer_contact_id))+'\',\'inv\')">'+IV_ICO.payadd+'<span>Add payment</span></button>';
-  if(s.status==='paid' && paidNet>0) h += '<button class="iv-abtn" onclick="posRefundSheet(\''+s.id+'\','+paidNet+')">'+IV_ICO.refund+'<span>Refund</span></button>';
+  if(paidNet>0 && s.status!=='closed') h += '<button class="iv-abtn" onclick="posRefundSheet(\''+s.id+'\','+paidNet+')">'+IV_ICO.refund+'<span>Refund</span></button>';
   // A refund re-opens the balance on a paid invoice and it stays owed until
   // the owner closes it (owner rule 2026-08-21), so Close is offered there
   // too. Closing waives the balance; the charge and the refund stay on record.
@@ -4809,6 +4809,22 @@ function posRefundSheet(saleId, maxCents){
     +'</div>';
   openSheet();
 }
+/* A refund that leaves a balance puts the invoice back to unpaid: the money is
+   owed again until the owner collects it another way or closes the invoice
+   (owner rule 2026-08-21). The receipt claim resets so the next payment gets
+   its own receipt. Refunding an overpayment leaves the invoice paid. The
+   Stripe webhook does the same for refunds issued from the Stripe dashboard. */
+async function posReopenAfterRefund(saleId){
+  const [sRes, pRes] = await Promise.all([
+    sb.from('pos_sales').select('id,status,total_cents').eq('id', saleId).single(),
+    sb.from('pos_payments').select('amount_cents').eq('sale_id', saleId)
+  ]);
+  if(sRes.error || !sRes.data || pRes.error) return;
+  const net = (pRes.data||[]).reduce((a,p)=>a+p.amount_cents,0);
+  if(sRes.data.status!=='paid' || net >= sRes.data.total_cents) return;
+  const upd = await sb.from('pos_sales').update({ status:'unpaid', receipt_sent_at:null }).eq('id', saleId).eq('status','paid');
+  if(upd.error) toast('Refund recorded, but the invoice did not reopen: '+(upd.error.message||upd.error));
+}
 async function posRefundSave(saleId, maxCents){
   const cents = centsFromInput(document.getElementById('rfAmt').value||'');
   const note = (document.getElementById('rfNote').value||'').trim();
@@ -4817,6 +4833,7 @@ async function posRefundSave(saleId, maxCents){
   if(!note){ toast('A refund needs a reason'); return; }
   const r = await sb.from('pos_payments').insert({ sale_id: saleId, kind:'refund', amount_cents: -cents, note: note });
   if(r.error){ toast('Refund did not record: '+(r.error.message||r.error)); return; }
+  await posReopenAfterRefund(saleId);
   closeSheet(); toast('Refund recorded - '+money(cents/100));
   showInvoice(saleId, INV_CUR.from);
 }

@@ -334,6 +334,19 @@ Deno.serve(async (req) => {
             note: "Refunded in Stripe",
           });
         }
+        // A refund that leaves a balance reopens the invoice: the money is owed
+        // again until the owner collects it another way or closes the invoice
+        // (owner rule 2026-08-21). The receipt claim resets so the next payment
+        // gets its own receipt. Refunding an overpayment leaves it paid.
+        const sale = await admin.from("pos_sales").select("status,total_cents").eq("id", saleId).single();
+        if (!sale.error && sale.data && sale.data.status === "paid") {
+          const pays = await admin.from("pos_payments").select("amount_cents").eq("sale_id", saleId);
+          const net = (pays.data ?? []).reduce((a, p) => a + p.amount_cents, 0);
+          if (net < sale.data.total_cents) {
+            await admin.from("pos_sales").update({ status: "unpaid", receipt_sent_at: null })
+              .eq("id", saleId).eq("status", "paid");
+          }
+        }
       }
     }
 

@@ -161,8 +161,18 @@ Deno.serve(async (req) => {
       if (priorId && priorId.startsWith("pi_")) {
         const prior = await stripe("payment_intents/" + encodeURIComponent(priorId), secretKey, undefined, "GET").catch(() => null);
         if (prior) {
-          if (prior.status === "succeeded" || prior.status === "processing") {
-            return json({ error: "This invoice already has a card payment " + (prior.status === "succeeded" ? "recorded with Stripe" : "in progress") + ". Reload the invoice before charging again." }, 409, cors);
+          if (prior.status === "processing") {
+            return json({ error: "This invoice already has a card payment in progress. Reload the invoice before charging again." }, 409, cors);
+          }
+          if (prior.status === "succeeded") {
+            // On the books and still a balance: a refund reopened the invoice
+            // (owner rule 2026-08-21), so a fresh charge is legitimate. Not on
+            // the books yet: finalize or the webhook is about to record it, and
+            // charging again would take the money twice.
+            const onBooks = await admin.from("pos_payments").select("id").eq("stripe_object_id", prior.id).limit(1);
+            if (!onBooks.data || !onBooks.data.length) {
+              return json({ error: "This invoice already has a card payment recorded with Stripe. Reload the invoice before charging again." }, 409, cors);
+            }
           }
           const reusable = ["requires_payment_method", "requires_confirmation", "requires_action"].includes(prior.status);
           if (reusable && Number(prior.amount) === balance) {
