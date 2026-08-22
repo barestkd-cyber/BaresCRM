@@ -6899,9 +6899,14 @@ async function memAddLoadCards(){
   if(r.error || !r.data || r.data.error){ console.error('add cards', r.error||r.data); }
   MADD.cards = (r.data && r.data.cards) || [];
   MADD.cardsAsked = true;
+  const chosen = !!MADD.pay;
   // Their default card is the obvious answer when there is one.
-  if(!MADD.pay) MADD.pay = (MADD.cards.filter(c=>c.def)[0] || MADD.cards[0] || {}).id || 'new';
-  memAddRender();
+  if(!chosen) MADD.pay = (MADD.cards.filter(c=>c.def)[0] || MADD.cards[0] || {}).id || 'new';
+  // The only thing a redraw can destroy is a card number part-typed into the
+  // Stripe field, so that is the only case it is held back. Anything else
+  // redraws, or he would never learn a card was on file all along.
+  const typing = chosen && MADD.pay === 'new' && !!PM_CARD;
+  if(!typing) memAddRender();
 }
 
 /* ── 3: the paperwork ─────────────────────────────────────────────────── */
@@ -6928,6 +6933,7 @@ function memAddBack(){
 }
 
 async function memAddNext(){
+  if(!MADD) return;   // a second press on a sheet already closing
   if(MADD.step===1) return memAddToPayment();
   if(MADD.step===2) return memAddTakePayment();
   return memAddFinish();
