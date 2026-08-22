@@ -795,5 +795,59 @@ test('58 clock settings that cannot be read close the day, never open it wrongly
 
 // ─── summary ───────────────────────────────────────────────────────────────
 
+/* ── the pass-through card fee, grossed up (owner, 2026-08-22) ───────────── */
+
+test('the card fee nets the asking price exactly, at both rails', () => {
+  // Stripe's own arithmetic, as the model: percentage of the TOTAL, half-up,
+  // plus the flat. If our fee is right, this returns the base every time.
+  const stripeTakes = (total, bps, flat) => Math.floor(total * bps / 10000 + 0.5) + flat;
+  const rails = [[290, 30], [270, 5], [80, 0]];
+  rails.forEach(([bps, flat]) => {
+    for (let base = 1; base <= 250000; base += 13) {
+      const fee = P.cardFeeCents(base, bps, flat);
+      const total = base + fee;
+      const net = total - stripeTakes(total, bps, flat);
+      assert.strictEqual(net, base,
+        'nets ' + net + ' not ' + base + ' at ' + bps + 'bps+' + flat + ' on base ' + base);
+    }
+  });
+});
+
+test('the fee is the SMALLEST one that nets the price, never a penny more', () => {
+  // Overcharging by a cent is as wrong as undercharging, and much easier to
+  // do by accident with a ceil on a float.
+  const stripeTakes = (total, bps, flat) => Math.floor(total * bps / 10000 + 0.5) + flat;
+  for (let base = 1; base <= 20000; base += 7) {
+    const fee = P.cardFeeCents(base, 290, 30);
+    if (fee === 0) continue;
+    const oneLess = base + fee - 1;
+    assert.ok(oneLess - stripeTakes(oneLess, 290, 30) < base,
+      'a cent less would have done for base ' + base);
+  }
+});
+
+test('the old subtotal formula really was short, which is why this changed', () => {
+  // The regression this replaced. Left here so nobody reverts it as noise.
+  const old = (base, bps, flat) => Math.floor(base * bps / 10000 + 0.5) + flat;
+  const stripeTakes = (total, bps, flat) => Math.floor(total * bps / 10000 + 0.5) + flat;
+  const base = 6000;
+  const oldTotal = base + old(base, 290, 30);
+  assert.strictEqual(oldTotal, 6204, 'the old total on a $60 seat');
+  assert.strictEqual(oldTotal - stripeTakes(oldTotal, 290, 30), 5994, 'and it netted $59.94');
+  const newTotal = base + P.cardFeeCents(base, 290, 30);
+  assert.strictEqual(newTotal, 6210, 'the grossed-up total');
+  assert.strictEqual(newTotal - stripeTakes(newTotal, 290, 30), 6000, 'which nets exactly $60.00');
+});
+
+test('nothing to charge, or nothing configured, means no fee', () => {
+  assert.strictEqual(P.cardFeeCents(0, 290, 30), 0);
+  assert.strictEqual(P.cardFeeCents(-500, 290, 30), 0);
+  assert.strictEqual(P.cardFeeCents(6000, 0, 0), 0);
+  // A rate at or above 100% has no total that nets the base. Refusing beats
+  // looping forever or inventing a number.
+  assert.strictEqual(P.cardFeeCents(6000, 10000, 30), 0);
+  assert.strictEqual(P.cardFeeCents(6000, 20000, 30), 0);
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
 process.exit(failed ? 1 : 0);

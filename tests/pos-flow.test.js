@@ -572,14 +572,20 @@ await test('11 admin fee rides every invoice by default; manual edit and paper-t
 
   // Built, not tendered: the fee is already on the invoice.
   run('renderPOS()');
-  assert.strictEqual(sandbox.posSale.adminFeeCents, Math.floor(8225 * 290 / 10000 + 0.5) + 30,
-    'fee = 2.9% of the pre-fee pre-tax base + 30c, applied at build time');
-  assert.strictEqual(sandbox.posSale.adminFeeCents, 269);
+  // GROSSED UP since 2026-08-22: the fee is whatever makes the TOTAL net the
+  // base after Stripe takes its percentage of that total. .25 + .77 =
+  // .02, Stripe takes .77, the studio nets .25 exactly. The old
+  // subtotal fee of .69 netted .17.
+  assert.strictEqual(sandbox.posSale.adminFeeCents,
+    sandbox.BTKDPricing.cardFeeCents(8225, 290, 30),
+    'fee is grossed up from the pre-fee pre-tax base, applied at build time');
+  assert.strictEqual(sandbox.posSale.adminFeeCents, 277);
 
   // It tracks line changes while untouched.
   sandbox.posSale.lines.push({ kind: 'prod', label: 'Testing fee', amount: 60, qty: 1, taxable: true });
   run('renderPOS()');
-  assert.strictEqual(sandbox.posSale.adminFeeCents, Math.floor(14225 * 290 / 10000 + 0.5) + 30);
+  assert.strictEqual(sandbox.posSale.adminFeeCents,
+    sandbox.BTKDPricing.cardFeeCents(14225, 290, 30));
 
   // Tax is computed on goods only — the fee is never taxed.
   const t = run('posTotals()');
@@ -703,7 +709,7 @@ await test('14 admin fee follows the METHOD: off for cash, back on for card', as
   sandbox.posSale.memberId = 'kidA';
   sandbox.posSale.lines.push({ kind: 'prod', label: 'Sparring gear package', amount: 242.50, qty: 1, taxable: true });
   run('renderPOS()');
-  const fee = Math.floor(24250 * 290 / 10000 + 0.5) + 30;   // 733
+  const fee = sandbox.BTKDPricing.cardFeeCents(24250, 290, 30);   // 755, grossed up
   assert.strictEqual(sandbox.posSale.adminFeeCents, fee, 'card-priced by default');
 
   await call("posPayOpen({mode:'sale'})");

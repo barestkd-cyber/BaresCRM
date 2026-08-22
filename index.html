@@ -3582,9 +3582,11 @@ async function posTenderServer(method){
 /* Admin fee (owner rule 2026-08-15, final): pass Stripe's cost through, per
  * method - card 2.9% + 30¢ (admin_fee_bps/admin_fee_flat_cents), ACH 0.8%
  * capped  at the Stripe build (admin_fee_ach_* keys), cash/check never.
- * Customer pays tuition + Stripe's cut; Race nets tuition. Fee computed on
- * the pre-fee pre-tax base (close to exact; a gross-up formula nets exact to
- * the penny - flip if ever wanted). Editable/zeroable per invoice.
+ * Customer pays tuition + Stripe's cut; Race nets tuition. GROSSED UP since
+ * 2026-08-22 on his instruction: the fee is worked out so the total, after
+ * Stripe takes its percentage OF THAT TOTAL, still nets the asking price.
+ * The old subtotal-based fee left him six cents short on a $60 seat, every
+ * time. Editable/zeroable per invoice.
  */
 /* The pass-through fee follows the RAIL, because Stripe's own pricing does.
  * A card tapped on a reader is card-present (cheaper for us); a card keyed at
@@ -3599,7 +3601,9 @@ function posSuggestedAdminFeeCents(method){
   const sub = posSale.lines.reduce((a,l)=>a+Math.round(posLineNet(l)*100),0);
   const base = sub - (posSale.discountCents||0);
   if(base<=0) return 0;
-  return Math.floor(base*bps/10000 + 0.5) + flat;
+  // GROSSED UP (owner, 2026-08-22). One implementation, in the pricing
+  // engine, so the desk and every checkout page quote the same number.
+  return BTKDPricing.cardFeeCents(base, bps, flat);
 }
 /* ─── unified payment modal ──────────────────────────────────────────────────
  * One component, two contexts (owner spec from the Spark walkthrough,
