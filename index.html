@@ -87,12 +87,37 @@ main{flex:1;overflow-y:auto}
 /* ---------- profile ---------- */
 .pbar{background:var(--ink);color:#fff;display:flex;align-items:center;gap:6px;padding:12px 14px;position:sticky;top:0;z-index:20}
 .pbar .back{color:#fff;font-weight:600;font-size:15px;display:flex;align-items:center;gap:4px}
-.phead{background:var(--ink);color:#fff;padding:6px 18px 20px;text-align:center}
-.phead .pav{width:78px;height:78px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:30px;color:#fff;position:relative}
-.phead .pav .belt-ring{position:absolute;inset:-4px;border-radius:50%;border:3px solid transparent}
-.phead .pname{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:24px}
-.phead .pmeta{color:#AEB4BD;font-size:13.5px;margin-top:5px;line-height:1.5}
-.phead .pseg{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;margin-top:9px}
+/* A light card, avatar left, Actions under it. The avatar carries the belt
+   colour ringed in near-black, so rank reads without being read. */
+.phead{background:#fff;border:1px solid var(--line);border-radius:16px;
+  margin:12px 14px 0;padding:18px;color:var(--ink);text-align:left}
+.phead-top{display:flex;gap:16px;align-items:center}
+.pavcol{flex:none;display:flex;flex-direction:column;align-items:center;gap:11px}
+.phead .pav{width:84px;height:84px;border-radius:50%;margin:0;display:flex;
+  align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;
+  font-weight:700;font-size:30px;box-shadow:0 0 0 4px var(--ink)}
+.phead-body{flex:1;min-width:0}
+.phead .pname{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:24px;
+  line-height:1.15;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.phead .pmeta{color:var(--muted);font-size:13.5px;margin-top:4px;line-height:1.5}
+.phead .pseg{display:inline-block;font-size:11px;font-weight:700;padding:4px 10px;border-radius:7px}
+/* Dates on the left, what they are holding on the right. */
+.phead-facts{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:16px;
+  padding-top:14px;border-top:1px solid var(--line)}
+.phead-facts > div + div{border-left:1px solid var(--line);padding-left:18px}
+.pf-l{color:var(--muted);font-weight:700;font-size:12.5px}
+.pf-v{font-size:14px;margin:2px 0 12px}
+.pf-v:last-child{margin-bottom:0}
+.prof-rule{border:none;border-top:1px solid var(--line);margin:14px 0}
+@media (max-width:560px){
+  .phead{padding:15px}
+  .phead-top{gap:13px}
+  .phead .pav{width:72px;height:72px;font-size:25px;box-shadow:0 0 0 3px var(--ink)}
+  .phead .pname{font-size:21px}
+  .phead-facts{grid-template-columns:1fr;gap:0}
+  .phead-facts > div + div{border-left:none;border-top:1px solid var(--line);
+    padding-left:0;padding-top:13px;margin-top:13px}
+}
 
 
 .sec{padding:18px 16px 0}
@@ -295,21 +320,34 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 
 /* ---------- profile redesign (2026-08-17 mocks): stat strip, belt bar,
    actions menu, tabs. PC-first; phone keeps stacked cards. ---------- */
-.pstats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:12px 14px 0}
-.pstat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-width:0}
-.pstat .n{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px}
-.pstat .l{font-size:10.5px;color:var(--muted);line-height:1.3;margin-top:2px}
+/* Thin, read-only, first on the page. Label left, number right, one line each,
+   and a shorter label on a phone so neither wraps. */
+.pstats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:12px 14px 0}
+.pstat{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}
+.pstat .n{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;
+  flex:none;white-space:nowrap}
+.pstat .l{font-size:11px;color:var(--muted);font-weight:700;line-height:1.2;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pstat .narrow{display:none}
+.pstat.owe{background:#FFF6F6;border-color:#F3D2D2}
 .pstat.owe .n{color:#18A974}
 .pstat.owe.due .n{color:#c8102e}
+@media (max-width:560px){
+  .pstat .wide{display:none}
+  .pstat .narrow{display:inline}
+}
 /* The current belt, and only that. */
 .beltnow{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
 .beltdot{width:14px;height:14px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.22)}
 .beltname{font-size:13px;font-weight:800;color:var(--ink)}
 .beltsince{font-size:11.5px;color:#AEB4BD;font-weight:700}
-.phead-facts{font-size:12.5px;color:#AEB4BD;margin-top:9px}
 .pact{position:relative;display:inline-block;margin-top:12px}
 .pact-btn{background:none;border:1.5px solid var(--accent);color:var(--accent);font-weight:700;font-size:13.5px;border-radius:9px;padding:8px 16px;cursor:pointer;font-family:inherit}
-.phead .pact-btn{border-color:#fff;color:#fff}
+/* The header is a light card now, so the Actions button keeps the accent
+   colour rather than the white-on-dark treatment it had. */
+.phead .pact{margin-top:0}
+.phead .pact-menu{right:auto;left:0}
 .pact-menu{display:none;position:absolute;right:0;top:calc(100% + 6px);background:#fff;color:var(--ink);border-radius:12px;box-shadow:0 12px 34px rgba(0,0,0,.22);min-width:256px;padding:6px;z-index:70;text-align:left}
 .pact-menu.open{display:block}
 .pact-it{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border-radius:8px;font-size:14px;font-weight:600;background:none;border:none;text-align:left;cursor:pointer;color:var(--ink);font-family:inherit}
@@ -5379,16 +5417,21 @@ function renderProfile(){
   const segClass = m.segment==="Active"?"active":m.segment==="Lead"?"lead":m.segment==="Trial"?"trial":"former";
   const segBg = m.segment==="Active"?"#E4F5EE":m.segment==="Lead"?"#FBF1DC":m.segment==="Trial"?"#E7F1FB":"#EDEFF2";
   const segCol = m.segment==="Active"?"#18A974":m.segment==="Lead"?"#C98A1A":m.segment==="Trial"?"#2563EB":"#9AA1AC";
-  const ring = m.belt ? '<span class="belt-ring" style="border-color:'+beltC+'"></span>' : '';
+  // The avatar IS the belt colour now, so it needs no ring drawn over it.
 
   let html = '<div class="pbar"><button class="back" onclick="backToList()">‹ Members</button></div>';
 
   // stat strip: momentum and money before anything else (2026-08-17 mocks).
   // Values fill async; the balance here and the Invoices tab share one
   // computation so they can never disagree.
+  // Two thin read-only bars: label left, number right, one line each. Nothing
+  // here is tappable, so it gets the least height that still reads at a
+  // glance (owner, 2026-08-21: "thin rectangles because it is read only").
   html += '<div class="pstats">'
-    + '<div class="pstat"><div class="n" id="ps30">–</div><div class="l">Attendance<br>last 30 days</div></div>'
-    + '<div class="pstat owe" id="psOweBox"><div class="n" id="psOwe">–</div><div class="l" id="psOweL">Balance owed</div></div>'
+    + '<div class="pstat"><div class="l"><span class="wide">Attendance, last 30 days</span>'
+    + '<span class="narrow">Attendance 30d</span></div><div class="n" id="ps30">–</div></div>'
+    + '<div class="pstat owe" id="psOweBox"><div class="l" id="psOweL">Balance</div>'
+    + '<div class="n" id="psOwe">–</div></div>'
     + '</div>';
 
   // header: identity + rank. Belt bar = position in the nine-belt order.
@@ -5401,32 +5444,49 @@ function renderProfile(){
       + (m.rankDate?'<span class="beltsince">earned '+escHtml(m.rankDate)+'</span>':'')
       + '</div>';
   }
-  const facts = [];
-  if(m.dob) facts.push('Born '+escHtml(fmtDate(String(m.dob).slice(0,10)))+(m.age?' (age '+m.age+')':''));
-  if(m.since) facts.push('Member since '+escHtml(m.since));
-  else if(m.entered) facts.push('Lead since '+escHtml(m.entered));
+  // The avatar carries the belt colour so rank reads from across the room,
+  // and Actions sits under it, beside the thing it acts on.
+  const avInk = (m.belt==="White"||m.belt==="Yellow") ? "#15171C" : "#fff";
 
   html += '<div class="phead">'
-    + '<div class="pav" style="background:'+beltC+'">'+ring+'<span style="color:'+(m.belt==="White"||m.belt==="Yellow"?"#15171C":"#fff")+'">'+escHtml(initials(m))+'</span></div>'
-    + '<div class="phead-body">'
-    + '<div class="pname">'+escHtml(m.first+' '+m.last)
-    + ' <span class="pseg" style="background:'+segBg+';color:'+segCol+'">'+escHtml(m.segment)+'</span></div>'
-    + '<div class="pmeta">'+escHtml([m.phase, m.rank||''].filter(Boolean).join(' · ')||m.segment)+'</div>'
-    + beltBar
-    + (facts.length?'<div class="phead-facts">'+facts.join(' · ')+'</div>':'')
-    + '</div>'
+    + '<div class="phead-top">'
+    + '<div class="pavcol">'
+    + '<div class="pav" style="background:'+beltC+';color:'+avInk+'">'+escHtml(initials(m))+'</div>'
     // one Actions menu instead of a button row; every item is real or
     // honestly disabled. Promote Rank deep-links to the Testing app, which
     // owns rank; the CRM never writes it.
     + '<div class="pact"><button class="pact-btn" onclick="profActionsToggle(event)">Actions ▾</button>'
     + '<div class="pact-menu" id="pactMenu">'
-    + '<button class="pact-it" onclick="posRingUpFor(\''+m.id+'\')">＄ Ring Up <span class="pact-chip">POS</span></button>'
-    + '<button class="pact-it" onclick="posOpenMembershipFor(\''+m.id+'\')">＋ Add Membership</button>'
+    + '<button class="pact-it" onclick="posRingUpFor(\''+escJs(m.id)+'\')">＄ Ring Up <span class="pact-chip">POS</span></button>'
+    + '<button class="pact-it" onclick="posOpenMembershipFor(\''+escJs(m.id)+'\')">＋ Add Membership</button>'
     + '<button class="pact-it" onclick="openEditContact()">✎ Edit Contact</button>'
     + '<button class="pact-it" onclick="profAddAttendance()">▦ Add Attendance</button>'
     + '<button class="pact-it" onclick="launchApp(\'testing\')">▲ Promote Rank <span class="pact-chip">TESTING APP</span></button>'
     + '<button class="pact-it dis">✉ Message <span class="pact-chip">COMING SOON</span></button>'
     + '</div></div>'
+    + '</div>'
+    + '<div class="phead-body">'
+    + '<div class="pname">'+escHtml(m.first+' '+m.last)
+    + ' <span class="pseg" style="background:'+segBg+';color:'+segCol+'">'+escHtml(m.segment)+'</span></div>'
+    + '<div class="pmeta">'+escHtml([m.phase, m.rank||''].filter(Boolean).join(' · ')||m.segment)+'</div>'
+    + beltBar
+    + '</div>'
+    + '</div>'
+    // Dates on the left, what they are holding on the right. Credits are
+    // real: prepaid private lessons come off private_lesson_packs.
+    + '<div class="phead-facts">'
+    + '<div>'
+    + (m.dob ? '<div class="pf-l">DOB</div><div class="pf-v">'
+        + escHtml(fmtDate(String(m.dob).slice(0,10)))+(m.age?' (age '+m.age+')':'')+'</div>' : '')
+    + (m.since ? '<div class="pf-l">Member since</div><div class="pf-v">'+escHtml(m.since)+'</div>'
+        : m.entered ? '<div class="pf-l">Lead since</div><div class="pf-v">'+escHtml(m.entered)+'</div>' : '')
+    + '</div>'
+    + '<div>'
+    + '<div class="pf-l">Credits</div>'
+    + '<div class="pf-v">Private lesson credits: <span id="pc-lessons">–</span></div>'
+    + '<div class="pf-v">Money credits: <span id="pc-money">$0.00</span></div>'
+    + '</div>'
+    + '</div>'
     + '</div>';
 
   // tabs (desktop only; phone shows everything stacked below)
@@ -5440,19 +5500,20 @@ function renderProfile(){
   // contact (first - often the first thing you reach for). Phone and email
   // are tap-to-act links. Born lives in the header only; guardians moved to
   // Connected Contacts (every fact in exactly one place).
-  html += '<div class="sec" data-ptab="overview"><div class="sec-h">Contact <span style="float:right;color:var(--accent);cursor:pointer;font-size:12px" onclick="openEditContact()">✎ Edit</span></div><div class="card pad">';
+  // Contact, guardians and household are ONE card divided by rules, not three
+  // stacked ones. Who to ring is a single question.
+  html += '<div class="sec" data-ptab="overview"><div class="sec-h">Contact '
+    + '<span style="float:right;color:var(--accent);cursor:pointer;font-size:12px" onclick="openEditContact()">✎ Edit</span>'
+    + '</div><div class="card pad">';
   let anyContact = false;
   m.phones.forEach(p=>{ anyContact=true; html += kv(escHtml(p[0]), '<a href="tel:'+escAttr(p[1])+'" style="color:inherit">'+escHtml(p[1])+'</a>'); });
   if(m.email){ anyContact=true; html += kv("Email", '<a href="mailto:'+escAttr(m.email)+'" style="color:inherit">'+escHtml(m.email)+'</a>'); }
   if(m.address){ anyContact=true; html += kv("Address", escHtml(m.address)); }
   if(!anyContact) html += '<div style="color:var(--muted);font-size:13.5px">Nothing on file yet. Tap Edit and add a phone and email.</div>';
-  html += '</div></div>';
 
-  // connected contacts: guardians (fields on the student, never separate
-  // accounts) plus household members, one card, straight off the mock.
-  html += '<div class="sec" data-ptab="overview"><div class="sec-h">Connected contacts</div><div class="card pad">';
+  html += '<hr class="prof-rule">';
+  html += '<div class="ccg-sub" style="margin-bottom:2px">Guardians</div>';
   if(m.guardians.length){
-    html += '<div class="ccg-sub" style="margin-bottom:2px">Guardians</div>';
     m.guardians.forEach(g=>{
       html += '<div class="ccg-row">'
         + (g[2] ? '<b>'+escHtml(g[2])+'</b>' : '<span style="color:var(--muted)">(no name)</span>')
@@ -5464,7 +5525,8 @@ function renderProfile(){
   } else {
     html += '<div class="ccg-sub">No guardian on file'+(m.age && m.age<18?' - add one at the next signing':'')+'.</div>';
   }
-  html += '<div class="ccg-sub" style="margin:10px 0 4px">Household</div><div id="prof-hh">Loading…</div>';
+  html += '<hr class="prof-rule">';
+  html += '<div class="ccg-sub" style="margin-bottom:4px">Household</div><div id="prof-hh">Loading…</div>';
   html += '<div id="prof-people"></div>';
   html += '</div></div>';
 
@@ -5507,8 +5569,9 @@ function renderProfile(){
     + '<button class="fchip" data-f="unpaid" onclick="profInvFilter(\'unpaid\')">Unpaid</button>'
     + '</div><div id="prof-invoices"><div class="card pad" style="color:var(--muted);font-size:14px">Loading…</div></div></div>';
 
-  // household (billing family - filled async by loadProfileHousehold)
-  html += '<div class="sec"><div class="sec-h">Household</div><div class="card pad" id="prof-hh">Loading…</div></div>';
+  // Household used to be repeated here with the SAME id as the copy inside
+  // Contact, so the page carried two #prof-hh and the loader only ever filled
+  // the first. One card, one id.
 
   // memberships - live from the memberships table (frozen snapshots), async
   html += '<div class="sec" data-ptab="memberships"><div class="sec-h">Memberships and agreements</div>'
@@ -5524,15 +5587,16 @@ function renderProfile(){
 
   // The strip and its panel live below the overview, which never moves.
   html += '<div class="ptabs">'
-    + tab('invoices','Invoices and Payments')
-    + tab('memberships','Memberships and Agreements') + tab('attendance','Attendance')
-    + tab('notes','Notes') + tab('email','Email History',true) + tab('docs','Documents',true)
+    + tab('notes','Notes') + tab('memberships','Membership')
+    + tab('invoices','Invoices and Payments') + tab('attendance','Attendance')
+    + tab('docs','Documents',true) + tab('email','History',true)
     + '</div>';
   html += '<div id="ptabpanel"></div>';
   html += '<div class="spacer"></div>';
 
   $("#view-profile").innerHTML = html;
   profBuildPanel();
+  loadProfileCredits(m.id);
   loadProfileAttendance(m.id);
   loadProfileHousehold(m.id);
   loadProfileMemberships(m.id);
@@ -6206,6 +6270,20 @@ async function memSchedInvoice(id){
   } finally { MEM_SCHED_BUSY = false; }
 }
 function memSchedInvoiceView(saleId){ closeSheet(); showInvoice(saleId, "profile"); }
+
+/* Prepaid private lessons still owed to this student. A pack is a balance,
+ * so what is left is what was bought minus what has been booked against it.
+ * Money credits have no concept behind them yet, so the profile shows $0.00
+ * rather than inventing a number. */
+async function loadProfileCredits(contactId){
+  const el = document.getElementById('pc-lessons');
+  if(!el) return;
+  const { data, error } = await sb.from('private_lesson_packs')
+    .select('lessons_total,lessons_used').eq('contact_id', contactId);
+  if(error){ console.error('profile credits', error); el.textContent = '–'; return; }
+  const left = (data||[]).reduce((t,p)=>t + Math.max(0,(p.lessons_total||0)-(p.lessons_used||0)), 0);
+  el.textContent = String(left);
+}
 
 async function loadProfileMemberships(contactId){
   const box = document.getElementById('prof-mems'); if(!box) return;
