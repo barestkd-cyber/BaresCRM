@@ -683,6 +683,25 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .inst-st.pd{background:#E4F5EE;color:var(--go)}
 .inst-st.wv{background:#FBE9E9;color:var(--accent)}
 .inst-acts{margin-left:auto;display:flex;gap:6px}
+.inst-acts button{border:1.5px solid var(--line);background:#fff;border-radius:8px;padding:5px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+/* cards on file - Stripe is the record, this is only a window onto it */
+.pmrow{display:flex;align-items:center;gap:11px;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid var(--line)}
+.pmrow:last-of-type{border-bottom:none}
+.pm-brand{font-weight:800;font-size:13.5px;text-transform:capitalize}
+.pm-dots{color:var(--muted);letter-spacing:.06em;font-size:13.5px}
+.pm-exp{color:var(--muted);font-size:12.5px}
+.pm-def{font-size:10.5px;font-weight:800;letter-spacing:.05em;background:#E4F5EE;color:var(--go);border-radius:6px;padding:3px 7px}
+.pm-acts{margin-left:auto;display:flex;gap:7px}
+.pm-acts button{border:1.5px solid var(--line);background:#fff;border-radius:9px;padding:6px 11px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;color:var(--ink)}
+.pm-acts button.danger{color:var(--accent);border-color:#EBC2C2}
+.pm-inuse{flex-basis:100%;font-size:12px;color:var(--muted)}
+.pm-note{font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:12px}
+.pm-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:2px}
+.pm-link{border:none;background:none;font:inherit;font-size:12.5px;font-weight:700;color:var(--go);cursor:pointer;padding:0}
+/* which card a single scheduled payment goes on */
+.inst-card{flex-basis:100%;display:flex;align-items:center;gap:8px;margin-top:-2px}
+.inst-card label{font-size:11.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+.inst-card select{flex:1;font:inherit;font-size:13px;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;background:#fff;min-width:0}
 .spk-form>.spk-label:first-child{margin-top:0}
 .spk-select{appearance:auto}
 .spk-price{display:flex;align-items:stretch}
@@ -5576,17 +5595,18 @@ function renderProfile(){
   // notes - real rows from contact_notes, newest first
   html += '<div class="sec" data-ptab="notes"><div class="sec-h">Notes <span style="float:right;color:var(--accent);cursor:pointer;font-size:12px" onclick="openAddNote()">＋ Add</span></div><div class="card" id="prof-notes"><div class="note-empty">Loading…</div></div></div>';
 
-  // card on file (overview): presence only. Charged by staff, never managed
-  // by the customer (owner's locked model).
-  html += '<div class="sec" data-ptab="overview"><div class="sec-h">Card on file</div><div class="card pad">'
-    + (m.stripeCustomer
-        ? kv('Card', '<span style="color:#18A974;font-weight:700">Saved with Stripe</span>') + '<div class="ccg-sub">Charged by staff only.</div>'
-        : '<div class="ccg-sub">No card on file. A card saves automatically at their next card payment.</div>')
-    + '</div></div>';
 
   // invoices and payments: the full ledger with DERIVED balances, so a
   // partial payment reads PAYMENT APPLIED instead of hiding inside "unpaid".
-  html += '<div class="sec" data-ptab="invoices"><div class="sec-h">Invoices and payments</div>'
+  html += '<div class="sec" data-ptab="invoices">'
+    // Cards on file. The list is Stripe's, read live, because the studio
+    // stores no card and a stale copy here would be a lie about what can
+    // actually be charged.
+    + '<div class="sec-h">Payment methods</div>'
+    + '<div class="card pad"><div class="pm-head"><div class="ccg-sub">Cards live in Stripe. The studio never sees the full number, only the last four.</div>'
+    + '<button class="pm-link" onclick="profCardLink()">Send update link</button></div>'
+    + '<div id="prof-cards" style="margin-top:6px"><div class="ccg-sub">Loading…</div></div></div>'
+    + '<div class="sec-h" style="margin-top:18px">Invoices and payments</div>'
     + '<div style="display:flex;gap:8px;margin-bottom:10px" id="invxFilters">'
     + '<button class="fchip on" data-f="all" onclick="profInvFilter(\'all\')">All</button>'
     + '<button class="fchip" data-f="paid" onclick="profInvFilter(\'paid\')">Paid</button>'
@@ -5629,6 +5649,7 @@ function renderProfile(){
   loadProfileStats(m.id);
   loadProfilePeople(m.id);
   loadProfileMoney(m.id);
+  loadProfileCards(m.id);
   profApplyTab();
 }
 
@@ -5714,6 +5735,126 @@ async function loadProfileStats(contactId){
   const e30=document.getElementById('ps30');
   if(e30) e30.textContent = a30;
 }
+
+/* ── CARDS ON FILE ─────────────────────────────────────────────────────────
+ * Owner, 2026-08-21: "payment methods on file should be under invoices and
+ * payments... I can delete cards from Stripe from there... send a link to
+ * update the card on Stripe."
+ *
+ * Stripe is the record and this is a window onto it, read fresh every time a
+ * profile opens. Nothing about a card is stored here, so nothing here can go
+ * stale and claim a charge will work when it will not.
+ *
+ * A card carrying scheduled payments cannot be removed on the first ask. The
+ * count comes back from the server, not from anything the browser worked out,
+ * so the warning is about the real state of the schedule. */
+let PROF_CARDS = { contact:null, cards:[], usage:{}, email:'' };
+
+async function loadProfileCards(contactId){
+  const box = document.getElementById('prof-cards');
+  if(!box) return;
+  PROF_CARDS = { contact:contactId, cards:[], usage:{}, email:'' };
+  const { data, error } = await sb.functions.invoke('payment-methods', {
+    body:{ action:'list', contact_id:contactId }
+  });
+  if(profStale(contactId)) return;   // they opened somebody else
+  if(error || !data || data.error){
+    console.error('cards', error||data);
+    box.innerHTML = '<div class="ccg-sub">Could not reach Stripe just now.</div>';
+    return;
+  }
+  PROF_CARDS = { contact:contactId, cards:data.cards||[], usage:data.usage||{}, email:data.email||'' };
+  profCardsDraw();
+}
+
+function profCardsDraw(){
+  const box = document.getElementById('prof-cards');
+  if(!box) return;
+  const cards = PROF_CARDS.cards;
+  if(!cards.length){
+    box.innerHTML = '<div class="ccg-sub">No card on file. One saves automatically at their next card payment, or send them the update link.</div>';
+    return;
+  }
+  box.innerHTML = cards.map(c=>{
+    const uses = PROF_CARDS.usage[c.id]||0;
+    return '<div class="pmrow">'
+      + '<span class="pm-brand">'+escHtml(c.brand)+'</span>'
+      + '<span class="pm-dots">•••• '+escHtml(c.last4)+'</span>'
+      + '<span class="pm-exp">exp '+escHtml(c.exp)+'</span>'
+      + (c.def?'<span class="pm-def">DEFAULT</span>':'')
+      + '<span class="pm-acts">'
+      + (c.def?'':'<button onclick="profCardDefault(\''+escJs(c.id)+'\')">Make default</button>')
+      + '<button class="danger" onclick="profCardRemove(\''+escJs(c.id)+'\')">Remove</button>'
+      + '</span>'
+      + (uses?'<span class="pm-inuse">'+uses+' scheduled payment'+(uses===1?'':'s')+' will be charged to this card</span>':'')
+      + '</div>';
+  }).join('');
+}
+
+function profCardName(id){
+  const c = PROF_CARDS.cards.filter(x=>x.id===id)[0];
+  return c ? (c.brand+' ••••'+c.last4) : 'that card';
+}
+
+async function profCardDefault(id){
+  const who = PROF_CARDS.contact;
+  const { data, error } = await sb.functions.invoke('payment-methods', {
+    body:{ action:'default', contact_id:who, payment_method_id:id }
+  });
+  if(error || !data || data.error){ toast((data&&data.error)||'Could not set the default'); return; }
+  toast(profCardName(id)+' is now the default');
+  loadProfileCards(who);
+}
+
+async function profCardRemove(id){
+  const who = PROF_CARDS.contact;
+  const label = profCardName(id);
+  if(!confirm('Remove '+label+' from Stripe? This cannot be undone.')) return;
+  let res = await sb.functions.invoke('payment-methods', {
+    body:{ action:'remove', contact_id:who, payment_method_id:id }
+  });
+  // The server counts the scheduled payments riding on this card and refuses
+  // the first time. Confirming sends that same count back, so a schedule that
+  // changed in between is refused again rather than quietly stranded.
+  const err = res.error ? (await profFnError(res.error)) : res.data;
+  if(err && err.error==='in_use'){
+    const n = err.uses;
+    if(!confirm(n+' scheduled payment'+(n===1?'':'s')+' point at '+label+'.\n\nRemove it anyway? Those payments will fall back to whatever card is default.')) return;
+    res = await sb.functions.invoke('payment-methods', {
+      body:{ action:'remove', contact_id:who, payment_method_id:id, confirm_uses:n }
+    });
+  }
+  const after = res.error ? (await profFnError(res.error)) : res.data;
+  if(!after || after.error){ toast((after&&after.error)||'Could not remove that card'); return; }
+  toast('Card removed from Stripe');
+  loadProfileCards(who);
+  if(selectedId === who) loadProfileMemberships(who);   // the schedule moved
+}
+
+/* supabase-js turns a non-2xx into an error object whose body has to be read
+ * back off the Response, which is where the in_use count lives. */
+async function profFnError(e){
+  try { return await e.context.json(); } catch(_) { return { error: e.message||'Request failed' }; }
+}
+
+async function profCardLink(){
+  const who = PROF_CARDS.contact || selectedId;
+  if(!who) return;
+  const to = PROF_CARDS.email;
+  if(!confirm(to ? ('Email a Stripe link to add or replace a card?\n\nGoes to '+to)
+                 : 'Create a Stripe link to add a card?')) return;
+  const { data, error } = await sb.functions.invoke('payment-methods', {
+    body:{ action:'link', contact_id:who }
+  });
+  if(error || !data || (data.error && !data.url)){ toast((data&&data.error)||'Could not create the link'); return; }
+  if(data.sent) toast('Link sent to '+data.to);
+  else if(data.url){
+    // The email failed but the link is good, so hand it over rather than
+    // losing it.
+    prompt('Email did not send. Copy this link to them:', data.url);
+  }
+}
+
 
 /* One computation feeds the balance tile AND the invoices table, so the two
  * can never disagree. Balance is DERIVED (total minus payments), which is
@@ -5953,12 +6094,15 @@ const MEM_FIELDS = [
   { key:'started_on',            label:'Starts on',      kind:'date'  },
   { key:'ended_on',              label:'Ends on',        kind:'date'  },
   { key:'payer_contact_id',      label:'Who pays',       kind:'payer' },
+  { key:'payment_method_id',     label:'Card',           kind:'card'  },
   { key:'status',                label:'Status',         kind:'status'},
 ];
 
+let meCardsAtOpen = [];
+
 async function memEditOpen(id){
   const { data, error } = await sb.from('memberships')
-    .select('id,contact_id,payer_contact_id,program,plan_code,status,billing_frequency,next_bill_on,final_recurring_cents,final_down_cents,started_on,ended_on')
+    .select('id,contact_id,payer_contact_id,program,plan_code,status,billing_frequency,next_bill_on,final_recurring_cents,final_down_cents,started_on,ended_on,payment_method_id')
     .eq('id', id).single();
   if(error||!data){ toast('Could not open that membership'); return; }
   MEM_EDIT = data;
@@ -5985,6 +6129,17 @@ async function memEditOpen(id){
 
   // What the signed agreement says, so an edit that moves away from the
   // paperwork is visible while it is being made rather than discovered later.
+  // The payer's cards, from Stripe. Whoever pays is who the card belongs to,
+  // which for a child is the parent and not the student.
+  const cardOwner = data.payer_contact_id || data.contact_id;
+  const cardRes = await sb.functions.invoke('payment-methods', {
+    body:{ action:'list', contact_id:cardOwner }
+  });
+  const meCards = (cardRes.data && cardRes.data.cards) || [];
+  meCardsAtOpen = meCards;   // the save names these long after the sheet is gone
+  const meCardsFailed = !!(cardRes.error || (cardRes.data && cardRes.data.error));
+  if(meCardsFailed) console.error('membership cards', cardRes.error||cardRes.data);
+
   const { data:ag } = await sb.from('membership_agreements')
     .select('id,document_title,recurring_cents,signed_at').eq('membership_id', id)
     .eq('status','signed').maybeSingle();
@@ -6037,7 +6192,10 @@ async function memEditOpen(id){
       + payers.map(p=>'<option value="'+escAttr(p.id)+'"'
           + (p.id===data.payer_contact_id?' selected':'')+'>'+escHtml(p.name)+'</option>').join('')
       + '</select>'
-    + '<div class="spk-hint">The card charged for this membership. For a child that is usually a parent, not the student.</div>'
+    + '<div class="spk-hint">Whose card this bills to. For a child that is usually a parent, not the student.</div>'
+    + '<label class="spk-label">Card</label>'
+    + memCardOptions(meCards, data.payment_method_id, meCardsFailed)
+    + '<div class="spk-hint">Every scheduled payment rides on this card unless it was pointed somewhere else on its own.</div>'
     + '<label class="spk-label">Status</label>'
     // The row's own status is always in the list. Without it, a membership
     // sitting in any status this array does not know about (pending, say)
@@ -6079,6 +6237,27 @@ function memPlanOptions(program, keepCode){
   return html;
 }
 
+/* The cards the payer has at Stripe, with the membership's current one kept
+ * even when it has since been removed there. A card that vanished must SAY
+ * so; silently falling back to the default would move real money onto a
+ * card nobody chose. */
+function memCardOptions(cards, keepId, failed){
+  // Stripe unreachable is not the same as no cards. Offering an empty list
+  // would let a save wipe the card that is actually there.
+  if(failed) return '<div class="spk-hint">Stripe could not be reached, so the card cannot be changed here right now.</div>';
+  let html = '<select id="me-card" class="ed-in spk-select">'
+    + '<option value=""'+(keepId?'':' selected')+'>Their default card</option>';
+  cards.forEach(c=>{
+    html += '<option value="'+escAttr(c.id)+'"'+(c.id===keepId?' selected':'')+'>'
+      + escHtml(c.brand)+' \u2022\u2022\u2022\u2022'+escHtml(c.last4)
+      + (c.def?' (default)':'')+'</option>';
+  });
+  if(keepId && !cards.some(c=>c.id===keepId)){
+    html += '<option value="'+escAttr(keepId)+'" selected>Card no longer on file</option>';
+  }
+  return html+'</select>';
+}
+
 /* The option list belongs to the program, so it follows it, and the agreement
  * warning appears the moment either leaves what was signed. */
 function memEditProgramChanged(){
@@ -6114,6 +6293,7 @@ async function memEditSave(){
     started_on: $("#me-starts").value || null,
     ended_on: $("#me-ends").value || null,
     payer_contact_id: $("#me-payer").value || null,
+    payment_method_id: ($("#me-card") ? ($("#me-card").value || null) : (before.payment_method_id||null)),
     status: $("#me-status").value,
   };
   const reason = ($("#me-reason").value||"").trim();
@@ -6131,9 +6311,17 @@ async function memEditSave(){
   // but it must be loud, because a silent gap in an audit trail is worse
   // than no audit trail at all.
   const who = await currentStaffEmail();
+  // A Stripe id in the change log tells nobody anything. The card reads as
+  // its brand and last four, and the empty value spells itself out.
+  const shown=(f,v)=>{
+    if(f.kind!=='card') return String(v ?? '');
+    if(!v) return 'their default card';
+    const c = meCardsAtOpen.filter(x=>x.id===v)[0];
+    return c ? (c.brand+' ••••'+c.last4) : String(v);
+  };
   const rows = changed.map(f => ({
     membership_id: before.id, contact_id: before.contact_id, field: f.label,
-    old_value: String(before[f.key] ?? ""), new_value: String(next[f.key] ?? ""),
+    old_value: shown(f, before[f.key]), new_value: shown(f, next[f.key]),
     reason: reason, edited_by: who,
   }));
   const { error: aErr } = await sb.from('membership_edits').insert(rows);
@@ -6165,7 +6353,7 @@ function instToday(){ return new Date().toLocaleDateString("en-CA",{timeZone:"Am
 
 async function memSchedOpen(id){
   const { data:ms, error } = await sb.from("memberships")
-    .select("id,contact_id,program,plan_code,status,billing_frequency,next_bill_on,final_recurring_cents,payment_count,started_on")
+    .select("id,contact_id,program,plan_code,status,billing_frequency,next_bill_on,final_recurring_cents,payment_count,started_on,payer_contact_id,payment_method_id")
     .eq("id", id).single();
   if(error||!ms){ toast("Could not open that membership"); return; }
   const { data:insts, error:iErr } = await sb.from("membership_installments")
@@ -6177,7 +6365,15 @@ async function memSchedOpen(id){
     const { data:ss } = await sb.from("pos_sales").select("id,status").in("id", saleIds);
     (ss||[]).forEach(r=>saleStatus[r.id]=r.status);
   }
-  SCHED = { ms: ms, insts: insts||[], saleStatus: saleStatus };
+  SCHED = { ms: ms, insts: insts||[], saleStatus: saleStatus, cards: [] };
+  memSchedRender();
+  // Cards come from Stripe, so they land after the schedule is already on
+  // screen rather than holding it up. The rows redraw when they arrive.
+  const payer = ms.payer_contact_id || ms.contact_id;
+  const cr = await sb.functions.invoke("payment-methods", { body:{ action:"list", contact_id:payer } });
+  if(!SCHED || SCHED.ms.id !== ms.id) return;   // he closed it, or opened another
+  if(cr.error || !cr.data || cr.data.error){ console.error("sched cards", cr.error||cr.data); return; }
+  SCHED.cards = cr.data.cards || [];
   memSchedRender();
 }
 
@@ -6215,7 +6411,9 @@ function memSchedRender(){
         + (x.sale_id ? '<button class="vc" onclick="memSchedInvoiceView(\''+x.sale_id+'\')">Invoice</button>'
            : (x.status==="scheduled" ? '<button class="vc" onclick="memSchedInvoice(\''+x.id+'\')">Bill now</button>'
               +'<button class="vc" onclick="memSchedWaive(\''+x.id+'\')">Waive</button>' : ""))
-        +'</span></div>';
+        +'</span>'
+        + (locked ? "" : instCardPicker(x, i))
+        +'</div>';
     });
     body+='</div>'
       +'<button class="addopt" style="margin-top:10px" onclick="memSchedAdd()">Add a payment</button>'
@@ -6226,6 +6424,41 @@ function memSchedRender(){
   $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head spk-head"><div><h3>Payment schedule</h3><div class="sub">Move, reprice, waive, or bill any single payment</div></div><button class="close" onclick="closeSheet()">×</button></div>'
     +'<div class="sheet-body spk-body">'+body+'</div>';
   openSheet();
+}
+
+/* Every payment rides on the membership card unless it is pointed
+ * elsewhere: "put this month on my other card." An empty value means
+ * INHERIT, never "no card", so moving the membership card moves these too. */
+function instCardName(id){
+  const c = (SCHED.cards||[]).filter(x=>x.id===id)[0];
+  return c ? (c.brand+" ••••"+c.last4) : "";
+}
+function instMemCardLabel(){
+  const own = SCHED.ms.payment_method_id;
+  if(own){
+    const n = instCardName(own);
+    return n ? ("Membership card, "+n) : "Membership card (removed from Stripe)";
+  }
+  const def = (SCHED.cards||[]).filter(c=>c.def)[0];
+  return def ? ("Their default card, "+def.brand+" ••••"+def.last4) : "Their default card";
+}
+function instCardPicker(x, i){
+  const cards = SCHED.cards||[];
+  // Before Stripe answers there is nothing honest to offer, and after it
+  // answers with nothing there is no choice to make.
+  if(!cards.length) return "";
+  let out = '<div class="inst-card"><label>Charge to</label><select data-if="card" data-i="'+i+'">'
+    + '<option value=""'+(x.payment_method_id?"":" selected")+'>'+escHtml(instMemCardLabel())+'</option>';
+  cards.forEach(c=>{
+    out += '<option value="'+escAttr(c.id)+'"'+(x.payment_method_id===c.id?" selected":"")+'>'
+      + escHtml(c.brand)+" ••••"+escHtml(c.last4)+'</option>';
+  });
+  // A card that has since been removed from Stripe still has to show, or
+  // the row would silently read as inheriting when it is not.
+  if(x.payment_method_id && !cards.some(c=>c.id===x.payment_method_id)){
+    out += '<option value="'+escAttr(x.payment_method_id)+'" selected>Card no longer on file</option>';
+  }
+  return out+"</select></div>";
 }
 
 async function memSchedGenerate(){
@@ -6252,6 +6485,14 @@ async function memSchedSave(){
   const edits=[];
   document.querySelectorAll("#sheet [data-if]").forEach(el=>{
     const i=+el.getAttribute("data-i"); const x=insts[i]; if(!x||el.disabled) return;
+    if(el.getAttribute("data-if")==="card"){
+      // Empty means inherit the membership card, which is null in the row.
+      const v = el.value || null;
+      const old = x.payment_method_id || null;
+      if(v !== old) edits.push({x:x, field:"payment_method_id", val:v, old:old,
+        label:"installment "+x.seq+" card"});
+      return;
+    }
     if(el.getAttribute("data-if")==="due"){
       const v=el.value;
       if(v && v!==x.due_on) edits.push({x:x, field:"due_on", val:v, old:x.due_on, label:"installment "+x.seq+" due date"});
@@ -6275,8 +6516,12 @@ async function memSchedSave(){
     done.push(e);
   }
   if(!done.length){ toast("Could not save installment "+(failed?failed.x.seq:"")); return; }
+  // A Stripe id in the change log tells nobody anything. Cards get their
+  // readable name instead, with inherit spelled out rather than blank.
+  const show=(e,v)=> e.field!=="payment_method_id" ? String(v==null?"":v)
+    : (v ? (instCardName(v)||String(v)) : "the membership card");
   const trail=done.map(e=>({ membership_id:ms.id, contact_id:ms.contact_id, field:e.label,
-    old_value:String(e.old==null?"":e.old), new_value:String(e.val==null?"":e.val), reason:reason, edited_by:who }));
+    old_value:show(e,e.old), new_value:show(e,e.val), reason:reason, edited_by:who }));
   const { error:tErr } = await sb.from("membership_edits").insert(trail);
   if(tErr){ console.error("membership_edits", tErr); toast("Saved, but the change log did not record it"); }
   else if(failed) toast("Saved "+done.length+", but installment "+failed.x.seq+" failed");
@@ -6432,7 +6677,7 @@ async function loadProfileCredits(contactId){
 async function loadProfileMemberships(contactId){
   const box = document.getElementById('prof-mems'); if(!box) return;
   const { data, error } = await sb.from('memberships')
-    .select('id,contact_id,payer_contact_id,program,plan_code,status,billing_frequency,started_on,ended_on,final_recurring_cents,final_down_cents,payment_count,sale_id,next_bill_on')
+    .select('id,contact_id,payer_contact_id,program,plan_code,status,billing_frequency,started_on,ended_on,final_recurring_cents,final_down_cents,payment_count,sale_id,next_bill_on,payment_method_id')
     .eq('contact_id', contactId)
     .order('created_at', { ascending:false });
   if(profStale(contactId)) return;   // they opened somebody else
@@ -6553,9 +6798,10 @@ async function loadProfileMemberships(contactId){
       + (ms.final_down_cents && !oneTime
           ? '<div class="memx-down">'+money(ms.final_down_cents/100)+' down at signup. Price locked at signup.</div>'
           : '<div class="memx-down">Price locked at signup.</div>')
-      + (ms.payer_contact_id && payerBy[ms.payer_contact_id]
-          ? '<div class="memx-payer">Paid by <b>'+escHtml(payerBy[ms.payer_contact_id])+'</b></div>'
-          : '')
+      + '<div class="memx-payer">'
+        + (ms.payer_contact_id && payerBy[ms.payer_contact_id]
+            ? 'Paid by <b>'+escHtml(payerBy[ms.payer_contact_id])+'</b> · ' : '')
+        + '<span id="mcard-'+escAttr(ms.id)+'">…</span></div>'
       + agr
       + '<div class="memx-acts">'
       + '<button class="vc" onclick="memEditOpen(\''+ms.id+'\')">Edit membership</button>'
@@ -6566,8 +6812,36 @@ async function loadProfileMemberships(contactId){
   });
   h += '<div class="ccg-sub" style="margin-top:2px">Agreement status is required for all memberships.</div>';
   box.innerHTML = h;
+  profFillMemCards(rows, contactId);
 }
 let PROF_INST = {};
+
+/* Which card each membership actually bills to. A membership with no card of
+ * its own follows whoever pays, so this asks Stripe once per distinct payer
+ * rather than once per membership. */
+async function profFillMemCards(rows, contactId){
+  const owners = [...new Set(rows.map(r=>r.payer_contact_id||r.contact_id).filter(Boolean))];
+  const byOwner = {};
+  for(const owner of owners){
+    const r = await sb.functions.invoke('payment-methods', { body:{ action:'list', contact_id:owner } });
+    if(profStale(contactId)) return;   // they opened somebody else
+    byOwner[owner] = (r.data && r.data.cards) || null;   // null means Stripe did not answer
+  }
+  rows.forEach(ms=>{
+    const el = document.getElementById('mcard-'+ms.id);
+    if(!el) return;
+    const cards = byOwner[ms.payer_contact_id||ms.contact_id];
+    // Not knowing is not the same as there being nothing, and saying the
+    // wrong one of those about money is the mistake worth avoiding.
+    if(!cards){ el.textContent='Card unknown'; return; }
+    const own = ms.payment_method_id ? cards.filter(c=>c.id===ms.payment_method_id)[0] : null;
+    if(ms.payment_method_id && !own){ el.innerHTML='Billed to a card <b>no longer on file</b>'; return; }
+    const use = own || cards.filter(c=>c.def)[0];
+    if(!use){ el.textContent='No card on file'; return; }
+    el.innerHTML = 'Billed to <b>'+escHtml(use.brand)+' \u2022\u2022\u2022\u2022'+escHtml(use.last4)+'</b>'
+      + (own ? '' : ' (their default)');
+  });
+}
 
 /* Read a stored agreement back. The document is re-rendered from the frozen
  * body_json - never from the current template - so it always shows exactly
