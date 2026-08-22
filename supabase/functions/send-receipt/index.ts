@@ -419,13 +419,33 @@ Deno.serve(async (req) => {
       const buyerName = await (async () => {
         if (!s.buyer_contact_id) return "Walk-in";
         const c = await admin.from("contacts")
-          .select("first_name,last_name,email,phone,dob").eq("id", s.buyer_contact_id).maybeSingle();
+          .select("first_name,last_name,email,phone").eq("id", s.buyer_contact_id).maybeSingle();
         if (!c.data) return "Unknown";
         const nm = [c.data.first_name, c.data.last_name].filter(Boolean).join(" ");
         const bits = [c.data.email, c.data.phone].filter(Boolean).join(" · ");
-        const dob = c.data.dob ? "DOB " + fmtDate(String(c.data.dob)) : "";
-        return [nm, dob, bits].filter(Boolean).join("<br>");
+        // No date of birth here (owner 2026-08-21): a payment notice has no
+        // use for it, and it was landing in an inbox that forwards.
+        return [nm, bits].filter(Boolean).join("<br>");
       })();
+      // What was bought, line by line, straight off the ledger. A desk sale
+      // carries no customer_note, so the owner was getting an amount with no
+      // item on it (owner 2026-08-21). "for <student>" when a line names one.
+      const linesRes = await admin.from("pos_sale_lines")
+        .select("label,qty,line_total_cents,student_contact_id").eq("sale_id", saleId);
+      const lineRows = linesRes.data ?? [];
+      const studentIds = [...new Set(lineRows.map((l) => l.student_contact_id).filter(Boolean))] as string[];
+      const studentNames: Record<string, string> = {};
+      if (studentIds.length) {
+        const st = await admin.from("contacts").select("id,first_name,last_name").in("id", studentIds);
+        for (const c of st.data ?? []) studentNames[c.id] = [c.first_name, c.last_name].filter(Boolean).join(" ");
+      }
+      const itemsHtml = lineRows.map((l) => {
+        const qty = Number(l.qty ?? 1);
+        const who = l.student_contact_id && studentNames[l.student_contact_id]
+          ? ` <span style="color:#777">for ${esc(studentNames[l.student_contact_id])}</span>` : "";
+        return `${qty > 1 ? qty + "&times; " : ""}${esc(String(l.label ?? ""))}${who}` +
+          ` <span style="color:#777">&middot; ${money(Number(l.line_total_cents ?? 0))}</span>`;
+      }).join("<br>");
       // What was actually bought, and when. customer_note is the line written
       // FOR a human ("Private lesson for Hunter, Wednesday, August 26 at 3:30
       // PM"); notes is the terse internal one ("Private lesson from the
@@ -442,6 +462,7 @@ Deno.serve(async (req) => {
             ${to.some((a) => !String(buyerName).toLowerCase().includes(String(a).toLowerCase()))
               ? `<tr><td style="color:#777;padding-right:12px;vertical-align:top">Receipt to</td><td>${esc(to.join(", "))}</td></tr>`
               : ""}
+            ${itemsHtml ? `<tr><td style="color:#777;padding-right:12px;vertical-align:top">Items</td><td>${itemsHtml}</td></tr>` : ""}
             ${internal ? `<tr><td style="color:#777;padding-right:12px;vertical-align:top">Details</td><td style="white-space:pre-wrap">${esc(internal)}</td></tr>` : ""}
             <tr><td style="color:#777;padding-right:12px;vertical-align:top">Invoice</td><td>${shortId} · ${fmtDate(s.sale_date)}</td></tr>
           </table>
