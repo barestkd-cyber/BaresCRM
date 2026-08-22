@@ -92,10 +92,10 @@ const panels = {
         <span class="mk-pill ok">Active</span>
       </div>
       <div class="mk-mem-terms">
-        <span><b>$110.00</b> monthly</span>
-        <span>Next bills Sep 17</span>
-        <span>Ends Jun 16, 2027</span>
-        <span>4 of 12 paid</span>
+        <div><span>Price</span><b>$110.00</b> monthly</div>
+        <div><span>Next bills</span>Sep 17, 2026</div>
+        <div><span>Runs</span>Jun 17, 2026 &ndash; Jun 16, 2027</div>
+        <div><span>Paid</span>4 of 12</div>
       </div>
       <div class="mk-mem-who">Paid by <b>Pat Lee</b> &middot; Visa &bull;&bull;&bull;&bull; 4242</div>
       <div class="mk-mem-acts">
@@ -280,7 +280,17 @@ body{margin:0;background:#fff}
 .mk-mem-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .mk-mem-name{font-size:21px;font-weight:800}
 .mk-mem-sub{font-size:14.5px;color:var(--muted);margin-top:3px}
-.mk-mem-terms{display:flex;gap:26px;flex-wrap:wrap;margin-top:14px;font-size:15px}
+/* Four labelled facts rather than one run-on line. Two columns on a phone,
+   four across on a desktop. */
+.mk-mem-terms{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:14px 18px;margin-top:16px;padding-top:15px;border-top:1px solid var(--line);
+  font-size:14.5px}
+.mk-mem-terms span{display:block;font-size:11px;font-weight:800;color:var(--muted);
+  letter-spacing:.05em;text-transform:uppercase;margin-bottom:3px}
+.mk-mem-terms b{font-weight:800}
+@media (min-width:760px){
+  .mk-mem-terms{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
 .mk-mem-acts{display:flex;margin:18px -18px -18px;border-top:1px solid var(--line)}
 .mk-mem-acts button{flex:1;padding:15px 8px;background:none;border:none;cursor:pointer;
   font:700 14.5px/1.3 inherit;color:var(--ink)}
@@ -979,9 +989,12 @@ body{margin:0;background:#fff}
     document.querySelector('.mk-mem-name').innerHTML = now.program;
     document.querySelector('.mk-mem-sub').innerHTML = now.option + ' &middot; 12 months';
     document.querySelector('.mk-mem-terms').innerHTML =
-      '<span><b>$' + (+now.price).toFixed(2) + '</b> ' + now.freq.toLowerCase() + '</span>'
-      + '<span>Next bills ' + now.next + '</span><span>Ends ' + now.ends + '</span>'
-      + '<span>4 of 12 paid</span>';
+      '<div><span>Price</span><b>$' + (+now.price).toFixed(2) + '</b> '
+        + now.freq.toLowerCase() + '</div>'
+      + '<div><span>Next bills</span>' + prettyDue(now.next) + '</div>'
+      + '<div><span>Runs</span>' + prettyDue(now.starts) + ' &ndash; '
+        + prettyDue(now.ends) + '</div>'
+      + '<div><span>Paid</span>4 of 12</div>';
     WAS = now;
     memRefresh();
   }
@@ -1150,8 +1163,10 @@ body{margin:0;background:#fff}
       + '<div class="mk-mem-name">' + prog + '</div>'
       + '<div class="mk-mem-sub">' + opt + '</div></div>'
       + '<span class="mk-pill ok">Active</span></div>'
-      + '<div class="mk-mem-terms"><span><b>$' + price + '</b> ' + freq.toLowerCase() + '</span>'
-      + '<span>Starts ' + $('mk-astart').value + '</span></div>'
+      + '<div class="mk-mem-terms">'
+      + '<div><span>Price</span><b>$' + price + '</b> ' + freq.toLowerCase() + '</div>'
+      + '<div><span>Runs</span>' + prettyDue($('mk-astart').value) + ' &ndash; open</div>'
+      + '</div>'
       + '<div class="mk-mem-who">Paid by <b>Pat Lee</b>'
       + (signed ? '' : ' &middot; <span class="mk-unsigned">AGREEMENT NOT SIGNED</span>')
       + '</div>'
