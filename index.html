@@ -385,9 +385,18 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .memx{background:#fff;border:1px solid var(--line);border-radius:14px;padding:15px 16px;margin-bottom:12px;display:flex;flex-direction:column;gap:11px}
 .memx-name{font-weight:700;font-size:15.5px}
 .memx-plan{color:var(--muted);font-size:12.5px;margin-top:2px}
-.memx-price .big{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px}
-.memx-price .sub,.memx-terms div{font-size:12.5px;color:var(--muted);margin-top:3px}
-.memx-terms div{margin-top:0;line-height:1.7}
+/* Four labelled facts rather than a stack of sentences. Two columns on a
+   phone, four across on a desktop. */
+.memx-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px;
+  margin-top:14px;padding-top:13px;border-top:1px solid var(--line);font-size:14px}
+.memx-facts span{display:block;font-size:10.5px;font-weight:800;color:var(--muted);
+  letter-spacing:.05em;text-transform:uppercase;margin-bottom:2px}
+.memx-down{font-size:12px;color:var(--muted);margin-top:11px}
+.memx-payer{font-size:13px;color:var(--muted);margin-top:9px;padding-top:9px;
+  border-top:1px solid var(--line)}
+@media (min-width:760px){
+  .memx-facts{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
 .memx-agr{background:#F0FAF4;border:1px solid #BFE6D6;border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.6}
 .memx-agr b{color:#18A974}
 .memx-agr.miss{background:#FDF1F1;border-color:#F3C2C2}
@@ -5911,19 +5920,46 @@ async function saveContactNote(){
  * different contract, not an edit. */
 let MEM_EDIT = null;
 
+/* Everything here is editable, including program and plan. Owner, 2026-08-21:
+ * "As long as youre tracking changes i want to change whatever i want."
+ * What replaces the old lock is a warning: move away from what the signed
+ * agreement says and the sheet tells you, while you are doing it. */
 const MEM_FIELDS = [
+  { key:'program',               label:'Program',        kind:'text'  },
+  { key:'plan_code',             label:'Option',         kind:'text'  },
   { key:'final_recurring_cents', label:'Price',          kind:'money' },
   { key:'billing_frequency',     label:'Billed',         kind:'freq'  },
   { key:'next_bill_on',          label:'Next bills on',  kind:'date'  },
+  { key:'started_on',            label:'Starts on',      kind:'date'  },
+  { key:'ended_on',              label:'Ends on',        kind:'date'  },
+  { key:'payer_contact_id',      label:'Who pays',       kind:'payer' },
   { key:'status',                label:'Status',         kind:'status'},
 ];
 
 async function memEditOpen(id){
   const { data, error } = await sb.from('memberships')
-    .select('id,contact_id,program,plan_code,status,billing_frequency,next_bill_on,final_recurring_cents,final_down_cents,started_on,ended_on')
+    .select('id,contact_id,payer_contact_id,program,plan_code,status,billing_frequency,next_bill_on,final_recurring_cents,final_down_cents,started_on,ended_on')
     .eq('id', id).single();
   if(error||!data){ toast('Could not open that membership'); return; }
   MEM_EDIT = data;
+  await loadCatalog();
+
+  // Who could pay: the student, and everyone in their household. A child's
+  // card is nearly always a parent's.
+  const payers = [];
+  const meRow = MEMBERS.find(x=>x.id===data.contact_id);
+  if(meRow) payers.push({ id: meRow.id, name: meRow.first+' '+meRow.last+' (the student)' });
+  const hh = (typeof householdOf==='function') ? householdOf(data.contact_id) : null;
+  if(hh){
+    HH_LINKS.filter(l=>l.household_id===hh.id && l.contact_id!==data.contact_id).forEach(l=>{
+      const c = MEMBERS.find(x=>x.id===l.contact_id);
+      if(c) payers.push({ id: c.id, name: c.first+' '+c.last });
+    });
+  }
+  if(data.payer_contact_id && !payers.some(p=>p.id===data.payer_contact_id)){
+    const c = MEMBERS.find(x=>x.id===data.payer_contact_id);
+    payers.push({ id: data.payer_contact_id, name: c ? c.first+' '+c.last : 'somebody else' });
+  }
 
   // What the signed agreement says, so an edit that moves away from the
   // paperwork is visible while it is being made rather than discovered later.
@@ -5932,9 +5968,25 @@ async function memEditOpen(id){
     .eq('status','signed').maybeSingle();
 
   const freq = data.billing_frequency||'monthly';
+  const programs = [...new Set(PLAN_ROWS.map(p=>p.program).filter(Boolean))];
+  if(data.program && programs.indexOf(data.program)===-1) programs.unshift(data.program);
+  const optsFor = (prog) => PLAN_ROWS.filter(p=>p.program===prog);
+
   const body = '<div class="spk-form">'
-    + '<div class="spk-card"><div class="spk-card-ttl">'+escHtml(data.program||'-')+'</div>'
-      + '<div class="spk-card-desc">'+escHtml(data.plan_code||'')+'</div></div>'
+    + '<label class="spk-label">Program</label>'
+    + '<select id="me-program" class="ed-in spk-select" onchange="memEditProgramChanged()">'
+      + programs.map(p=>'<option'+(p===data.program?' selected':'')+'>'+escHtml(p)+'</option>').join('')
+      + '</select>'
+    + '<label class="spk-label">Option</label>'
+    + '<select id="me-plan" class="ed-in spk-select">'
+      + optsFor(data.program).map(p=>'<option value="'+escAttr(p.code)+'"'
+          + (p.code===data.plan_code?' selected':'')+'>'+escHtml(p.name||p.code)+'</option>').join('')
+      + '</select>'
+    + (ag && ag.document_title
+        ? '<div class="spk-note-warn" id="me-agr-warn" style="display:none">The signed agreement is for '
+          + escHtml(data.program||'')+', '+escHtml(planByCode(data.plan_code)?.name||data.plan_code||'')
+          + '. Changing this here does not change the agreement.</div>'
+        : '')
     + '<label class="spk-label">Price</label>'
     + '<div class="spk-price"><span class="spk-dollar">$</span>'
       + '<input id="me-price" class="ed-in" type="number" step="0.01" min="0" value="'
@@ -5949,6 +6001,18 @@ async function memEditOpen(id){
     + '<label class="spk-label">Next bills on</label>'
     + '<input id="me-next" class="ed-in" type="date" value="'+escAttr(data.next_bill_on||'')+'">'
     + '<div class="spk-hint">Leave empty if nothing is scheduled. Set this to line a second program up with the one they already pay.</div>'
+    + '<label class="spk-label">Starts on</label>'
+    + '<input id="me-starts" class="ed-in" type="date" value="'+escAttr(data.started_on||'')+'">'
+    + '<label class="spk-label">Ends on</label>'
+    + '<input id="me-ends" class="ed-in" type="date" value="'+escAttr(data.ended_on||'')+'">'
+    + '<div class="spk-hint">Move this out to honour a term you agreed verbally, without anyone signing a fresh year.</div>'
+    + '<label class="spk-label">Who pays</label>'
+    + '<select id="me-payer" class="ed-in spk-select">'
+      + '<option value=""'+(data.payer_contact_id?'':' selected')+'>Whoever bought it</option>'
+      + payers.map(p=>'<option value="'+escAttr(p.id)+'"'
+          + (p.id===data.payer_contact_id?' selected':'')+'>'+escHtml(p.name)+'</option>').join('')
+      + '</select>'
+    + '<div class="spk-hint">The card charged for this membership. For a child that is usually a parent, not the student.</div>'
     + '<label class="spk-label">Status</label>'
     + '<select id="me-status" class="ed-in spk-select">'
       + ['active','paused','canceled','ended'].map(x=>'<option value="'+x+'"'+(x===(data.status||'active')?' selected':'')+'>'
@@ -5968,15 +6032,38 @@ async function memEditOpen(id){
   openSheet();
 }
 
+/* The option list belongs to the program, so it follows it, and the agreement
+ * warning appears the moment either leaves what was signed. */
+function memEditProgramChanged(){
+  const prog = $("#me-program").value;
+  const opts = PLAN_ROWS.filter(p=>p.program===prog);
+  $("#me-plan").innerHTML = opts.length
+    ? opts.map(p=>'<option value="'+escAttr(p.code)+'">'+escHtml(p.name||p.code)+'</option>').join('')
+    : '<option value="">No options set up for this program</option>';
+  memEditDrift();
+}
+function memEditDrift(){
+  const w = document.getElementById('me-agr-warn');
+  if(!w || !MEM_EDIT) return;
+  const moved = $("#me-program").value !== (MEM_EDIT.program||'')
+    || $("#me-plan").value !== (MEM_EDIT.plan_code||'');
+  w.style.display = moved ? '' : 'none';
+}
+
 async function memEditSave(){
   if(!MEM_EDIT) return;
   const before = MEM_EDIT;
   const priceCents = Math.round(parseFloat($("#me-price").value||"0")*100);
   if(!isFinite(priceCents) || priceCents < 0){ toast("Enter a price"); return; }
   const next = {
+    program: $("#me-program").value,
+    plan_code: $("#me-plan").value,
     final_recurring_cents: priceCents,
     billing_frequency: $("#me-freq").value,
     next_bill_on: $("#me-next").value || null,
+    started_on: $("#me-starts").value || null,
+    ended_on: $("#me-ends").value || null,
+    payer_contact_id: $("#me-payer").value || null,
     status: $("#me-status").value,
   };
   const reason = ($("#me-reason").value||"").trim();
@@ -6288,7 +6375,7 @@ async function loadProfileCredits(contactId){
 async function loadProfileMemberships(contactId){
   const box = document.getElementById('prof-mems'); if(!box) return;
   const { data, error } = await sb.from('memberships')
-    .select('id,contact_id,program,plan_code,status,billing_frequency,started_on,ended_on,final_recurring_cents,final_down_cents,payment_count,sale_id,next_bill_on')
+    .select('id,contact_id,payer_contact_id,program,plan_code,status,billing_frequency,started_on,ended_on,final_recurring_cents,final_down_cents,payment_count,sale_id,next_bill_on')
     .eq('contact_id', contactId)
     .order('created_at', { ascending:false });
   if(error){ console.error('profile memberships', error); box.innerHTML='<div class="card pad" style="color:var(--muted);font-size:14px">Could not load memberships.</div>'; return; }
@@ -6326,6 +6413,19 @@ async function loadProfileMemberships(contactId){
     }
   }
   PROF_INST = instBy;
+  // Who the card belongs to. For a child that is a parent, not the student,
+  // so the membership says whose card it bills rather than leaving it to be
+  // guessed at.
+  let payerBy = {};
+  const payerIds = [...new Set(rows.map(r=>r.payer_contact_id).filter(Boolean))];
+  if(payerIds.length){
+    const { data:pp, error:pErr } = await sb.from('contacts')
+      .select('id,first_name,last_name').in('id', payerIds);
+    if(pErr) console.error('payers load', pErr);
+    else (pp||[]).forEach(p=>{
+      payerBy[p.id] = [p.first_name, p.last_name].filter(Boolean).join(' ');
+    });
+  }
   // Card layout from the 2026-08-17 mocks: identity, price with the locked
   // note, the REAL term (12-month auto-renew / month-to-month / session with
   // dates), and the agreement box front and center. Terms come from the same
@@ -6340,37 +6440,33 @@ async function loadProfileMemberships(contactId){
     const term = tpl ? tpl.term : null;
 
     const oneTime = ms.billing_frequency==='one_time';
-    let price = oneTime
-      ? '<div class="big">'+money(ms.final_recurring_cents/100)+' paid in full</div>'
-      : '<div class="big">'+money(ms.final_recurring_cents/100)+(ms.billing_frequency==='weekly'?' per week':' per month')+'</div>'
-        + (ms.final_down_cents?'<div class="sub">'+money(ms.final_down_cents/100)+' down payment</div>':'');
-    price += '<div class="sub">Price locked at signup</div>';
 
-    // The next charge date is the single most asked-about fact on a
-    // membership, so it goes on the card rather than behind the edit sheet.
-    const terms = [];
+    // Labelled facts, not a run-on line of sentences, and RUNS shows both
+    // ends of the term rather than only where it stops.
+    const facts = [];
+    facts.push(['Price', oneTime
+      ? money(ms.final_recurring_cents/100)+' paid in full'
+      : money(ms.final_recurring_cents/100)+(ms.billing_frequency==='weekly'?' weekly':' monthly')]);
     if(ms.next_bill_on && ms.billing_frequency!=='one_time' && st==='active'){
-      terms.push('Next bills '+fmtDate(ms.next_bill_on));
+      facts.push(['Next bills', fmtDate(ms.next_bill_on)]);
     }
+    facts.push(['Runs', ms.started_on
+      ? fmtDate(ms.started_on) + (ms.ended_on ? ' – '+fmtDate(ms.ended_on) : ' – open')
+      : '–']);
     const instAll = PROF_INST[ms.id]||[];
     if(instAll.length){
       const left = instAll.filter(x=>!x.settled).length;
-      terms.push(left+' of '+instAll.length+' payments remaining');
+      facts.push(['Paid', (instAll.length-left)+' of '+instAll.length]);
+    } else if(ms.payment_count){
+      facts.push(['Payments', String(ms.payment_count)]);
     }
-    if(term==='session'){
-      terms.push(ms.ended_on ? 'Session '+fmtDate(ms.started_on)+' to '+fmtDate(ms.ended_on) : 'Single session');
-      terms.push('Paid in full, does not renew');
-    } else if(term==='twelve_month'){
-      terms.push('12-month term, auto-renews');
-      terms.push(ms.billing_frequency==='weekly' ? 'Billed weekly' : 'Billed monthly');
-      if(ms.started_on) terms.push('Started '+fmtDate(ms.started_on));
-    } else if(term==='month_to_month'){
-      terms.push('Month-to-month, 30-day notice');
-      if(ms.started_on) terms.push('Started '+fmtDate(ms.started_on));
-    } else {
-      if(ms.started_on) terms.push('Started '+fmtDate(ms.started_on));
-      if(ms.ended_on) terms.push('Ends '+fmtDate(ms.ended_on));
-    }
+
+    // What KIND of deal this is stays with the plan name, since it describes
+    // the plan rather than being a fact about this member.
+    const termLine = term==='session' ? 'Paid in full, does not renew'
+      : term==='twelve_month' ? '12-month term, auto-renews'
+      : term==='month_to_month' ? 'Month-to-month, 30-day notice'
+      : '';
 
     const ag = agrBy[ms.id];
     const agr = ag
@@ -6382,10 +6478,18 @@ async function loadProfileMemberships(contactId){
 
     h += '<div class="memx">'
       + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">'
-      + '<div><div class="memx-name">'+escHtml(ms.program||'-')+'</div><div class="memx-plan">'+escHtml(planName)+'</div></div>'
+      + '<div><div class="memx-name">'+escHtml(ms.program||'-')+'</div><div class="memx-plan">'
+      + escHtml(planName)+(termLine?' · '+escHtml(termLine):'')+'</div></div>'
       + '<span class="mstatus '+escAttr(st)+'">'+escHtml(st.charAt(0).toUpperCase()+st.slice(1))+'</span></div>'
-      + '<div class="memx-price">'+price+'</div>'
-      + '<div class="memx-terms">'+terms.map(t=>'<div>'+escHtml(t)+'</div>').join('')+'</div>'
+      + '<div class="memx-facts">'
+      + facts.map(f=>'<div><span>'+escHtml(f[0])+'</span>'+escHtml(f[1])+'</div>').join('')
+      + '</div>'
+      + (ms.final_down_cents && !oneTime
+          ? '<div class="memx-down">'+money(ms.final_down_cents/100)+' down at signup. Price locked at signup.</div>'
+          : '<div class="memx-down">Price locked at signup.</div>')
+      + (ms.payer_contact_id && payerBy[ms.payer_contact_id]
+          ? '<div class="memx-payer">Paid by <b>'+escHtml(payerBy[ms.payer_contact_id])+'</b></div>'
+          : '')
       + agr
       + '<div class="memx-acts">'
       + '<button class="vc" onclick="memEditOpen(\''+ms.id+'\')">Edit membership</button>'

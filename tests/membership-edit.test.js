@@ -35,12 +35,33 @@ test('every editable field is in the change list', () => {
     .forEach((k) => assert.ok(keys.includes(k), k + ' is editable but would not be recorded'));
 });
 
-test('program and plan are NOT editable', () => {
-  // Changing either means a different contract, not an edit. The signed
-  // agreement is about the program and the plan.
+test('everything about the deal is editable, program and plan included', () => {
+  // Owner, 2026-08-21: "i want to be able to edit program and option. As long
+  // as youre tracking changes i want to change whatever i want." An earlier
+  // version of this test asserted the opposite; he overruled it, and full
+  // control with a trail is a legitimate way to run a studio.
   const keys = MEM_FIELDS.map((f) => f.key);
-  ['program', 'plan_code', 'plan_id'].forEach((k) =>
-    assert.ok(!keys.includes(k), k + ' must not be editable from the profile'));
+  ['program', 'plan_code', 'final_recurring_cents', 'billing_frequency',
+   'next_bill_on', 'started_on', 'ended_on', 'payer_contact_id', 'status']
+    .forEach((k) => assert.ok(keys.includes(k), k + ' must be editable'));
+});
+
+test('changing program or plan warns that the agreement no longer matches', () => {
+  // The lock is replaced by a warning, not by nothing. Losing the warning
+  // would let the paperwork and the record drift apart silently.
+  assert.ok(/function memEditDrift\(\)/.test(html), 'memEditDrift is missing');
+  const fn = /function memEditDrift\(\)\{([\s\S]*?)\n\}/.exec(html);
+  assert.ok(fn, 'could not read memEditDrift');
+  assert.ok(/me-program/.test(fn[1]) && /me-plan/.test(fn[1]),
+    'the warning must watch BOTH program and plan');
+  assert.ok(/me-agr-warn/.test(fn[1]), 'it must show the agreement warning');
+});
+
+test('the whole term is editable, not just where it ends', () => {
+  // Owner: "full membership duration not just end date."
+  const keys = MEM_FIELDS.map((f) => f.key);
+  assert.ok(keys.includes('started_on') && keys.includes('ended_on'),
+    'both ends of the term must be editable');
 });
 
 /* The diff the editor performs, reproduced exactly. */
