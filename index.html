@@ -1586,6 +1586,7 @@ async function dashLoadUnsigned(){
       + (age?' · '+escHtml(age):'')
       + '<span class="go">'
       + '<button onclick="agrSignMembership(\''+escJs(r.id)+'\')">Sign now</button>'
+      + '<button onclick="agrSendMembership(\''+escJs(r.id)+'\')">Send it</button>'
       + '<button onclick="openProfile(\''+escJs(r.contact_id)+'\')">Profile</button>'
       + '</span></div>';
   });
@@ -3181,19 +3182,30 @@ function agrOpenSign(lineIdx){
  * unsigned flag mean anything: a membership either has a signed row pointing
  * at it or it does not. */
 async function agrSignMembership(membershipId){
+  const built = await agrCtxForMembership(membershipId);
+  if(!built) return;   // agrCtxForMembership said why
+  AGR = { membershipId: built.ms.id, saleId: built.ms.sale_id||null, tpl: built.tpl,
+          ctx: built.ctx, doc: agrBuildDoc(built.tpl, built.ctx) };
+  agrRenderSheet();
+}
+
+/* The signing context for a membership that already exists, shared by the pad
+ * and by the emailed copy so the two can never describe the same membership
+ * differently. Returns null and says why if it cannot be built. */
+async function agrCtxForMembership(membershipId){
   const { data:ms, error } = await sb.from('memberships')
     .select('id,contact_id,payer_contact_id,program,plan_code,billing_frequency,final_down_cents,final_recurring_cents,started_on,sale_id')
     .eq('id', membershipId).single();
-  if(error||!ms){ toast('Could not open that membership'); return; }
+  if(error||!ms){ toast('Could not open that membership'); return null; }
 
-  // Already papered? Signing twice would leave two live agreements for one
-  // membership and no way to say which is the deal.
+  // Already papered? A second live agreement for one membership leaves nobody
+  // able to say which is the deal.
   const { data:have } = await sb.from('membership_agreements')
     .select('id').eq('membership_id', membershipId).eq('status','signed').maybeSingle();
-  if(have){ toast('That membership already has a signed agreement'); return; }
+  if(have){ toast('That membership already has a signed agreement'); return null; }
 
   const res = agrResolve({ program: ms.program, calc:{ program: ms.program, planCode: ms.plan_code } });
-  if(res.reason){ agrShowBlocked(res.reason); return; }
+  if(res.reason){ agrShowBlocked(res.reason); return null; }
 
   await loadCatalog();
   const student = MEMBERS.find(x=>x.id===ms.contact_id);
@@ -3233,9 +3245,54 @@ async function agrSignMembership(membershipId){
     catalogRows: PLAN_ROWS.filter(p=>p.program===ms.program && p.sellable!==false)
                           .sort((a,b)=>(a.display_order||0)-(b.display_order||0))
   };
-  AGR = { membershipId: ms.id, saleId: ms.sale_id||null, tpl: res.template, ctx: ctx,
-          doc: agrBuildDoc(res.template, ctx) };
-  agrRenderSheet();
+  return { ms: ms, tpl: res.template, ctx: ctx, student: student };
+}
+
+/* Email a membership's agreement out to be signed at home.
+ *
+ * Everything is filled in before it goes, which was the point: "instead of
+ * them filling out the information on a checkout page, it would already be
+ * prefilled and they would just review it and then sign."
+ *
+ * The context is built exactly as it is for signing at the desk, so the two
+ * paths cannot produce different documents for the same membership. */
+async function agrSendMembership(membershipId){
+  const ctx = await agrCtxForMembership(membershipId);
+  if(!ctx) return;   // agrCtxForMembership said why
+
+  // Who receives it. For a child this is the parent, which is the same person
+  // the document names as guardian.
+  const to = (ctx.ctx.buyerEmail||'').trim() || (ctx.student && ctx.student.email||'').trim();
+  if(!to){ toast('No email address for whoever pays - add one to their profile first'); return; }
+  // A minor's document with no guardian named is the one you cannot rely on
+  // later, and nobody at the far end can fix it: the words are already frozen.
+  if(ctx.ctx.isMinor && !ctx.ctx.guardian){
+    toast('Name the parent on this membership first - a minor\'s agreement has to say who is signing');
+    return;
+  }
+  if(!confirm('Email this agreement to '+to+' to read and sign?')) return;
+
+  const doc = agrBuildDoc(ctx.tpl, ctx.ctx);
+  const r = await sb.functions.invoke('send-agreement', { body:{
+    membership_id: membershipId,
+    email: to,
+    staff_email: await currentStaffEmail(),
+    document: {
+      program: doc.program, plan_code: doc.planCode,
+      template_key: doc.key, template_version: doc.version,
+      document_title: doc.title,
+      body_json: doc, body_text: agrDocText(doc), body_html: agrDocHtml(doc, null),
+      down_cents: ctx.ctx.downCents||0, recurring_cents: ctx.ctx.recurringCents||0,
+      pif_cents: ctx.ctx.pifCents||null, agreed_payment_date: ctx.ctx.agreedPaymentDate||null,
+      signer_hint: ctx.ctx.isMinor ? (ctx.ctx.guardian||'') : (ctx.ctx.participantName||''),
+      is_minor: ctx.ctx.isMinor, participant_name: ctx.ctx.participantName||''
+    }
+  }});
+  const out = r.error ? (await profFnError(r.error)) : r.data;
+  if(!out || (out.error && !out.url)){ toast((out&&out.error)||'Could not send it'); return; }
+  if(out.sent) toast('Agreement sent to '+out.to);
+  else prompt('Email did not send. Give them this link:', out.url);
+  if(selectedId === ctx.ctx.participantId) loadProfileMemberships(ctx.ctx.participantId);
 }
 
 function agrShowBlockedFor(i){
@@ -7059,7 +7116,7 @@ async function loadProfileMemberships(contactId){
         + '<br><button class="vc" onclick="agrView(\''+ag.id+'\')">View agreement</button></div>'
       : '<div class="memx-agr miss"><b>⚠ No agreement on file</b><br>'
         + '<button class="vc" onclick="agrSignMembership(\''+escJs(ms.id)+'\')">Sign it now</button>'
-        + ' <button class="vc" onclick="agrMissing(\''+escJs(ms.program||'')+'\')">What to do</button></div>';
+        + ' <button class="vc" onclick="agrSendMembership(\''+escJs(ms.id)+'\')">Send it to them</button></div>';
 
     h += '<div class="memx">'
       + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">'
