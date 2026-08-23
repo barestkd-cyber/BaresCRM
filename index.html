@@ -702,7 +702,8 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .pm-brand{font-weight:800;font-size:13.5px;text-transform:capitalize}
 .pm-dots{color:var(--muted);letter-spacing:.06em;font-size:13.5px}
 .pm-exp{color:var(--muted);font-size:12.5px}
-.pm-def{font-size:10.5px;font-weight:800;letter-spacing:.05em;background:#E4F5EE;color:var(--go);border-radius:6px;padding:3px 7px}
+.pm-def{font-size:10.5px;font-weight:800;letter-spacing:.05em;background:#EEF1F4;color:var(--muted);border-radius:6px;padding:3px 7px}
+.pm-fam{font-size:10.5px;font-weight:800;letter-spacing:.05em;background:#E4F5EE;color:var(--go);border-radius:6px;padding:3px 7px}
 .pm-acts{margin-left:auto;display:flex;gap:7px}
 .pm-acts button{border:1.5px solid var(--line);background:#fff;border-radius:9px;padding:6px 11px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;color:var(--ink)}
 .pm-acts button.danger{color:var(--accent);border-color:#EBC2C2}
@@ -3967,8 +3968,10 @@ function pmDrawPicker(){
   let h = '<label class="ed-lbl">Which card</label><div class="pmpick">';
   cards.forEach(c=>{
     h += opt(c.id, PAY.pm===c.id,
-      'Charge '+escHtml(c.brand)+' ••••'+escHtml(c.last4)+' on file',
-      'Runs straight away. Nothing to type.'+(c.def?' Their default card.':''));
+      'Charge '+escHtml(c.brand)+' ••••'+escHtml(c.last4)+' on file'
+        + (c.owner_name?', '+escHtml(c.owner_name):''),
+      'Runs straight away. Nothing to type.'
+        + (c.family_default?' The family default.':(c.borrowed?' Household card.':'')));
   });
   h += opt(null, !PAY.pm, 'Use a different card', 'Type it into the Stripe field below. It saves for next time.');
   box.innerHTML = h + '</div>';
@@ -6220,12 +6223,16 @@ function profCardsDraw(){
       + '<span class="pm-brand">'+escHtml(c.brand)+'</span>'
       + '<span class="pm-dots">•••• '+escHtml(c.last4)+'</span>'
       + '<span class="pm-exp">exp '+escHtml(c.exp)+'</span>'
-      + (c.def?'<span class="pm-def">DEFAULT</span>':'')
+      // The family's card is the one that matters here. Stripe's own default
+      // only decides which card it reaches for within ONE customer, so it is
+      // demoted to a quiet note rather than the headline it used to be.
+      + (c.family_default?'<span class="pm-fam">FAMILY DEFAULT</span>':'')
+      + (c.def && !c.family_default?'<span class="pm-def">stripe default</span>':'')
       // Whose card this is, when it is not this profile's own. Without it a
       // card appears on a child's page with no account behind it.
       + (c.borrowed?'<span class="ccg-chip borrowed">'+escHtml(c.owner_name||'household')+'</span>':'')
       + '<span class="pm-acts">'
-      + (c.def?'':'<button onclick="profCardDefault(\''+escJs(c.id)+'\')">Make default</button>')
+      + (c.family_default?'':'<button onclick="profCardFamilyDefault(\''+escJs(c.id)+'\')">Make family default</button>')
       + '<button class="danger" onclick="profCardRemove(\''+escJs(c.id)+'\')">Remove</button>'
       + '</span>'
       + (uses?'<span class="pm-inuse">'+uses+' scheduled payment'+(uses===1?'':'s')+' will be charged to this card</span>':'')
@@ -6244,6 +6251,19 @@ function profCardName(id){
 function profCardOwner(id){
   const c = PROF_CARDS.cards.filter(x=>x.id===id)[0];
   return (c && c.owner_contact_id) || PROF_CARDS.contact;
+}
+
+/* The family's default card, his override on top of the primary contact's.
+ * Clearing it hands the decision back rather than leaving the family with
+ * none, which is the sane way out of a wrong choice. */
+async function profCardFamilyDefault(id){
+  const who = PROF_CARDS.contact;
+  const { data, error } = await sb.functions.invoke('payment-methods', {
+    body:{ action:'family-default', contact_id:who, payment_method_id:id }
+  });
+  if(error || !data || data.error){ toast((data&&data.error)||'Could not set that'); return; }
+  toast(profCardName(id)+' is the family default');
+  loadProfileCards(who);
 }
 
 async function profCardDefault(id){
@@ -6701,7 +6721,8 @@ function memCardOptions(cards, keepId, failed){
   cards.forEach(c=>{
     html += '<option value="'+escAttr(c.id)+'"'+(c.id===keepId?' selected':'')+'>'
       + escHtml(c.brand)+' \u2022\u2022\u2022\u2022'+escHtml(c.last4)
-      + (c.def?' (default)':'')+'</option>';
+      + (c.owner_name?' - '+escHtml(c.owner_name):'')
+      + (c.family_default?' (family default)':'')+'</option>';
   });
   if(keepId && !cards.some(c=>c.id===keepId)){
     html += '<option value="'+escAttr(keepId)+'" selected>Card no longer on file</option>';
@@ -6975,8 +6996,10 @@ function memAddStep2(){
   h += '<div class="pmpick">';
   MADD.cards.forEach(c=>{
     h += opt(c.id, MADD.pay===c.id,
-      'Charge '+escHtml(c.brand)+' ••••'+escHtml(c.last4)+' on file',
-      'Takes '+due+' straight away.'+(c.def?' Their default card.':''));
+      'Charge '+escHtml(c.brand)+' ••••'+escHtml(c.last4)+' on file'
+        + (c.owner_name?', '+escHtml(c.owner_name):''),
+      'Takes '+due+' straight away.'
+        + (c.family_default?' The family default.':(c.borrowed?' Household card.':'')));
   });
   h += opt('new', MADD.pay==='new', 'Take a new card',
         'Typed into Stripe\'s own field. The studio never sees the number, and it saves for next time.')
@@ -7007,7 +7030,9 @@ async function memAddLoadCards(){
   MADD.cardsAsked = true;
   const chosen = !!MADD.pay;
   // Their default card is the obvious answer when there is one.
-  if(!chosen) MADD.pay = (MADD.cards.filter(c=>c.def)[0] || MADD.cards[0] || {}).id || 'new';
+  // The family's card, not Stripe's per-customer one.
+  if(!chosen) MADD.pay = (MADD.cards.filter(c=>c.family_default)[0]
+    || MADD.cards.filter(c=>c.def)[0] || MADD.cards[0] || {}).id || 'new';
   // The only thing a redraw can destroy is a card number part-typed into the
   // Stripe field, so that is the only case it is held back. Anything else
   // redraws, or he would never learn a card was on file all along.
@@ -7265,7 +7290,9 @@ function instMemCardLabel(){
     const n = instCardName(own);
     return n ? ("Membership card, "+n) : "Membership card (removed from Stripe)";
   }
-  const def = (SCHED.cards||[]).filter(c=>c.def)[0];
+  // What an unpointed payment actually rides on: the family's card.
+  const def = (SCHED.cards||[]).filter(c=>c.family_default)[0]
+    || (SCHED.cards||[]).filter(c=>c.def)[0];
   return def ? ("Their default card, "+def.brand+" ••••"+def.last4) : "Their default card";
 }
 function instCardPicker(x, i){

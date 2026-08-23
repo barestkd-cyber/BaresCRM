@@ -159,6 +159,10 @@ Deno.serve(async (req) => {
         // Stripe already knows this is Carlton and not his seven-year-old
         // daughter, whose contact the customer happens to hang off.
         const payerName = str(cust?.name) || h.name;
+        // The address the card was given under. A Stripe customer hangs off a
+        // CHILD's contact but was created with the paying adult's email, so
+        // this is what ties a card back to a guardian.
+        const payerEmail = str(cust?.email).toLowerCase();
         const pms = await stripe(
           "payment_methods?customer=" + encodeURIComponent(h.cust) + "&type=card&limit=20",
           secretKey, undefined, "GET",
@@ -174,14 +178,44 @@ Deno.serve(async (req) => {
           def: defPm ? p.id === defPm : false,
           owner_contact_id: h.id,
           owner_name: payerName,
+          owner_email: payerEmail,
           borrowed: h.id !== contactId,
         }));
         if (rows.length && !rows.some((c: Record<string, unknown>) => c.def)) rows[0].def = true;
         cards.push(...rows);
       }
-      // The profile's own cards lead; the household's follow.
-      cards.sort((a, b) => Number(a.borrowed) - Number(b.borrowed));
-      return json({ cards, usage: await usage(), email: str(person.email) }, 200, cors);
+      // THE FAMILY DEFAULT. His override if he set one; otherwise the primary
+      // contact's card, because he has already said who that is and one
+      // decision doing two jobs is one less thing left unset.
+      let familyDefault = "";
+      const hhRow = await admin.from("household_members")
+        .select("households(id,primary_guardian_id,default_payment_method)")
+        .eq("contact_id", contactId).maybeSingle();
+      const hh = (hhRow.data as Record<string, any> | null)?.households ?? null;
+      if (hh) {
+        const override = str(hh.default_payment_method);
+        if (override && cards.some((c) => c.id === override)) {
+          familyDefault = override;
+        } else if (hh.primary_guardian_id) {
+          // Which addresses the primary contact answers to, so their card can
+          // be picked out of a family's several.
+          const mail = await admin.from("guardian_emails")
+            .select("email").eq("guardian_id", hh.primary_guardian_id);
+          const theirs = new Set((mail.data ?? []).map((m: Record<string, unknown>) => str(m.email).toLowerCase()));
+          // Their Stripe default first, then any card of theirs at all.
+          const mine = cards.filter((c) => theirs.has(String(c.owner_email || "")));
+          const pick = mine.find((c) => c.def) ?? mine[0];
+          if (pick) familyDefault = String(pick.id);
+        }
+      }
+      cards.forEach((c) => { c.family_default = familyDefault ? c.id === familyDefault : false; });
+
+      // The family's card leads, then the profile's own, then the rest.
+      cards.sort((a, b) =>
+        Number(!!b.family_default) - Number(!!a.family_default)
+        || Number(a.borrowed) - Number(b.borrowed));
+      return json({ cards, usage: await usage(), email: str(person.email),
+                    family_default: familyDefault || null }, 200, cors);
     }
 
     // ── default ───────────────────────────────────────────────────────────
@@ -197,6 +231,25 @@ Deno.serve(async (req) => {
       form.set("invoice_settings[default_payment_method]", pm);
       await stripe("customers/" + encodeURIComponent(custId), secretKey, form);
       return json({ ok: true }, 200, cors);
+    }
+
+    // ── family-default ────────────────────────────────────────────────────
+    // His override. Distinct from Stripe's per-customer default, which only
+    // decides which card Stripe reaches for within ONE customer and knows
+    // nothing about families.
+    if (action === "family-default") {
+      const pm = str(body.payment_method_id);
+      if (pm && !PM_RE.test(pm)) return json({ error: "Which card?" }, 400, cors);
+      const row = await admin.from("household_members")
+        .select("household_id").eq("contact_id", contactId).maybeSingle();
+      const hid = str(row.data?.household_id);
+      if (!hid) return json({ error: "That person is not in a household." }, 409, cors);
+      // An empty value clears the override and hands the decision back to the
+      // primary contact, which is the sane way out of a wrong choice.
+      const upd = await admin.from("households")
+        .update({ default_payment_method: pm || null }).eq("id", hid);
+      if (upd.error) { console.error("family default", upd.error); return json({ error: "Could not set that" }, 500, cors); }
+      return json({ ok: true, cleared: !pm }, 200, cors);
     }
 
     // ── remove ────────────────────────────────────────────────────────────
