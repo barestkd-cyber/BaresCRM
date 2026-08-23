@@ -408,6 +408,11 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .ccg-sub{color:var(--muted);font-size:12.5px}
 .ccg-chip.borrowed{background:#EEF1F4;color:var(--muted)}
 .ccg-chip.primary{background:#E4F5EE;color:var(--go)}
+.ccg-chip.rel{background:#EEF3FB;color:#2563EB}
+/* Mom / Dad / Household, picked not typed */
+.relpick{display:flex;gap:7px;margin-bottom:4px}
+.relpick button{flex:1;border:1.5px solid var(--line);background:#fff;border-radius:10px;padding:11px 6px;font:800 13px/1 inherit;color:var(--muted);cursor:pointer}
+.relpick button.on{border-color:var(--go);background:#E4F5EE;color:var(--go)}
 /* guardians, grouped so the primary's shading has something to sit against */
 .gbox{border:1.5px solid var(--line);border-radius:12px;overflow:hidden}
 .grow{display:flex;align-items:center;gap:11px;padding:11px 12px;cursor:pointer;background:#fff;border-bottom:1px solid var(--line)}
@@ -1144,7 +1149,7 @@ async function loadMembers(){
   // the link, guardians is the human, guardian_emails are the addresses
   // they answer to. Colette Du Toit was five rows and is one woman.
   const { data: gl, error: gErr } = await sb.from('student_guardians')
-    .select('student_id,label,guardian_id,guardians(id,name,phones,address,contact_id,guardian_emails(id,email,always_copy))');
+    .select('student_id,label,guardian_id,guardians(id,name,relation,phones,address,contact_id,guardian_emails(id,email,always_copy))');
   if(gErr){ console.error('guardians load', gErr); GUARDIANS_READ_OK = false; }
   else GUARDIANS_READ_OK = true;
   const guardiansById = {};
@@ -1152,7 +1157,7 @@ async function loadMembers(){
     const g = r.guardians;
     if(!g) return;   // a link with no person behind it yet
     (guardiansById[r.student_id] = guardiansById[r.student_id] || []).push({
-      id: g.id, name: g.name || '', label: r.label || 'Guardian',
+      id: g.id, name: g.name || '', relation: g.relation || '', label: r.label || 'Guardian',
       emails: (g.guardian_emails||[]).map(e=>({ id:e.id, email:e.email, alwaysCopy:!!e.always_copy })),
       phones: g.phones || [], address: g.address || '', contactId: g.contact_id || null
     });
@@ -6564,6 +6569,7 @@ function ecHouseholdBlock(m){
     + (others ? ' · '+others+' other member'+(others===1?'':'s') : ' · nobody else yet')+'</div>'
     + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
     + '<button class="pb-change" onclick="hhAddSheet(\''+escJs(hh.household.id)+'\',\''+escJs(m.id)+'\')">Add member</button>'
+    + '<button class="pb-change" onclick="hhAddPersonSheet(\''+escJs(hh.household.id)+'\',\''+escJs(m.id)+'\')">Add someone who does not train</button>'
     + '<button class="pb-change" style="color:var(--accent);border-color:#EBC2C2" '
     + 'onclick="ecLeaveHousehold(\''+escJs(m.id)+'\')">Leave household</button></div>';
 }
@@ -7933,6 +7939,8 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape"){ closeSheet(); clo
  * rosters" step after a membership is saved.
  * ========================================================================== */
 let HH_ROWS = [], HH_LINKS = [], HH_LOADED = false;
+/* Household members who do not train, by id. */
+let HH_GUARDIANS = {};
 let PLAN_ROWS = [], PRICE_SETTINGS = {}, CATALOG_LOADED = false;
 
 const centsFromInput = v => { const n = parseFloat(String(v).replace(/[^0-9.\-]/g,'')); return isNaN(n) ? 0 : Math.round(n*100); };
@@ -7946,6 +7954,23 @@ async function loadHouseholds(force){
   ]);
   if(h.error || l.error){ console.error('household load', h.error||l.error); return; }
   HH_ROWS = h.data||[]; HH_LINKS = l.data||[]; HH_LOADED = true;
+  // The people in a household who are not on the roster. Same shape as a
+  // guardian on a child, because that is what they are.
+  HH_GUARDIANS = {};
+  const gids = [...new Set(HH_LINKS.map(x=>x.guardian_id).filter(Boolean))];
+  if(gids.length){
+    const g = await sb.from('guardians')
+      .select('id,name,relation,phones,address,contact_id,guardian_emails(id,email,always_copy)')
+      .in('id', gids);
+    if(g.error) console.error('household guardians', g.error);
+    (g.data||[]).forEach(x=>{
+      HH_GUARDIANS[x.id] = {
+        id:x.id, name:x.name||'', relation:x.relation||'', label:'Household',
+        emails:(x.guardian_emails||[]).map(e=>({ id:e.id, email:e.email, alwaysCopy:!!e.always_copy })),
+        phones:x.phones||[], address:x.address||'', contactId:x.contact_id||null
+      };
+    });
+  }
 }
 async function loadCatalog(force){
   if(CATALOG_LOADED && !force) return;
@@ -7965,7 +7990,15 @@ function householdOf(contactId){
   if(!link) return null;
   const hh = HH_ROWS.find(h=>h.id===link.household_id);
   if(!hh) return null;
-  return { household: hh, contactIds: HH_LINKS.filter(l=>l.household_id===hh.id).map(l=>l.contact_id) };
+  const links = HH_LINKS.filter(l=>l.household_id===hh.id);
+  return {
+    household: hh,
+    contactIds: links.map(l=>l.contact_id).filter(Boolean),
+    // People in the house who do not train. They are guardian records, so
+    // they carry their own addresses, phones and card without ever appearing
+    // in the member list.
+    guardianIds: links.map(l=>l.guardian_id).filter(Boolean)
+  };
 }
 
 /* Builds the engine's { person, householdMembers } from live membership rows.
@@ -8013,7 +8046,7 @@ let GEDIT = null;
 
 async function gEditOpen(guardianId, backToContactId){
   const { data, error } = await sb.from('guardians')
-    .select('id,name,phones,address,contact_id,guardian_emails(id,email,always_copy)')
+    .select('id,name,relation,phones,address,contact_id,guardian_emails(id,email,always_copy)')
     .eq('id', guardianId).single();
   if(error || !data){ toast('Could not open that guardian'); return; }
   // Who this person is responsible for. Shown because naming somebody is much
@@ -8024,8 +8057,10 @@ async function gEditOpen(guardianId, backToContactId){
   // one only through their children, so it comes from the profile we opened
   // from rather than from the guardian.
   const hh = (typeof householdOf==='function' && backToContactId) ? householdOf(backToContactId) : null;
+  REL_PICK['ge'] = data.relation || '';
   GEDIT = {
     id: data.id, backTo: backToContactId,
+    relation: data.relation || '',
     household: hh ? hh.household : null,
     isPrimary: !!(hh && hh.household && hh.household.primary_guardian_id === data.id),
     name: data.name || '',
@@ -8051,6 +8086,8 @@ function gEditRender(){
     + '<div class="ccg-sub" style="margin-bottom:2px">Guardian of</div>'+kids
     + '<label class="spk-label" style="margin-top:14px">Name</label>'
     + '<input id="g-name" class="ed-in" value="'+escAttr(g.name)+'" placeholder="Who is this?" autocomplete="off">'
+    + '<label class="spk-label">Who are they</label>'
+    + relPicker('ge', g.relation||'')
     + (g.name ? '' : '<div class="spk-hint">This person is only known by their address so far.</div>')
     + '<label class="spk-label">Email addresses</label></div>';
 
@@ -8148,7 +8185,8 @@ async function gEditSave(){
   }
 
   const up = await sb.from('guardians')
-    .update({ name: name || null, address: address || null, phones: phones })
+    .update({ name: name || null, relation: REL_PICK['ge'] || null,
+              address: address || null, phones: phones })
     .eq('id', g.id);
   if(up.error){ console.error('guardian save', up.error); toast('Could not save that'); return; }
 
@@ -8180,6 +8218,26 @@ async function gEditSave(){
   toast(name ? name+' saved' : 'Guardian saved');
   await loadMembers();
   if(selectedId === back){ profDrawGuardians(back); }
+}
+
+/* Mom, Dad, or Household. Three buttons rather than a text box, because a
+ * field people type into ends up holding "mom", "Mother", "MOM" and "mum",
+ * and then nothing can count them. Tapping the chosen one again clears it,
+ * since not every adult is one of the three. */
+const REL_OPTIONS = ['Mom', 'Dad', 'Household'];
+let REL_PICK = {};
+function relPicker(key, current){
+  REL_PICK[key] = current || '';
+  return '<div class="relpick" id="rel-'+key+'">'
+    + REL_OPTIONS.map(o=>'<button class="'+(current===o?'on':'')
+        + '" onclick="relSet(\''+key+'\',\''+o+'\')">'+o+'</button>').join('')
+    + '</div>';
+}
+function relSet(key, val){
+  REL_PICK[key] = (REL_PICK[key] === val) ? '' : val;
+  const box = document.getElementById('rel-'+key);
+  if(!box) return;
+  [...box.children].forEach(b=>b.classList.toggle('on', b.textContent === REL_PICK[key]));
 }
 
 /* Initials for a guardian, or a person icon when they have no name yet. */
@@ -8277,6 +8335,7 @@ function profDrawGuardians(contactId){
       + '<div class="gav">'+escHtml(gInitials(g.name))+'</div>'
       + '<div class="gmeta">'
         + '<div class="gtop">'+name
+        + (g.relation ? '<span class="ccg-chip rel">'+escHtml(g.relation)+'</span>' : '')
         + (g.isPrimary ? '<span class="ccg-chip primary">PRIMARY</span>' : '')
         + (g.borrowed ? '<span class="ccg-chip borrowed">household</span>' : '')
         + '</div>'
@@ -8312,6 +8371,10 @@ function profGuardiansFor(contactId){
       const other = MEMBERS.find(x=>x.id===id);
       add(other && other.guardians, true);
     });
+    // Somebody attached to the HOUSE rather than to a particular child. A
+    // grandmother is a guardian to every child under that roof without being
+    // typed onto each of them.
+    add((hh.guardianIds||[]).map(gid=>HH_GUARDIANS[gid]).filter(Boolean), true);
   }
   // The primary contact leads. Whoever the studio rings first should be the
   // first name on the card, not wherever the join happened to put them.
@@ -8363,8 +8426,20 @@ async function loadProfileHousehold(contactId){
         + (sub?'<div class="gsub">'+escHtml(sub)+'</div>':'')+'</div>'
         + '<span class="gchev">›</span></div>';
     }).join('') + '</div>';
-  } else {
-    html += '<div class="ccg-sub" style="margin:2px 0 8px">No other members yet.</div>';
+  }
+  // The people under that roof who are not on the roster.
+  const nonPart = (hh.guardianIds||[]).map(gid=>HH_GUARDIANS[gid]).filter(Boolean);
+  if(nonPart.length){
+    html += '<div class="gbox" style="margin-top:8px">' + nonPart.map(g=>
+      '<div class="grow" onclick="gSheetOpen(\''+escJs(g.id)+'\',\''+escJs(contactId)+'\')">'
+      + '<div class="gav">'+escHtml(gInitials(g.name))+'</div>'
+      + '<div class="gmeta"><div class="gtop"><b>'+escHtml(g.name||'Unnamed')+'</b>'
+      + '<span class="ccg-chip borrowed">not a member</span></div>'
+      + '<div class="gsub">'+escHtml(g.phones.concat(g.emails.map(e=>e.email)).join(' · '))+'</div></div>'
+      + '<span class="gchev">›</span></div>').join('') + '</div>';
+  }
+  if(!others.length && !nonPart.length){
+    html += '<div class="ccg-sub" style="margin:2px 0 8px">Nobody else yet.</div>';
   }
   // Add member and Leave household used to sit directly under a sibling's
   // name, where they read as being about the sibling. They are about THIS
@@ -8457,6 +8532,71 @@ function hhAddSheet(householdId, backTo){
     + '<div id="hh-results"></div></div>';
   openSheet();
 }
+/* Somebody who lives there and does not train: a grandparent, the uncle who
+ * pays for testing. Owner, 2026-08-23: "it would be a household member but
+ * not a participant."
+ *
+ * They become a guardian record, which already carries a name, addresses,
+ * phones and a card, and is deliberately not a contact - a member list full
+ * of people who have never stepped on the mat is the thing he refused. */
+function hhAddPersonSheet(householdId, backTo){
+  $("#sheet").classList.remove("sheet-lg");
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head spk-head"><div><h3>Add someone who does not train</h3>'
+    + '<div class="sub">A grandparent, an uncle, anyone under that roof</div></div>'
+    + '<button class="close" onclick="closeSheet()">&times;</button></div>'
+    + '<div class="sheet-body spk-body"><div class="spk-form">'
+    + '<label class="spk-label">Name</label>'
+    + '<input id="hp-name" class="ed-in" placeholder="Grandma Allen" autocomplete="off">'
+    + '<label class="spk-label">Who are they</label>'
+    + relPicker('hp', '')
+    + '<label class="spk-label">Email</label>'
+    + '<input id="hp-email" class="ed-in" type="email" placeholder="optional" autocomplete="off">'
+    + '<label class="spk-label">Phone</label>'
+    + '<input id="hp-phone" class="ed-in" type="tel" placeholder="optional" autocomplete="off">'
+    + '<div class="spk-hint">They will not appear in your member list. They can be '
+    + 'called, be sent receipts, and hold a card, on every child in the household.</div>'
+    + '</div></div>'
+    + '<div class="spk-foot"><button class="spk-cancel" onclick="closeSheet()">Cancel</button>'
+    + '<button class="spk-add" onclick="hhAddPersonSave(\''+escJs(householdId)+'\',\''+escJs(backTo)+'\')">Add them</button></div>';
+  openSheet();
+}
+
+async function hhAddPersonSave(householdId, backTo){
+  const name = ($("#hp-name").value||'').trim();
+  const email = ($("#hp-email").value||'').trim().toLowerCase();
+  const phone = ($("#hp-phone").value||'').trim();
+  const rel = REL_PICK['hp'] || null;
+  if(!name){ toast('What is their name?'); $("#hp-name").focus(); return; }
+  if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ toast('That is not an email address'); return; }
+
+  const who = await currentStaffEmail();
+  const g = await sb.from('guardians')
+    .insert({ name: name, relation: rel, phones: phone ? [phone] : [], created_by: who })
+    .select('id').single();
+  if(g.error || !g.data){ console.error('add household person', g.error); toast('Could not add them'); return; }
+
+  if(email){
+    const e = await sb.from('guardian_emails').insert({ guardian_id: g.data.id, email: email });
+    // 23505: that address already belongs to somebody. Say so rather than
+    // quietly making a second person who answers to the same mailbox.
+    if(e.error){
+      console.error('household person email', e.error);
+      toast(String(e.error.code)==='23505'
+        ? email+' is already on another guardian - add them from there instead'
+        : 'Added, but the email did not save');
+    }
+  }
+  const link = await sb.from('household_members')
+    .insert({ household_id: householdId, guardian_id: g.data.id, added_by: who });
+  if(link.error){ console.error('household link', link.error); toast('Could not put them in the household'); return; }
+
+  await loadHouseholds(true);
+  closeSheet();
+  toast(name+' added to the household');
+  if(selectedId === backTo){ loadProfileHousehold(backTo); profDrawGuardians(backTo); }
+}
+
 function hhSearch(mode, a, b){
   const q = ($("#hh-search").value||'').trim().toLowerCase();
   const box = document.getElementById('hh-results');
