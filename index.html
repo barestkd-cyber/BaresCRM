@@ -407,6 +407,7 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .ccg-chip{font-size:10px;font-weight:800;background:#E7F1FB;color:#2563EB;padding:2px 8px;border-radius:6px}
 .ccg-sub{color:var(--muted);font-size:12.5px}
 .ccg-chip.borrowed{background:#EEF1F4;color:var(--muted)}
+.ccg-chip.primary{background:#E4F5EE;color:var(--go)}
 .ccg-chip.copy{background:#E4F5EE;color:var(--go)}
 .gcard{cursor:pointer;border-radius:8px;padding-left:6px;padding-right:6px;margin-left:-6px;margin-right:-6px}
 .gcard:hover{background:var(--surface)}
@@ -7928,9 +7929,15 @@ async function gMakePrimary(){
   const r = await sb.from('households')
     .update({ primary_guardian_id: g.id }).eq('id', g.household.id);
   if(r.error){ console.error('primary contact', r.error); toast('Could not set that'); return; }
-  g.isPrimary = true;
   await loadHouseholds(true);
+  // Re-read the household rather than patching a flag on a stale copy: the
+  // sheet, the card behind it and the send rule must all agree, and the row
+  // that just changed is the only honest source.
+  const fresh = (typeof householdOf==='function') ? householdOf(g.backTo) : null;
+  g.household = fresh ? fresh.household : g.household;
+  g.isPrimary = !!(g.household && g.household.primary_guardian_id === g.id);
   gEditRender();
+  if(selectedId === g.backTo) profDrawGuardians(g.backTo);
   toast((g.name||'They')+' now hear from us first');
 }
 
@@ -8015,9 +8022,14 @@ function profDrawGuardians(contactId){
     const name = g.name
       ? '<b>'+escHtml(g.name)+'</b>'
       : '<span style="color:var(--accent);font-weight:700">Name this person</span>';
+    // No "secondary" chip. Owner: "I don't like it." A parent who is not the
+    // one you ring first is not a lesser parent, and labelling them second on
+    // their own child's profile says something nobody meant to say. Only the
+    // primary is marked, because that one is a fact about the studio's
+    // behaviour rather than about them.
     return '<div class="ccg-row gcard" onclick="gEditOpen(\''+escJs(g.id)+'\',\''+escJs(contactId)+'\')">'
       + name
-      + (g.label ? '<span class="ccg-chip">'+escHtml(g.label)+'</span>' : '')
+      + (g.isPrimary ? '<span class="ccg-chip primary">PRIMARY</span>' : '')
       + (g.borrowed ? '<span class="ccg-chip borrowed">household</span>' : '')
       + g.phones.map(p=>'<span class="ccg-sub" style="color:var(--muted)">'+escHtml(p)+'</span>').join('')
       + g.emails.map(e=>'<span class="ccg-sub" style="color:var(--muted)">'+escHtml(e.email)
@@ -8052,6 +8064,11 @@ function profGuardiansFor(contactId){
       add(other && other.guardians, true);
     });
   }
+  // The primary contact leads. Whoever the studio rings first should be the
+  // first name on the card, not wherever the join happened to put them.
+  const primaryId = hh && hh.household ? hh.household.primary_guardian_id : null;
+  out.forEach(g=>{ g.isPrimary = !!primaryId && g.id === primaryId; });
+  out.sort((a,b)=> (b.isPrimary?1:0) - (a.isPrimary?1:0));
   return out;
 }
 
