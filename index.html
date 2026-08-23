@@ -6021,7 +6021,11 @@ function renderProfile(){
     : '<div class="ccg-sub">No address on file.</div>';
 
   html += '<hr class="prof-rule">';
-  html += '<div class="ccg-sub" style="margin-bottom:4px">Household</div><div id="prof-hh">Loading…</div>';
+  // The heading carries the family's name, rather than a heading called
+  // Household followed by a row also called Household.
+  html += '<div class="ccg-sub" style="margin-bottom:6px">Household'
+    + '<span id="prof-hh-name" style="float:right;color:var(--ink);font-weight:700"></span></div>'
+    + '<div id="prof-hh">Loading…</div>';
   html += '<div id="prof-people"></div>';
   html += '</div></div>';
 
@@ -8300,26 +8304,72 @@ async function loadProfileHousehold(contactId){
     return;
   }
   const others = hh.contactIds.filter(id=>id!==contactId);
-  let html = '<div class="kv"><span class="k">Household</span><span class="v">'+escHtml(hh.household.name)+'</span></div>';
+  const nameEl = document.getElementById('prof-hh-name');
+  if(nameEl) nameEl.textContent = hh.household.name;
+  let html = '';
   if(others.length){
-    html += '<div style="margin-top:8px">';
-    others.forEach(id=>{
+    // Same row as a guardian, and the same rule: tapping opens what you can
+    // do with them. A Remove button sitting beside a child's name is one
+    // mis-tap away from pulling a sibling out of a family.
+    html += '<div class="gbox">' + others.map(id=>{
       const m = MEMBERS.find(x=>x.id===id);
       const label = m ? (m.first+' '+m.last) : '(not on this roster)';
-      const sub = m ? (m.rank||m.segment||'') : id;
-      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">'
-        + (m ? '<button class="mrow" style="margin:0;flex:1" onclick="openProfile(\''+id+'\')"><div class="c-name"><div class="av" style="background:'+(BELT[m.belt]||'#C7CCD2')+'"><span style="color:'+((m.belt==='White'||m.belt==='Yellow')?'#15171C':'#fff')+'">'+escHtml(initials(m))+'</span></div><div class="minfo"><div class="mname">'+escHtml(label)+'</div><div class="msub">'+escHtml(sub)+'</div></div></div></button>'
-             : '<div class="mrow" style="margin:0;flex:1;color:var(--muted)">'+escHtml(label)+'</div>')
-        + '<button class="pb-change" onclick="hhRemove(\''+id+'\',\''+contactId+'\')">Remove</button></div>';
-    });
-    html += '</div>';
+      const sub = m ? (m.rank||m.segment||'') : '';
+      const bg = m ? (BELT[m.belt]||'#C7CCD2') : '#C7CCD2';
+      const ink = (m && (m.belt==='White'||m.belt==='Yellow')) ? '#15171C' : '#fff';
+      return '<div class="grow" onclick="hhMemberSheet(\''+escJs(id)+'\',\''+escJs(contactId)+'\')">'
+        + '<div class="gav" style="background:'+bg+';color:'+ink+'">'+escHtml(m?initials(m):'?')+'</div>'
+        + '<div class="gmeta"><div class="gtop"><b>'+escHtml(label)+'</b></div>'
+        + (sub?'<div class="gsub">'+escHtml(sub)+'</div>':'')+'</div>'
+        + '<span class="gchev">›</span></div>';
+    }).join('') + '</div>';
   } else {
-    html += '<div style="color:var(--muted);font-size:14px;margin:8px 0;">No other members yet.</div>';
+    html += '<div class="ccg-sub" style="margin:2px 0 8px">No other members yet.</div>';
   }
   html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">'
     + '<button class="pb-change" onclick="hhAddSheet(\''+hh.household.id+'\',\''+contactId+'\')">Add member</button>'
     + '<button class="pb-change" onclick="hhRemove(\''+contactId+'\',\''+contactId+'\')">Leave household</button></div>';
   box.innerHTML = html;
+}
+
+/* What you can do with somebody else in the household. Details for now, and
+ * the one action that used to sit as a button beside their name. */
+function hhMemberSheet(memberId, fromContactId){
+  const m = MEMBERS.find(x=>x.id===memberId);
+  const hh = householdOf(fromContactId);
+  const name = m ? (m.first+' '+m.last) : 'That member';
+  const facts = [];
+  if(m){
+    if(m.rank) facts.push(['Belt', m.rank]);
+    if(m.segment) facts.push(['Status', m.segment]);
+    if(m.program) facts.push(['Program', m.program]);
+    if(m.visitLabel) facts.push(['Last seen', m.visitLabel]);
+  }
+  let body = facts.map(f=>kv(escHtml(f[0]), escHtml(f[1]))).join('')
+    || '<div class="ccg-sub">Not on this roster.</div>';
+  if(m) body += '<button class="addopt" style="margin-top:12px" onclick="closeSheet();openProfile(\''+escJs(memberId)+'\')">Open their profile</button>';
+  if(hh && hh.household){
+    body += '<button class="addopt" style="color:var(--accent);border-color:#EBC2C2" '
+      + 'onclick="hhRemoveFromSheet(\''+escJs(memberId)+'\',\''+escJs(fromContactId)+'\')">'
+      + 'Remove from '+escHtml(hh.household.name)+'</button>';
+  }
+  $("#sheet").classList.remove("sheet-lg");
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head spk-head"><div><h3>'+escHtml(name)+'</h3>'
+    + '<div class="sub">'+(hh&&hh.household?escHtml(hh.household.name):'Household')+'</div></div>'
+    + '<button class="close" onclick="closeSheet()">&times;</button></div>'
+    + '<div class="sheet-body spk-body">'+body+'</div>';
+  openSheet();
+}
+
+async function hhRemoveFromSheet(memberId, fromContactId){
+  const m = MEMBERS.find(x=>x.id===memberId);
+  // Removing somebody takes their guardians off this profile with them, since
+  // sharing is what the household does. Worth saying before, not after.
+  if(!confirm('Take '+(m?m.first+' '+m.last:'them')+' out of this household?\n\n'
+    + 'Their guardians stop showing here, and this profile\'s guardians stop showing on theirs.')) return;
+  closeSheet();
+  await hhRemove(memberId, fromContactId, true);
 }
 
 function hhCreateSheet(contactId){
@@ -8406,9 +8456,12 @@ async function hhAdd(householdId, pickedId, backTo){
   await loadProfileHousehold(backTo);
   toast('Added to household');
 }
-async function hhRemove(contactId, backTo){
+async function hhRemove(contactId, backTo, alreadyAsked){
   const m = MEMBERS.find(x=>x.id===contactId);
-  if(!confirm('Remove '+(m?m.first+' '+m.last:'this member')+' from the household? Pricing will stop counting them.')) return;
+  // The member sheet asks a fuller question of its own, about the guardians
+  // that stop being shared. Two dialogs for one act trains people to dismiss
+  // both without reading either.
+  if(!alreadyAsked && !confirm('Remove '+(m?m.first+' '+m.last:'this member')+' from the household? Pricing will stop counting them.')) return;
   const { error } = await sb.from('household_members').delete().eq('contact_id', contactId);
   if(error){ toast('Could not remove: '+(error.message||error)); return; }
   HH_LOADED = false;
