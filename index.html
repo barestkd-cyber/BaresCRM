@@ -704,6 +704,12 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .pm-exp{color:var(--muted);font-size:12.5px}
 .pm-def{font-size:10.5px;font-weight:800;letter-spacing:.05em;background:#EEF1F4;color:var(--muted);border-radius:6px;padding:3px 7px}
 .pm-fam{font-size:10.5px;font-weight:800;letter-spacing:.05em;background:#E4F5EE;color:var(--go);border-radius:6px;padding:3px 7px}
+/* who gets the update-card link */
+.lnkrow{display:flex;align-items:flex-start;gap:11px;border:1.5px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px;cursor:pointer;background:#fff}
+.lnkrow.on{border-color:var(--go);background:#F2FBF7}
+.lnkrow input{margin-top:2px;width:18px;height:18px;flex:none;accent-color:var(--go)}
+.lnkrow b{display:block;font-size:14.5px}
+.lnkrow i{display:block;font-style:normal;font-size:12.5px;color:var(--muted);margin-top:2px;word-break:break-all}
 .pm-acts{margin-left:auto;display:flex;gap:7px}
 .pm-acts button{border:1.5px solid var(--line);background:#fff;border-radius:9px;padding:6px 11px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;color:var(--ink)}
 .pm-acts button.danger{color:var(--accent);border-color:#EBC2C2}
@@ -6307,35 +6313,79 @@ async function profFnError(e){
   try { return await e.context.json(); } catch(_) { return { error: e.message||'Request failed' }; }
 }
 
-async function profCardLink(){
+/* Everybody in this family who could be sent a card link: every guardian
+ * address, plus the participant's own if they have one. One row per ADDRESS,
+ * because a guardian with two has a reason for each and only they know which
+ * one they read. */
+let LINKPICK = null;
+
+function profCardLink(){
   const who = PROF_CARDS.contact || selectedId;
   if(!who) return;
-  // A child has no card; the adult who pays for them does. The primary
-  // contact is who this goes to, and the card will land on THEIR account so
-  // it joins the ones they already have.
-  const gs = profGuardiansFor(who);
-  const payer = gs.filter(g=>g.isPrimary)[0] || (gs.length===1 ? gs[0] : null);
   const me = MEMBERS.find(x=>x.id===who);
-  const to = payer ? ((payer.emails[0]||{}).email||'') : (PROF_CARDS.email||'');
-  const label = payer ? (payer.name || 'their guardian') : ((me?me.first+' '+me.last:'them'));
-  if(!to){
-    toast(gs.length>1
-      ? 'Set a primary contact first, so this knows which parent to ask'
-      : 'No email address to send to');
-    return;
-  }
-  if(!confirm('Email '+label+' a link to add or replace a card?\n\nGoes to '+to
-    + (payer ? '\n\nThe card lands on '+label+"'s account, alongside any they already have." : ''))) return;
-  const { data, error } = await sb.functions.invoke('payment-methods', {
-    body:{ action:'link', contact_id:who, guardian_id: payer ? payer.id : null }
+  const rows = [];
+  profGuardiansFor(who).forEach(g=>{
+    (g.emails||[]).forEach(e=>{
+      if(!e.email) return;
+      rows.push({ email:e.email, guardianId:g.id, name:g.name||'(unnamed guardian)',
+                  note:(g.isPrimary?'Primary contact':(g.borrowed?'Household':'Guardian')),
+                  on:!!g.isPrimary });
+    });
   });
-  if(error || !data || (data.error && !data.url)){ toast((data&&data.error)||'Could not create the link'); return; }
-  if(data.sent) toast('Link sent to '+data.to);
-  else if(data.url){
-    // The email failed but the link is good, so hand it over rather than
-    // losing it.
-    prompt('Email did not send. Copy this link to them:', data.url);
+  if(me && me.email){
+    rows.push({ email:me.email, guardianId:null, name:me.first+' '+me.last,
+                note:'Their own address', on:!rows.length });
   }
+  if(!rows.length){ toast('Nobody in this family has an email address on file'); return; }
+  if(!rows.some(r=>r.on)) rows[0].on = true;
+  LINKPICK = { contactId:who, rows:rows };
+  profCardLinkRender();
+}
+
+function profCardLinkRender(){
+  const body = LINKPICK.rows.map((r,i)=>
+    '<label class="lnkrow'+(r.on?' on':'')+'" onclick="profCardLinkToggle('+i+')">'
+    + '<input type="checkbox"'+(r.on?' checked':'')+'>'
+    + '<span><b>'+escHtml(r.name)+'</b><i>'+escHtml(r.email)+' · '+escHtml(r.note)+'</i></span>'
+    + '</label>').join('');
+  $("#sheet").classList.add("sheet-lg");
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head spk-head"><div><h3>Send a card link</h3>'
+    + '<div class="sub">Everyone gets their own link</div></div>'
+    + '<button class="close" onclick="closeSheet()">&times;</button></div>'
+    + '<div class="sheet-body spk-body">'+body
+    + '<div class="ck-hint" style="margin-top:10px">Each person adds a card to their own '
+    + 'Stripe account, beside any they already have. Nobody sees anybody else\'s.</div></div>'
+    + '<div class="spk-foot"><button class="spk-cancel" onclick="closeSheet()">Cancel</button>'
+    + '<button class="spk-add" id="lnk-go" onclick="profCardLinkSend()">Send</button></div>';
+  openSheet();
+}
+function profCardLinkToggle(i){ LINKPICK.rows[i].on = !LINKPICK.rows[i].on; profCardLinkRender(); }
+
+async function profCardLinkSend(){
+  const picked = LINKPICK.rows.filter(r=>r.on);
+  if(!picked.length){ toast('Tick at least one'); return; }
+  const who = LINKPICK.contactId;
+  const btn = document.getElementById('lnk-go');
+  if(btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
+  const sent = [], failed = [], links = [];
+  for(const r of picked){
+    // One link each, minted against THAT person, so the card lands on their
+    // own account rather than the first person's.
+    const { data, error } = await sb.functions.invoke('payment-methods', {
+      body:{ action:'link', contact_id:who, guardian_id:r.guardianId, email:r.email }
+    });
+    if(error || !data || (data.error && !data.url)){ failed.push(r.email); continue; }
+    if(data.sent) sent.push(r.email);
+    else if(data.url){ links.push(r.email+': '+data.url); }
+  }
+  LINKPICK = null;
+  closeSheet();
+  if(sent.length) toast(sent.length===1 ? 'Link sent to '+sent[0] : sent.length+' links sent');
+  // A link that was made but not mailed is still good, so hand it over rather
+  // than losing it.
+  if(links.length) prompt('Email did not send for these. Copy the links to them:', links.join('\n\n'));
+  if(failed.length) toast('Could not create a link for '+failed.join(', '));
 }
 
 
