@@ -13,7 +13,10 @@
 //      functions server-to-server, or a signed-in user who passes
 //      is_staff() on their own token. Nothing else gets in.
 //   2. The client sends ONLY { sale_id, to: [emails] } - the ledger row is
-//      the source of everything rendered. Max 3 recipients.
+//      the source of everything rendered. Max 10 recipients - a bound on
+//      how far one family's invoice can travel if the list is ever wrong,
+//      not a mail limit. It REFUSES rather than truncating, so a dropped
+//      parent can never look like a successful send.
 //   3. Brand identity follows the sale's brand; the legal line names the LLC.
 //   4. Send via Resend (project secret RESEND_API_KEY); from-address stays on
 //      the verified domain barestkd.fit.
@@ -181,8 +184,8 @@ Deno.serve(async (req) => {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(saleId)) {
       return json({ error: "Bad sale_id" }, 400, cors);
     }
-    if (to.length > 3 || to.some((t) => !EMAIL_RE.test(t) || t.length > 200)) {
-      return json({ error: "Bad recipient list (max 3 valid emails)" }, 400, cors);
+    if (to.length > 10 || to.some((t) => !EMAIL_RE.test(t) || t.length > 200)) {
+      return json({ error: "Bad recipient list (max 10 valid emails)" }, 400, cors);
     }
     // Empty list = "send it to whoever this invoice belongs to". Automatic
     // sends after a payment use this; the CRM button passes explicit emails.

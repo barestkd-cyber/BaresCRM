@@ -4937,7 +4937,7 @@ function posAutoReceipt(saleId){
  *
  * Recipient rule (per Race 2026-08-13): NO typing in the normal case - the
  * buyer's on-file email is the recipient automatically. Tap it to correct,
- * "+ Add another" for extra recipients (max 3). An empty input only appears
+ * "+ Add another" for extra recipients (max 10). An empty input only appears
  * when there is genuinely no email on file (walk-in / missing email). */
 function posEmailReceiptSheet(saleId){
   sb.from('pos_sales').select('buyer_contact_id,receipt_email,status').eq('id', saleId).single().then(function(r){
@@ -5002,7 +5002,7 @@ function posEmailPreview(saleId, immediate){
 }
 function posEmailAddRecipient(){
   const list = document.getElementById('er-list'); if(!list) return;
-  if(list.querySelectorAll('.er-to').length >= 3){ toast('Three recipients max'); return; }
+  if(list.querySelectorAll('.er-to').length >= 10){ toast('Ten recipients max'); return; }
   const inp = document.createElement('input');
   inp.className = 'ed-in er-to'; inp.type = 'email'; inp.placeholder = 'another@email.com';
   inp.style.marginTop = '6px';
