@@ -8296,6 +8296,26 @@ async function gSheetOpen(guardianId, backToContactId){
   if(!g.phones.length && !g.emails.length){
     body += '<div class="ccg-sub" style="margin-bottom:10px">No phone or email on file for them yet.</div>';
   }
+  // Their card, and the way to ask them to fix it. Which cards are theirs is
+  // decided by the address the Stripe customer was created under, the same
+  // join the family default uses - a customer hangs off a child's contact but
+  // carries the paying adult's email.
+  const mine = (g.emails||[]).map(e=>String(e.email||'').toLowerCase());
+  const theirs = (PROF_CARDS.cards||[]).filter(c=>mine.indexOf(String(c.owner_email||''))>-1);
+  body += '<div class="ccg-sub" style="margin:16px 0 6px">Payment method</div>';
+  if(theirs.length){
+    body += theirs.map(c=>'<div class="ccg-row">'
+      + '<span class="pm-brand">'+escHtml(c.brand)+'</span>'
+      + '<span class="pm-dots">•••• '+escHtml(c.last4)+'</span>'
+      + '<span class="pm-exp">exp '+escHtml(c.exp)+'</span>'
+      + (c.family_default?'<span class="pm-fam">FAMILY DEFAULT</span>':'')
+      + '</div>').join('');
+  } else {
+    body += '<div class="ccg-sub">No card on file for them.</div>';
+  }
+  body += '<button class="addopt" style="margin-top:8px" onclick="gSheetCardLink(\''+escJs(g.id)+'\',\''+escJs(backToContactId)+'\')">'
+    + (theirs.length?'Send them a link to update it':'Send them a link to add one')+'</button>';
+
   body += '<div class="ccg-sub" style="margin:14px 0 8px">'
     + (kids.length ? 'Guardian of '+escHtml(kids.join(', ')) : 'Not linked to anybody')+'</div>';
   body += '<button class="addopt" style="margin-bottom:8px" onclick="gEditOpen(\''+escJs(g.id)+'\',\''+escJs(backToContactId)+'\')">Edit their details</button>';
@@ -8310,6 +8330,25 @@ async function gSheetOpen(guardianId, backToContactId){
     + '<button class="close" onclick="closeSheet()">&times;</button></div>'
     + '<div class="sheet-body spk-body">'+body+'</div>';
   openSheet();
+}
+
+/* One link, to one person, at their own address. The picker at the top of
+ * Invoices and Payments is for asking several people at once; this is for
+ * asking the one you are looking at. */
+async function gSheetCardLink(guardianId, contactId){
+  const g = profGuardiansFor(contactId).filter(x=>x.id===guardianId)[0];
+  if(!g) return;
+  const to = ((g.emails||[])[0]||{}).email || '';
+  if(!to){ toast('No email address for '+(g.name||'them')); return; }
+  if(!confirm('Email '+(g.name||'them')+' a link to add or replace a card?\n\nGoes to '+to
+    + '\n\nThe card lands on their own account, beside any they already have.')) return;
+  const { data, error } = await sb.functions.invoke('payment-methods', {
+    body:{ action:'link', contact_id:contactId, guardian_id:guardianId, email:to }
+  });
+  if(error || !data || (data.error && !data.url)){ toast((data&&data.error)||'Could not create the link'); return; }
+  closeSheet();
+  if(data.sent) toast('Link sent to '+data.to);
+  else if(data.url) prompt('Email did not send. Copy this link to them:', data.url);
 }
 
 async function gSheetMakePrimary(guardianId, contactId){
