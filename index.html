@@ -408,6 +408,25 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .ccg-sub{color:var(--muted);font-size:12.5px}
 .ccg-chip.borrowed{background:#EEF1F4;color:var(--muted)}
 .ccg-chip.primary{background:#E4F5EE;color:var(--go)}
+/* guardians, grouped so the primary's shading has something to sit against */
+.gbox{border:1.5px solid var(--line);border-radius:12px;overflow:hidden}
+.grow{display:flex;align-items:center;gap:11px;padding:11px 12px;cursor:pointer;background:#fff;border-bottom:1px solid var(--line)}
+.grow:last-child{border-bottom:none}
+.grow.pri{background:#F7FBF9}
+.grow:active{background:var(--surface)}
+.gav{width:38px;height:38px;border-radius:50%;background:#C7CCD2;color:#fff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex:none}
+.gmeta{min-width:0;flex:1}
+.gtop{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.gtop b{font-size:14.5px}
+.gsub{font-size:12.5px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gchev{color:var(--muted);font-size:19px;flex:none}
+/* the sheet you get after tapping one: one big target per way of reaching them */
+.gact{display:flex;align-items:center;gap:12px;width:100%;border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:15px 14px;margin-bottom:9px;font:inherit;text-align:left;text-decoration:none;color:var(--ink)}
+.gact:active{background:var(--surface)}
+.gact .ic{width:36px;height:36px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:17px;flex:none}
+.gact .tx{min-width:0;flex:1}
+.gact .tx b{display:block;font-size:15px}
+.gact .tx i{display:block;font-style:normal;font-size:12.5px;color:var(--muted);margin-top:1px;word-break:break-all}
 .ccg-chip.copy{background:#E4F5EE;color:var(--go)}
 .gcard{cursor:pointer;border-radius:8px;padding-left:6px;padding-right:6px;margin-left:-6px;margin-right:-6px}
 .gcard:hover{background:var(--surface)}
@@ -5987,7 +6006,9 @@ function renderProfile(){
   let anyContact = false;
   m.phones.forEach(p=>{ anyContact=true; html += kv(escHtml(p[0]), '<a href="tel:'+escAttr(p[1])+'" style="color:inherit">'+escHtml(p[1])+'</a>'); });
   if(m.email){ anyContact=true; html += kv("Email", '<a href="mailto:'+escAttr(m.email)+'" style="color:inherit">'+escHtml(m.email)+'</a>'); }
-  if(!anyContact) html += '<div class="ccg-sub">Nothing of their own on file. Whoever is below is who to contact.</div>';
+  // No "nothing of their own on file" note. The guardians directly below ARE
+  // the answer to it, and saying so out loud made the emptiest fact on the
+  // card the loudest thing on it.
 
   html += '<hr class="prof-rule">';
   html += '<div class="ccg-sub" style="margin-bottom:2px">Guardians</div>';
@@ -8122,6 +8143,72 @@ async function gEditSave(){
   if(selectedId === back){ profDrawGuardians(back); }
 }
 
+/* Initials for a guardian, or a person icon when they have no name yet. */
+function gInitials(name){
+  const parts = String(name||'').trim().split(/\s+/).filter(Boolean);
+  if(!parts.length) return '?';
+  return (parts[0][0] + (parts.length>1 ? parts[parts.length-1][0] : '')).toUpperCase();
+}
+
+/* ── TAP A GUARDIAN ───────────────────────────────────────────────────────
+ * Owner, 2026-08-23: the call and email buttons belong in "a bigger modal
+ * popup, making it easier to click the email or number you want."
+ *
+ * So the row stays quiet and this is where the actions live: one full-width
+ * target per phone and per address, which is the difference between ringing
+ * a parent one-handed and fumbling at a link the size of a word. Editing is
+ * behind a button rather than being what a tap does, because the common act
+ * is to contact them and the rare one is to change them. */
+async function gSheetOpen(guardianId, backToContactId){
+  const g = profGuardiansFor(backToContactId).filter(x=>x.id===guardianId)[0];
+  if(!g){ toast('Could not open that guardian'); return; }
+  const hh = (typeof householdOf==='function') ? householdOf(backToContactId) : null;
+  const kids = [];
+  MEMBERS.forEach(m=>{
+    if((m.guardians||[]).some(x=>x.id===guardianId)) kids.push(m.first+' '+m.last);
+  });
+
+  let body = '';
+  g.phones.forEach(p=>{
+    body += '<a class="gact" href="tel:'+escAttr(p)+'">'
+      + '<span class="ic">☏</span><span class="tx"><b>'+escHtml(p)+'</b><i>Call</i></span></a>';
+  });
+  g.emails.forEach(e=>{
+    body += '<a class="gact" href="mailto:'+escAttr(e.email)+'">'
+      + '<span class="ic">✉</span><span class="tx"><b>'+escHtml(e.email)+'</b><i>Email'
+      + (e.alwaysCopy?' · gets every receipt':'')+'</i></span></a>';
+  });
+  if(!g.phones.length && !g.emails.length){
+    body += '<div class="ccg-sub" style="margin-bottom:10px">No phone or email on file for them yet.</div>';
+  }
+  body += '<div class="ccg-sub" style="margin:14px 0 8px">'
+    + (kids.length ? 'Guardian of '+escHtml(kids.join(', ')) : 'Not linked to anybody')+'</div>';
+  body += '<button class="addopt" style="margin-bottom:8px" onclick="gEditOpen(\''+escJs(g.id)+'\',\''+escJs(backToContactId)+'\')">Edit their details</button>';
+  if(hh && hh.household && !g.isPrimary){
+    body += '<button class="addopt" onclick="gSheetMakePrimary(\''+escJs(g.id)+'\',\''+escJs(backToContactId)+'\')">Make primary contact for '+escHtml(hh.household.name)+'</button>';
+  }
+
+  $("#sheet").classList.remove("sheet-lg");
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head spk-head"><div><h3>'+(g.name?escHtml(g.name):'Unnamed guardian')+'</h3>'
+    + '<div class="sub">'+(g.isPrimary?'Primary contact':'Guardian')+'</div></div>'
+    + '<button class="close" onclick="closeSheet()">&times;</button></div>'
+    + '<div class="sheet-body spk-body">'+body+'</div>';
+  openSheet();
+}
+
+async function gSheetMakePrimary(guardianId, contactId){
+  const hh = (typeof householdOf==='function') ? householdOf(contactId) : null;
+  if(!hh || !hh.household) return;
+  const r = await sb.from('households')
+    .update({ primary_guardian_id: guardianId }).eq('id', hh.household.id);
+  if(r.error){ console.error('primary contact', r.error); toast('Could not set that'); return; }
+  await loadHouseholds(true);
+  closeSheet();
+  if(selectedId === contactId) profDrawGuardians(contactId);
+  toast('Primary contact set');
+}
+
 /* Draw the guardian block. Called once on paint and again once households
  * have loaded, because a borrowed guardian cannot be known before then. */
 function profDrawGuardians(contactId){
@@ -8138,24 +8225,27 @@ function profDrawGuardians(contactId){
       + (me && me.age && me.age<18 ? ' - add one at the next signing' : '')+'.</div>';
     return;
   }
-  box.innerHTML = list.map(g=>{
+  // No "secondary" chip. A parent who is not the one you ring first is not a
+  // lesser parent, and labelling them second on their own child's profile says
+  // something nobody meant. Only the primary is marked, because that is a fact
+  // about the studio's behaviour rather than about them.
+  box.innerHTML = '<div class="gbox">' + list.map(g=>{
     const name = g.name
       ? '<b>'+escHtml(g.name)+'</b>'
       : '<span style="color:var(--accent);font-weight:700">Name this person</span>';
-    // No "secondary" chip. Owner: "I don't like it." A parent who is not the
-    // one you ring first is not a lesser parent, and labelling them second on
-    // their own child's profile says something nobody meant to say. Only the
-    // primary is marked, because that one is a fact about the studio's
-    // behaviour rather than about them.
-    return '<div class="ccg-row gcard" onclick="gEditOpen(\''+escJs(g.id)+'\',\''+escJs(contactId)+'\')">'
-      + name
-      + (g.isPrimary ? '<span class="ccg-chip primary">PRIMARY</span>' : '')
-      + (g.borrowed ? '<span class="ccg-chip borrowed">household</span>' : '')
-      + g.phones.map(p=>'<span class="ccg-sub" style="color:var(--muted)">'+escHtml(p)+'</span>').join('')
-      + g.emails.map(e=>'<span class="ccg-sub" style="color:var(--muted)">'+escHtml(e.email)
-          + (e.alwaysCopy?' <span class="ccg-chip copy">always copy</span>':'')+'</span>').join('')
+    const ways = g.phones.concat(g.emails.map(e=>e.email));
+    return '<div class="grow'+(g.isPrimary?' pri':'')+'" onclick="gSheetOpen(\''+escJs(g.id)+'\',\''+escJs(contactId)+'\')">'
+      + '<div class="gav">'+escHtml(gInitials(g.name))+'</div>'
+      + '<div class="gmeta">'
+        + '<div class="gtop">'+name
+        + (g.isPrimary ? '<span class="ccg-chip primary">PRIMARY</span>' : '')
+        + (g.borrowed ? '<span class="ccg-chip borrowed">household</span>' : '')
+        + '</div>'
+        + (ways.length ? '<div class="gsub">'+escHtml(ways.join(' · '))+'</div>' : '')
+      + '</div>'
+      + '<span class="gchev">›</span>'
       + '</div>';
-  }).join('');
+  }).join('') + '</div>';
 }
 
 /* Every guardian this student should show: their own, plus everyone else's

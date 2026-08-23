@@ -108,4 +108,21 @@ test('the primary contact is set by a tap, not a drag', () => {
   assert.ok(!/draggable|dragstart|ondrop/i.test(html), 'no drag targets to miss on a phone');
 });
 
+test('tapping a guardian offers to reach them, not to edit them', () => {
+  // The common act is ringing a parent; changing their details is rare. A row
+  // whose tap opens an edit form makes the rare thing the easy one.
+  const b = body('profDrawGuardians');
+  assert.ok(/gSheetOpen\(/.test(b), 'the row opens the contact sheet');
+  assert.ok(!/gEditOpen\(/.test(b), 'not the edit sheet');
+  const sheet = html.slice(html.indexOf('async function gSheetOpen'));
+  assert.ok(/href="tel:/.test(sheet), 'a tap-to-call target per phone');
+  assert.ok(/href="mailto:/.test(sheet), 'a tap-to-email target per address');
+  assert.ok(/Edit their details/.test(sheet), 'editing is behind a button');
+});
+
+test('the emptiest fact on the card is not the loudest thing on it', () => {
+  assert.ok(!/Nothing of their own on file/.test(html),
+    'the guardians below ARE the answer to that note');
+});
+
 console.log('\n' + passed + ' passed');
