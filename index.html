@@ -4735,6 +4735,18 @@ const IV_ICO = {
 /* Display date, owner preference 2026-08-15: MM-DD-YYYY. Storage stays ISO -
    this only changes what people read. Split the string rather than using
    new Date(), which parses a bare date as UTC and shifts it a day in Texas. */
+/* "Aug 20, 2026". For places where a bare 08-20-26 would be a date with no
+ * job title - it could as easily be a birthday or a join date. Built without
+ * new Date(str), which parses as UTC and reads a day early in Central. */
+const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function prettyDate(ymd){
+  const p = String(ymd==null?'':ymd).slice(0,10).split('-');
+  if(p.length!==3) return String(ymd==null?'':ymd);
+  const mi = parseInt(p[1],10) - 1;
+  if(!(mi>=0 && mi<12)) return String(ymd);
+  return MONTH_ABBR[mi]+' '+parseInt(p[2],10)+', '+p[0];
+}
+
 function fmtDate(ymd){
   const p = String(ymd==null?'':ymd).slice(0,10).split('-');
   return p.length===3 ? p[1]+'-'+p[2]+'-'+p[0] : String(ymd==null?'':ymd);
@@ -8426,9 +8438,12 @@ async function loadProfileHousehold(contactId){
     html += '<div class="gbox">' + others.map(id=>{
       const m = MEMBERS.find(x=>x.id===id);
       const label = m ? (m.first+' '+m.last) : '(not on this roster)';
-      // Belt and last seen. Status is not worth the space here: a person who
-      // is not active is not who you find sitting in a family list.
-      const sub = m ? [m.rank, m.visitLabel].filter(Boolean).join(' · ') : '';
+      // Belt and last seen, and the date says what it is. A bare 08-20-26
+      // under a sibling's name could be a birthday, a join date, or a last
+      // payment, and the reader has no way to tell which.
+      const seen = (m && m.lastVisit) ? 'Last seen '+prettyDate(m.lastVisit)
+        : (m && m.visitLabel === 'never' ? 'Never checked in' : '');
+      const sub = m ? [m.rank, seen].filter(Boolean).join(' · ') : '';
       const bg = m ? (BELT[m.belt]||'#C7CCD2') : '#C7CCD2';
       const ink = (m && (m.belt==='White'||m.belt==='Yellow')) ? '#15171C' : '#fff';
       // Straight to them. A card in between offering "open their profile" is
