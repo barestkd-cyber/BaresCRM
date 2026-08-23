@@ -6539,10 +6539,45 @@ function openEditContact(){
     + f('Date of birth','ecDob',String(m.dob||'').slice(0,10),'date')
     + f('Address','ecAddr',m.address)
     + '<div class="pm-row"><div>'+f('Belt size','ecBelt',m.beltSize,'text','e.g. 2')+'</div><div>'+f('Kick size','ecKick',m.kickSize,'text','e.g. child S')+'</div></div>'
+    // Household membership is a fact about THIS person, so it is edited where
+    // their other facts are. On a sibling's profile those buttons read as
+    // though they were about the sibling.
+    + ecHouseholdBlock(m)
     + '<button class="tbtn" style="width:100%;margin-top:14px" onclick="saveEditContact()">Save</button>'
     + '</div>';
   openSheet();
 }
+/* The household part of Edit details. Leaving is here rather than on the
+ * profile because it is a thing you do TO THIS PERSON, and the profile is
+ * where you look at them. */
+function ecHouseholdBlock(m){
+  const hh = (typeof householdOf==='function') ? householdOf(m.id) : null;
+  let h = '<label class="ed-lbl" style="margin-top:16px">Household</label>';
+  if(!hh || !hh.household){
+    return h + '<div class="ccg-sub" style="margin-bottom:8px">Not in one. Households group a family so pricing and guardians can see across it.</div>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
+      + '<button class="pb-change" onclick="hhCreateSheet(\''+escJs(m.id)+'\')">Create household</button>'
+      + '<button class="pb-change" onclick="hhJoinSheet(\''+escJs(m.id)+'\')">Add to household</button></div>';
+  }
+  const others = hh.contactIds.filter(id=>id!==m.id).length;
+  return h + '<div class="ccg-sub" style="margin-bottom:8px">'+escHtml(hh.household.name)
+    + (others ? ' · '+others+' other member'+(others===1?'':'s') : ' · nobody else yet')+'</div>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    + '<button class="pb-change" onclick="hhAddSheet(\''+escJs(hh.household.id)+'\',\''+escJs(m.id)+'\')">Add member</button>'
+    + '<button class="pb-change" style="color:var(--accent);border-color:#EBC2C2" '
+    + 'onclick="ecLeaveHousehold(\''+escJs(m.id)+'\')">Leave household</button></div>';
+}
+
+async function ecLeaveHousehold(contactId){
+  const m = MEMBERS.find(x=>x.id===contactId);
+  // Guardians are shared BY the household, so leaving takes them with it.
+  // That is the part somebody would not expect from a button called Leave.
+  if(!confirm('Take '+(m?m.first+' '+m.last:'them')+' out of this household?\n\n'
+    + 'The family\'s guardians stop showing on their profile, and theirs stop showing on the family\'s.')) return;
+  closeSheet();
+  await hhRemove(contactId, contactId, true);
+}
+
 async function saveEditContact(){
   const m = currentMember; if(!m) return;
   const v = id => ((document.getElementById(id)||{}).value||'').trim();
@@ -8297,10 +8332,11 @@ async function loadProfileHousehold(contactId){
   // only be right once they have loaded.
   profDrawGuardians(contactId);
   if(!hh){
-    box.innerHTML = '<div style="color:var(--muted);font-size:14px;margin-bottom:11px;">Not in a household yet. Households group family members so pricing can see them.</div>'
-      + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
-      + '<button class="pb-change" onclick="hhCreateSheet(\''+contactId+'\')">Create household</button>'
-      + '<button class="pb-change" onclick="hhJoinSheet(\''+contactId+'\')">Add to household</button></div>';
+    // Joining one is an edit, so it lives in Edit details with the rest of
+    // them rather than as a pair of buttons on the page you read.
+    box.innerHTML = '<div class="ccg-sub">Not in a household. Add them to one from Edit.</div>';
+    const none = document.getElementById('prof-hh-name');
+    if(none) none.textContent = '';
     return;
   }
   const others = hh.contactIds.filter(id=>id!==contactId);
@@ -8314,10 +8350,14 @@ async function loadProfileHousehold(contactId){
     html += '<div class="gbox">' + others.map(id=>{
       const m = MEMBERS.find(x=>x.id===id);
       const label = m ? (m.first+' '+m.last) : '(not on this roster)';
-      const sub = m ? (m.rank||m.segment||'') : '';
+      // Belt and last seen. Status is not worth the space here: a person who
+      // is not active is not who you find sitting in a family list.
+      const sub = m ? [m.rank, m.visitLabel].filter(Boolean).join(' · ') : '';
       const bg = m ? (BELT[m.belt]||'#C7CCD2') : '#C7CCD2';
       const ink = (m && (m.belt==='White'||m.belt==='Yellow')) ? '#15171C' : '#fff';
-      return '<div class="grow" onclick="hhMemberSheet(\''+escJs(id)+'\',\''+escJs(contactId)+'\')">'
+      // Straight to them. A card in between offering "open their profile" is
+      // a tap spent asking whether you meant the tap.
+      return '<div class="grow" onclick="openProfile(\''+escJs(id)+'\')">'
         + '<div class="gav" style="background:'+bg+';color:'+ink+'">'+escHtml(m?initials(m):'?')+'</div>'
         + '<div class="gmeta"><div class="gtop"><b>'+escHtml(label)+'</b></div>'
         + (sub?'<div class="gsub">'+escHtml(sub)+'</div>':'')+'</div>'
@@ -8326,15 +8366,17 @@ async function loadProfileHousehold(contactId){
   } else {
     html += '<div class="ccg-sub" style="margin:2px 0 8px">No other members yet.</div>';
   }
-  html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">'
-    + '<button class="pb-change" onclick="hhAddSheet(\''+hh.household.id+'\',\''+contactId+'\')">Add member</button>'
-    + '<button class="pb-change" onclick="hhRemove(\''+contactId+'\',\''+contactId+'\')">Leave household</button></div>';
+  // Add member and Leave household used to sit directly under a sibling's
+  // name, where they read as being about the sibling. They are about THIS
+  // profile and its family, so they live in Edit details now.
   box.innerHTML = html;
 }
 
-/* What you can do with somebody else in the household. Details for now, and
- * the one action that used to sit as a button beside their name. */
-function hhMemberSheet(memberId, fromContactId){
+/* Kept only so an old handler in a stale tab cannot throw. Tapping a
+ * household member opens them; there is nothing in between any more. */
+function hhMemberSheet(memberId){ openProfile(memberId); }
+
+function hhMemberSheetOld(memberId, fromContactId){
   const m = MEMBERS.find(x=>x.id===memberId);
   const hh = householdOf(fromContactId);
   const name = m ? (m.first+' '+m.last) : 'That member';
