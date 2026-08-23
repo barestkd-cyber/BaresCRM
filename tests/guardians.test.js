@@ -5,8 +5,8 @@
  *
  * A guardian is one person referenced by each child, not a copy per child.
  * These pin the parts of that which are easy to break by accident: the shape
- * the loader builds, the household sharing being LIVE rather than copied, and
- * the search saying WHY a student matched.
+ * the loader builds, the household sharing being LIVE rather than copied, the
+ * search saying WHY a student matched, and one rule deciding who gets mail.
  * ==========================================================================*/
 const fs = require('fs');
 const path = require('path');
@@ -15,6 +15,9 @@ const assert = require('assert');
 // index.html is CRLF; normalising once here keeps every pattern below from
 // having to know that.
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8').replace(/\r/g, '');
+const receiptFn = fs.readFileSync(
+  path.join(__dirname, '..', 'supabase', 'functions', 'send-receipt', 'index.ts'), 'utf8').replace(/\r/g, '');
+
 let passed = 0;
 function test(name, run) {
   try { run(); console.log('  ok   ' + name); passed++; }
@@ -35,7 +38,7 @@ test('the loader reads a guardian as a person, not a row per child', () => {
     'every address the person answers to must come along');
   // The old four-slot array would silently mis-render once the shape changed.
   assert.ok(!/\.push\(\[g\.email \|\| '', g\.label/.test(html),
-    "the old [email,label,name,phone] array shape is gone");
+    'the old [email,label,name,phone] array shape is gone');
 });
 
 test('household sharing is live, not copied at merge time', () => {
@@ -82,6 +85,27 @@ test('editing a guardian says it changes every child', () => {
   assert.ok(/changes this person everywhere/.test(b),
     'editing one row silently changing five profiles is the surprise worth preventing');
   assert.ok(/Guardian of/.test(b), 'whose parent this is must be visible while naming them');
+});
+
+test('one rule decides who a receipt goes to, and both callers ask it', () => {
+  // Two copies of a mail rule drift, and the drift is found by a customer.
+  assert.ok(/contact_send_list/.test(receiptFn), 'the server must use the shared rule');
+  assert.ok(!/select\("email"\)\.eq\("id", s\.buyer_contact_id\)/.test(receiptFn),
+    'reading the buyer address straight off contacts is what misfiled Carlton');
+  assert.ok(/contact_send_list/.test(html), 'and the CRM prefill must use it too');
+});
+
+test('a typed checkout address still leads, and nobody is mailed twice', () => {
+  const typed = receiptFn.indexOf('const typed');
+  const rule = receiptFn.indexOf('contact_send_list');
+  assert.ok(typed > -1 && typed < rule,
+    'someone who just typed an address at checkout is watching for it there');
+  assert.ok(/!to\.includes\(addr\)/.test(receiptFn), 'the same address must not be added twice');
+});
+
+test('the primary contact is set by a tap, not a drag', () => {
+  assert.ok(/gMakePrimary\(\)/.test(body('gEditRender')), 'there must be a button');
+  assert.ok(!/draggable|dragstart|ondrop/i.test(html), 'no drag targets to miss on a phone');
 });
 
 console.log('\n' + passed + ' passed');

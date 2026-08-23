@@ -4990,15 +4990,26 @@ function posAutoReceipt(saleId){
  * buyer's on-file email is the recipient automatically. Tap it to correct,
  * "+ Add another" for extra recipients (max 10). An empty input only appears
  * when there is genuinely no email on file (walk-in / missing email). */
-function posEmailReceiptSheet(saleId){
-  sb.from('pos_sales').select('buyer_contact_id,receipt_email,status').eq('id', saleId).single().then(function(r){
+async function posEmailReceiptSheet(saleId){
+  const r = await sb.from('pos_sales').select('buyer_contact_id,receipt_email,status').eq('id', saleId).single();
+  {
     const s = r.data||{};
-    const m = s.buyer_contact_id ? MEMBERS.find(x=>x.id===s.buyer_contact_id) : null;
-    const prefill = (m && m.email) || s.receipt_email || '';
+    // The same rule the server uses, asked of the database rather than worked
+    // out again here: their own address, else the household primary, plus
+    // anyone flagged always copy. Prefilling only the buyer's own address is
+    // what put Carlton's receipt under Emerson's name.
+    let addrs = [];
+    if(s.buyer_contact_id){
+      const l = await sb.rpc('contact_send_list', { p_contact: s.buyer_contact_id });
+      if(l.error) console.error('send list', l.error);
+      addrs = (l.data||[]).map(x=>String(x.email||'').trim()).filter(Boolean);
+    }
+    if(!addrs.length && s.receipt_email) addrs = [s.receipt_email];
+    const prefill = addrs[0] || '';
     $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Email '+(s.status==='paid'?'receipt':'invoice')+'</h3><div class="sub">'+escHtml(posBuyerLabel(s.buyer_contact_id))+'</div></div><button class="close" onclick="closeSheet()">×</button></div>'
       +'<div class="sheet-body">'
       +'<label class="ed-lbl">To</label><div id="er-list">'
-      +'<input class="ed-in er-to" type="email" value="'+escAttr(prefill)+'" placeholder="their@email.com">'
+      + (addrs.length ? addrs : ['']).map(a=>'<input class="ed-in er-to" type="email" value="'+escAttr(a)+'" placeholder="their@email.com">').join('')
       +'</div>'
       +(prefill?'' : '<div class="ck-hint" style="margin-top:8px">No email on file for this buyer - enter one. (Buyer profiles should carry an email.)</div>')
       +'<button class="addopt" style="margin-top:8px" onclick="posEmailAddRecipient()">＋ Add another email</button>'
@@ -5013,7 +5024,7 @@ function posEmailReceiptSheet(saleId){
       +'</div>';
     openSheet();
     posEmailPreview(saleId, true);
-  });
+  }
 }
 
 /* Live preview of the real email. The server renders it - same code path that
@@ -7828,8 +7839,14 @@ async function gEditOpen(guardianId, backToContactId){
   // easier when you can see whose parent they are.
   const kids = await sb.from('student_guardians')
     .select('label,contacts:student_id(first_name,last_name)').eq('guardian_id', guardianId);
+  // Which household this sheet can set a primary for. A guardian belongs to
+  // one only through their children, so it comes from the profile we opened
+  // from rather than from the guardian.
+  const hh = (typeof householdOf==='function' && backToContactId) ? householdOf(backToContactId) : null;
   GEDIT = {
     id: data.id, backTo: backToContactId,
+    household: hh ? hh.household : null,
+    isPrimary: !!(hh && hh.household && hh.household.primary_guardian_id === data.id),
     name: data.name || '',
     phones: (data.phones||[]).slice(),
     address: data.address || '',
@@ -7882,6 +7899,18 @@ function gEditRender(){
     + '<div class="spk-hint">Editing here changes this person everywhere. '
     + (g.kids.length>1 ? 'They are on '+g.kids.length+' profiles.' : '')+'</div></div>';
 
+  // Primary contact, by a tap rather than a drag. Owner, 2026-08-23: the
+  // phone makes dragging a row into place fiddly, and there is already a
+  // Make default on cards on file that behaves exactly like this.
+  if(g.household){
+    body += '<div class="spk-form"><label class="spk-label">Primary contact</label>'
+      + (g.isPrimary
+          ? '<div class="ccg-sub">This is who ' + escHtml(g.household.name) + ' hears from first.</div>'
+          : '<button class="addopt" style="margin-bottom:0" onclick="gMakePrimary()">Make primary contact for '
+            + escHtml(g.household.name) + '</button>')
+      + '<div class="spk-hint">Receipts and notices go here, unless the participant has their own address.</div></div>';
+  }
+
   $("#sheet").classList.add("sheet-lg");
   $("#sheet").innerHTML = '<div class="grab"></div>'
     + '<div class="sheet-head spk-head"><div><h3>'+(g.name?escHtml(g.name):'Name this guardian')+'</h3>'
@@ -7891,6 +7920,18 @@ function gEditRender(){
     + '<div class="spk-foot"><button class="spk-cancel" onclick="closeSheet()">Cancel</button>'
     + '<button class="spk-add" onclick="gEditSave()">Save</button></div>';
   openSheet();
+}
+
+async function gMakePrimary(){
+  const g = GEDIT;
+  if(!g.household) return;
+  const r = await sb.from('households')
+    .update({ primary_guardian_id: g.id }).eq('id', g.household.id);
+  if(r.error){ console.error('primary contact', r.error); toast('Could not set that'); return; }
+  g.isPrimary = true;
+  await loadHouseholds(true);
+  gEditRender();
+  toast((g.name||'They')+' now hear from us first');
 }
 
 function gSetEmail(i, v){ GEDIT.emails[i].email = v; }

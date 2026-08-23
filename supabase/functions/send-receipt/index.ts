@@ -221,16 +221,27 @@ Deno.serve(async (req) => {
       //      the only address that exists;
       //   2. the buyer's address on file.
       // Before this, a walk-in simply skipped and nobody was emailed at all.
+      // The address typed at checkout still leads: they chose it minutes ago
+      // and are watching for the receipt there, and for a walk-in it is the
+      // only address that exists.
       const typed = String(s.stripe_email ?? "").trim().toLowerCase();
-      if (typed && EMAIL_RE.test(typed)) {
-        to.push(typed);
-      } else if (s.buyer_contact_id) {
-        const c = await admin.from("contacts").select("email").eq("id", s.buyer_contact_id).maybeSingle();
-        const onFile = (c.data?.email ?? "").trim().toLowerCase();
-        if (!onFile || !EMAIL_RE.test(onFile)) return json({ ok: false, skipped: "no email on file" }, 200, cors);
-        to.push(onFile);
-      } else {
-        return json({ ok: false, skipped: "walk-in sale with no checkout email, nobody to email" }, 200, cors);
+      if (typed && EMAIL_RE.test(typed)) to.push(typed);
+
+      // Then whoever the family says. contact_send_list holds the rule -
+      // their own address, else the household primary, plus anyone flagged
+      // always_copy - so this function and the CRM cannot disagree about who
+      // a receipt belongs to.
+      if (s.buyer_contact_id) {
+        const list = await admin.rpc("contact_send_list", { p_contact: s.buyer_contact_id });
+        if (list.error) console.error("send list", list.error);
+        for (const row of (list.data ?? []) as { email: string }[]) {
+          const addr = String(row.email ?? "").trim().toLowerCase();
+          if (addr && EMAIL_RE.test(addr) && !to.includes(addr)) to.push(addr);
+        }
+      }
+      if (!to.length) {
+        return json({ ok: false, skipped: s.buyer_contact_id
+          ? "nobody on file to email" : "walk-in sale with no checkout email, nobody to email" }, 200, cors);
       }
     }
 
