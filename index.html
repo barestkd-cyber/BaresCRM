@@ -406,6 +406,17 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .ccg-row:last-child{border-bottom:none}
 .ccg-chip{font-size:10px;font-weight:800;background:#E7F1FB;color:#2563EB;padding:2px 8px;border-radius:6px}
 .ccg-sub{color:var(--muted);font-size:12.5px}
+.ccg-chip.borrowed{background:#EEF1F4;color:var(--muted)}
+.ccg-chip.copy{background:#E4F5EE;color:var(--go)}
+.gcard{cursor:pointer;border-radius:8px;padding-left:6px;padding-right:6px;margin-left:-6px;margin-right:-6px}
+.gcard:hover{background:var(--surface)}
+/* naming a guardian */
+.gmail{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.gmail input{flex:1;min-width:0;font:inherit;font-size:14px;padding:9px 10px;border:1.5px solid var(--line);border-radius:9px}
+.gmail .cp{border:1.5px solid var(--line);background:#fff;border-radius:8px;padding:6px 9px;font:inherit;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;color:var(--muted)}
+.gmail .cp.on{background:#E4F5EE;border-color:#BFE6D6;color:var(--go)}
+.gmail .rm{border:none;background:none;color:var(--accent);font-size:17px;cursor:pointer;padding:0 4px;line-height:1}
+.gkids{font-size:12.5px;color:var(--muted);line-height:1.6;margin-top:2px}
 @media (min-width:900px){
   .pstats{grid-template-columns:repeat(2,minmax(0,240px));padding:18px 26px 0}
   .pstat .n{font-size:24px}
@@ -1102,12 +1113,23 @@ async function loadMembers(){
   // indistinguishable from "this family has no guardians". For months every
   // profile but Race's own children said "No guardian on file" because RLS
   // carried no staff policy and quietly returned nothing.
+  // A guardian is a PERSON now, not a copy per child: student_guardians is
+  // the link, guardians is the human, guardian_emails are the addresses
+  // they answer to. Colette Du Toit was five rows and is one woman.
   const { data: gl, error: gErr } = await sb.from('student_guardians')
-    .select('student_id,email,label,name,phone,address');
+    .select('student_id,label,guardian_id,guardians(id,name,phones,address,contact_id,guardian_emails(id,email,always_copy))');
   if(gErr){ console.error('guardians load', gErr); GUARDIANS_READ_OK = false; }
   else GUARDIANS_READ_OK = true;
   const guardiansById = {};
-  (gl||[]).forEach(g=>{ (guardiansById[g.student_id] = guardiansById[g.student_id] || []).push([g.email || '', g.label || 'Guardian', g.name || '', g.phone || '']); });
+  (gl||[]).forEach(r=>{
+    const g = r.guardians;
+    if(!g) return;   // a link with no person behind it yet
+    (guardiansById[r.student_id] = guardiansById[r.student_id] || []).push({
+      id: g.id, name: g.name || '', label: r.label || 'Guardian',
+      emails: (g.guardian_emails||[]).map(e=>({ id:e.id, email:e.email, alwaysCopy:!!e.always_copy })),
+      phones: g.phones || [], address: g.address || '', contactId: g.contact_id || null
+    });
+  });
 
   const COLORS = ['White','Yellow','Orange','Green','Purple','Blue','Brown','Red','Black'];
   const deriveBelt = r => { if(!r) return ''; return COLORS.find(c => r.includes(c)) || ''; };
@@ -1452,12 +1474,28 @@ function filteredMembers(){
   let list = MEMBERS.filter(m => (m.brand||'btkd') === ROSTER_BRAND);
   if(activeFilter) list = list.filter(FILTERS[activeFilter].test);
   const q = $("#search").value.trim().toLowerCase();
-  if(q) list = list.filter(m => (m.first+" "+m.last).toLowerCase().includes(q));
+  if(q) list = list.filter(m => memberMatches(m, q));
   return list;
 }
+/* Why a member matched: their own name, or a guardian's. Returns the
+ * guardian when that is what did it, so the row can say so. Searching an
+ * address works too - the phone in your hand is often all you have. */
+function memberMatchWhy(m, q){
+  if((m.first+' '+m.last).toLowerCase().includes(q)) return null;
+  const hit = (m.guardians||[]).filter(g =>
+    (g.name||'').toLowerCase().includes(q)
+    || (g.emails||[]).some(e => String(e.email||'').toLowerCase().includes(q))
+    || (g.phones||[]).some(p => String(p||'').toLowerCase().includes(q)))[0];
+  return hit || null;
+}
+function memberMatches(m, q){
+  return (m.first+' '+m.last).toLowerCase().includes(q) || !!memberMatchWhy(m, q);
+}
+
 function renderList(){
   const pane = document.querySelector("main"); const sc = pane.scrollTop;
   const list = filteredMembers();
+  const q = $("#search").value.trim().toLowerCase();
   $("#lhTitle").textContent = activeFilter ? FILTERS[activeFilter].label+" · "+list.length : "All members · "+list.length;
   $("#lhClear").style.display = (activeFilter || $("#search").value) ? "block" : "none";
   if(list.length===0){ $("#mlist").innerHTML = '<div class="mempty">No members match.</div>'; return; }
@@ -1465,7 +1503,14 @@ function renderList(){
     const segClass = m.segment==="Active"?"active":m.segment==="Lead"?"lead":m.segment==="Trial"?"trial":"former";
     const beltC = BELT[m.belt] || "#C7CCD2";
     const ring = m.belt ? '<span class="belt-ring" style="border-color:'+beltC+'"></span>' : '';
-    const sub = escHtml(m.belt ? (m.rank) : (m.phase || m.segment));
+    // When the hit came through a guardian, name them. Otherwise a search
+    // for Carlton returns two Allens and no clue why.
+    const via = q ? memberMatchWhy(m, q) : null;
+    const sub = via
+      ? '<span style="color:var(--accent);font-weight:700">'
+        + escHtml(via.name || (via.emails[0]||{}).email || 'guardian')+'</span>'
+        + '<span style="color:var(--muted)"> · '+escHtml(via.label||'guardian')+'</span>'
+      : escHtml(m.belt ? (m.rank) : (m.phase || m.segment));
     const owed = m.balanceCents||0;
     const right = owed>0
       ? '<span class="seg '+segClass+'">'+escHtml(m.segment)+'</span><div class="owe num">'+money(owed/100)+'</div>'
@@ -3492,7 +3537,13 @@ async function agrSaveBackToProfile(ctx){
       console.error('guardian link', r.error);
       toast('Guardian was not linked to the profile - add it from their record');
     } else if(student){
-      student.guardians = (student.guardians||[]).concat([[ctx.buyerEmail, 'Guardian']]);
+      // The row is written above; this only keeps the copy in memory honest
+      // until the next load. Shaped like the rest of them, with the person
+      // unresolved because the server has not made one yet.
+      student.guardians = (student.guardians||[]).concat([{
+        id: null, name: '', label: 'Guardian', phones: [], address: '', contactId: null,
+        emails: [{ id:null, email: ctx.buyerEmail, alwaysCopy:false }]
+      }]);
     }
   }
 }
@@ -5906,29 +5957,25 @@ function renderProfile(){
   html += '<div class="sec" data-ptab="overview"><div class="sec-h">Contact '
     + '<span style="float:right;color:var(--accent);cursor:pointer;font-size:12px" onclick="openEditContact()">✎ Edit</span>'
     + '</div><div class="card pad">';
+  // THEIR OWN DETAILS FIRST, always. Owner, 2026-08-23: a sixteen-year-old
+  // with his own email is who you ring, and the parents only get the sends if
+  // they are flagged. When a participant has nothing of their own the block is
+  // simply empty and the guardians sit at the top - one layout, not two.
   let anyContact = false;
   m.phones.forEach(p=>{ anyContact=true; html += kv(escHtml(p[0]), '<a href="tel:'+escAttr(p[1])+'" style="color:inherit">'+escHtml(p[1])+'</a>'); });
   if(m.email){ anyContact=true; html += kv("Email", '<a href="mailto:'+escAttr(m.email)+'" style="color:inherit">'+escHtml(m.email)+'</a>'); }
-  if(m.address){ anyContact=true; html += kv("Address", escHtml(m.address)); }
-  if(!anyContact) html += '<div style="color:var(--muted);font-size:13.5px">Nothing on file yet. Tap Edit and add a phone and email.</div>';
+  if(!anyContact) html += '<div class="ccg-sub">Nothing of their own on file. Whoever is below is who to contact.</div>';
 
   html += '<hr class="prof-rule">';
   html += '<div class="ccg-sub" style="margin-bottom:2px">Guardians</div>';
-  if(m.guardians.length){
-    m.guardians.forEach(g=>{
-      html += '<div class="ccg-row">'
-        + (g[2] ? '<b>'+escHtml(g[2])+'</b>' : '<span style="color:var(--muted)">(no name)</span>')
-        + (g[1] ? '<span class="ccg-chip">'+escHtml(g[1])+'</span>' : '')
-        + (g[3] ? '<a href="tel:'+escAttr(g[3])+'" class="ccg-sub" style="color:var(--muted)">'+escHtml(g[3])+'</a>' : '')
-        + (g[0] ? '<a href="mailto:'+escAttr(g[0])+'" class="ccg-sub" style="color:var(--muted)">'+escHtml(g[0])+'</a>' : '')
-        + '</div>';
-    });
-  } else {
-    html += '<div class="ccg-sub">'+(GUARDIANS_READ_OK
-      ? 'No guardian on file'+(m.age && m.age<18?' - add one at the next signing':'')+'.'
-      : '⚠ Guardians could not be loaded, so this is not a statement that there are none.')
-      +'</div>';
-  }
+  html += '<div id="prof-guardians"></div>';
+
+  html += '<hr class="prof-rule">';
+  html += '<div class="ccg-sub" style="margin-bottom:4px">Address</div>';
+  html += m.address
+    ? '<div style="font-size:14px">'+escHtml(m.address)+'</div>'
+    : '<div class="ccg-sub">No address on file.</div>';
+
   html += '<hr class="prof-rule">';
   html += '<div class="ccg-sub" style="margin-bottom:4px">Household</div><div id="prof-hh">Loading…</div>';
   html += '<div id="prof-people"></div>';
@@ -6004,6 +6051,7 @@ function renderProfile(){
 
   $("#view-profile").innerHTML = html;
   profBuildPanel();
+  profDrawGuardians(m.id);
   loadProfileCredits(m.id);
   loadProfileAttendance(m.id);
   loadProfileHousehold(m.id);
@@ -7758,6 +7806,214 @@ async function pricingContext(contactId){
   };
 }
 
+/* ── NAMING AND EDITING A GUARDIAN ────────────────────────────────────────
+ * Owner, 2026-08-23: "I need to attempt to name who matches each email
+ * address." 29 people are known only by an address, so the first job of this
+ * sheet is to put a name to one.
+ *
+ * Editing here changes the PERSON, so it lands on every child at once. That
+ * is the whole point of the guardian record: Colette's phone number is
+ * corrected in one place rather than five, and cannot drift.
+ *
+ * An address can carry always-copy: the parent who wants every receipt
+ * forever without being added by hand each time. */
+let GEDIT = null;
+
+async function gEditOpen(guardianId, backToContactId){
+  const { data, error } = await sb.from('guardians')
+    .select('id,name,phones,address,contact_id,guardian_emails(id,email,always_copy)')
+    .eq('id', guardianId).single();
+  if(error || !data){ toast('Could not open that guardian'); return; }
+  // Who this person is responsible for. Shown because naming somebody is much
+  // easier when you can see whose parent they are.
+  const kids = await sb.from('student_guardians')
+    .select('label,contacts:student_id(first_name,last_name)').eq('guardian_id', guardianId);
+  GEDIT = {
+    id: data.id, backTo: backToContactId,
+    name: data.name || '',
+    phones: (data.phones||[]).slice(),
+    address: data.address || '',
+    contactId: data.contact_id || null,
+    emails: (data.guardian_emails||[]).map(e=>({ id:e.id, email:e.email, alwaysCopy:!!e.always_copy, isNew:false })),
+    kids: (kids.data||[]).map(r=>({
+      name: r.contacts ? (r.contacts.first_name+' '+r.contacts.last_name) : '(unknown)',
+      label: r.label || ''
+    }))
+  };
+  gEditRender();
+}
+
+function gEditRender(){
+  const g = GEDIT;
+  const kids = g.kids.length
+    ? '<div class="gkids">'+g.kids.map(k=>escHtml(k.name)+(k.label?' <span style="opacity:.7">('+escHtml(k.label)+')</span>':'')).join('<br>')+'</div>'
+    : '<div class="gkids">Not linked to anybody.</div>';
+
+  let body = '<div class="spk-form">'
+    + '<div class="ccg-sub" style="margin-bottom:2px">Guardian of</div>'+kids
+    + '<label class="spk-label" style="margin-top:14px">Name</label>'
+    + '<input id="g-name" class="ed-in" value="'+escAttr(g.name)+'" placeholder="Who is this?" autocomplete="off">'
+    + (g.name ? '' : '<div class="spk-hint">This person is only known by their address so far.</div>')
+    + '<label class="spk-label">Email addresses</label></div>';
+
+  body += '<div id="g-emails">';
+  g.emails.forEach((e,i)=>{
+    body += '<div class="gmail">'
+      + '<input value="'+escAttr(e.email)+'" oninput="gSetEmail('+i+',this.value)" placeholder="name@example.com" autocomplete="off">'
+      + '<button class="cp'+(e.alwaysCopy?' on':'')+'" onclick="gToggleCopy('+i+')" '
+        + 'title="Send every receipt and notice to this address">'+(e.alwaysCopy?'always copy':'copy off')+'</button>'
+      + '<button class="rm" onclick="gRemoveEmail('+i+')" title="Remove">&times;</button>'
+      + '</div>';
+  });
+  body += '</div>'
+    + '<button class="addopt" onclick="gAddEmail()">＋ Add another email</button>';
+
+  body += '<div class="spk-form"><label class="spk-label">Phone numbers</label></div><div id="g-phones">';
+  g.phones.forEach((p,i)=>{
+    body += '<div class="gmail">'
+      + '<input value="'+escAttr(p)+'" oninput="gSetPhone('+i+',this.value)" placeholder="903-555-0100" inputmode="tel">'
+      + '<button class="rm" onclick="gRemovePhone('+i+')" title="Remove">&times;</button>'
+      + '</div>';
+  });
+  body += '</div>'
+    + '<button class="addopt" onclick="gAddPhone()">＋ Add another phone</button>'
+    + '<div class="spk-form"><label class="spk-label">Address</label>'
+    + '<input id="g-address" class="ed-in" value="'+escAttr(g.address)+'" placeholder="Street, city, state zip" autocomplete="off">'
+    + '<div class="spk-hint">Editing here changes this person everywhere. '
+    + (g.kids.length>1 ? 'They are on '+g.kids.length+' profiles.' : '')+'</div></div>';
+
+  $("#sheet").classList.add("sheet-lg");
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head spk-head"><div><h3>'+(g.name?escHtml(g.name):'Name this guardian')+'</h3>'
+    + '<div class="sub">One person, however many children</div></div>'
+    + '<button class="close" onclick="closeSheet()">&times;</button></div>'
+    + '<div class="sheet-body spk-body">'+body+'</div>'
+    + '<div class="spk-foot"><button class="spk-cancel" onclick="closeSheet()">Cancel</button>'
+    + '<button class="spk-add" onclick="gEditSave()">Save</button></div>';
+  openSheet();
+}
+
+function gSetEmail(i, v){ GEDIT.emails[i].email = v; }
+function gSetPhone(i, v){ GEDIT.phones[i] = v; }
+function gToggleCopy(i){ GEDIT.emails[i].alwaysCopy = !GEDIT.emails[i].alwaysCopy; gEditRender(); }
+function gRemoveEmail(i){ GEDIT.emails.splice(i,1); gEditRender(); }
+function gRemovePhone(i){ GEDIT.phones.splice(i,1); gEditRender(); }
+function gAddEmail(){ GEDIT.emails.push({ id:null, email:'', alwaysCopy:false, isNew:true }); gEditRender(); }
+function gAddPhone(){ GEDIT.phones.push(''); gEditRender(); }
+
+async function gEditSave(){
+  const g = GEDIT;
+  const name = ($("#g-name").value||'').trim();
+  const address = ($("#g-address").value||'').trim();
+  const phones = g.phones.map(p=>String(p||'').trim()).filter(Boolean);
+  const emails = g.emails
+    .map(e=>({ id:e.id, email:String(e.email||'').trim().toLowerCase(), alwaysCopy:e.alwaysCopy }))
+    .filter(e=>e.email);
+  const bad = emails.filter(e=>!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.email));
+  if(bad.length){ toast('That is not an email address: '+bad[0].email); return; }
+  // Two rows for one address would let the same person be told twice, and the
+  // table refuses it anyway.
+  const seen = {};
+  for(const e of emails){
+    if(seen[e.email]){ toast(e.email+' is in there twice'); return; }
+    seen[e.email] = true;
+  }
+
+  const up = await sb.from('guardians')
+    .update({ name: name || null, address: address || null, phones: phones })
+    .eq('id', g.id);
+  if(up.error){ console.error('guardian save', up.error); toast('Could not save that'); return; }
+
+  // Addresses that were removed from the sheet go from the table too.
+  const keep = emails.filter(e=>e.id).map(e=>e.id);
+  const gone = g.emails.filter(e=>e.id && keep.indexOf(e.id)===-1).map(e=>e.id);
+  if(gone.length){
+    const d = await sb.from('guardian_emails').delete().in('id', gone);
+    if(d.error){ console.error('email delete', d.error); toast('Saved, but an address would not delete'); }
+  }
+  for(const e of emails){
+    const r = e.id
+      ? await sb.from('guardian_emails').update({ email:e.email, always_copy:e.alwaysCopy }).eq('id', e.id)
+      : await sb.from('guardian_emails').insert({ guardian_id:g.id, email:e.email, always_copy:e.alwaysCopy });
+    if(r.error){
+      console.error('email save', r.error);
+      // 23505: that address already belongs to somebody else, which is the one
+      // thing that must not be quietly merged.
+      toast(String(r.error.code)==='23505'
+        ? e.email+' is already on another guardian'
+        : 'Could not save '+e.email);
+      return;
+    }
+  }
+
+  const back = g.backTo;
+  GEDIT = null;
+  closeSheet();
+  toast(name ? name+' saved' : 'Guardian saved');
+  await loadMembers();
+  if(selectedId === back){ profDrawGuardians(back); }
+}
+
+/* Draw the guardian block. Called once on paint and again once households
+ * have loaded, because a borrowed guardian cannot be known before then. */
+function profDrawGuardians(contactId){
+  const box = document.getElementById('prof-guardians');
+  if(!box || profStale(contactId)) return;
+  if(!GUARDIANS_READ_OK){
+    box.innerHTML = '<div class="ccg-sub">⚠ Guardians could not be loaded, so this is not a statement that there are none.</div>';
+    return;
+  }
+  const list = profGuardiansFor(contactId);
+  const me = MEMBERS.find(x=>x.id===contactId);
+  if(!list.length){
+    box.innerHTML = '<div class="ccg-sub">No guardian on file'
+      + (me && me.age && me.age<18 ? ' - add one at the next signing' : '')+'.</div>';
+    return;
+  }
+  box.innerHTML = list.map(g=>{
+    const name = g.name
+      ? '<b>'+escHtml(g.name)+'</b>'
+      : '<span style="color:var(--accent);font-weight:700">Name this person</span>';
+    return '<div class="ccg-row gcard" onclick="gEditOpen(\''+escJs(g.id)+'\',\''+escJs(contactId)+'\')">'
+      + name
+      + (g.label ? '<span class="ccg-chip">'+escHtml(g.label)+'</span>' : '')
+      + (g.borrowed ? '<span class="ccg-chip borrowed">household</span>' : '')
+      + g.phones.map(p=>'<span class="ccg-sub" style="color:var(--muted)">'+escHtml(p)+'</span>').join('')
+      + g.emails.map(e=>'<span class="ccg-sub" style="color:var(--muted)">'+escHtml(e.email)
+          + (e.alwaysCopy?' <span class="ccg-chip copy">always copy</span>':'')+'</span>').join('')
+      + '</div>';
+  }).join('');
+}
+
+/* Every guardian this student should show: their own, plus everyone else's
+ * in the household. Owner, 2026-08-23: "when I merge two participants, I want
+ * each of those participants' guardians to go to the other person's profile...
+ * boom, mom and dad and son and daughter are on there together."
+ *
+ * Shared LIVE rather than copied at merge time. A grandmother added to one
+ * child next month reaches her siblings the same instant, and pulling a child
+ * out of a household takes their guardians with them instead of leaving
+ * copies behind. */
+function profGuardiansFor(contactId){
+  const out = [], seen = new Set();
+  const add = (list, borrowed) => (list||[]).forEach(g=>{
+    if(seen.has(g.id)) return;
+    seen.add(g.id);
+    out.push(Object.assign({}, g, { borrowed: borrowed }));
+  });
+  const me = MEMBERS.find(x=>x.id===contactId);
+  add(me && me.guardians, false);
+  const hh = (typeof householdOf==='function') ? householdOf(contactId) : null;
+  if(hh){
+    hh.contactIds.forEach(id=>{
+      if(id === contactId) return;
+      const other = MEMBERS.find(x=>x.id===id);
+      add(other && other.guardians, true);
+    });
+  }
+  return out;
+}
+
 /* ─── Household section on the member profile ─────────────────────────────── */
 async function loadProfileHousehold(contactId){
   const box = document.getElementById('prof-hh');
@@ -7765,6 +8021,9 @@ async function loadProfileHousehold(contactId){
   await loadHouseholds(true);
   if(profStale(contactId)) return;   // they opened somebody else
   const hh = householdOf(contactId);
+  // Households are what make a guardian shared, so the guardian block can
+  // only be right once they have loaded.
+  profDrawGuardians(contactId);
   if(!hh){
     box.innerHTML = '<div style="color:var(--muted);font-size:14px;margin-bottom:11px;">Not in a household yet. Households group family members so pricing can see them.</div>'
       + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
