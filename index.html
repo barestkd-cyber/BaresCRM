@@ -1088,13 +1088,24 @@ const BELT = {
 
 /* ========== MEMBERS: the contacts table, loaded once at boot ========== */
 let MEMBERS = [];
+/* Whether the last guardian read actually worked. Not knowing and knowing
+ * there are none are different answers, and only one of them is safe to
+ * print next to a child. */
+let GUARDIANS_READ_OK = true;
 
 async function loadMembers(){
   const { data: rows, error } = await sb.from('contacts').select('*').order('last_name');
   if(error){ console.error('loadMembers contacts error', error); return; }
   // name included: both funnels store it now, and "Pat Lee" reads better on a
   // profile than a bare email address.
-  const { data: gl } = await sb.from('student_guardians').select('student_id,email,label,name,phone,address');
+  // An error here used to be dropped on the floor, and an empty list is
+  // indistinguishable from "this family has no guardians". For months every
+  // profile but Race's own children said "No guardian on file" because RLS
+  // carried no staff policy and quietly returned nothing.
+  const { data: gl, error: gErr } = await sb.from('student_guardians')
+    .select('student_id,email,label,name,phone,address');
+  if(gErr){ console.error('guardians load', gErr); GUARDIANS_READ_OK = false; }
+  else GUARDIANS_READ_OK = true;
   const guardiansById = {};
   (gl||[]).forEach(g=>{ (guardiansById[g.student_id] = guardiansById[g.student_id] || []).push([g.email || '', g.label || 'Guardian', g.name || '', g.phone || '']); });
 
@@ -5913,7 +5924,10 @@ function renderProfile(){
         + '</div>';
     });
   } else {
-    html += '<div class="ccg-sub">No guardian on file'+(m.age && m.age<18?' - add one at the next signing':'')+'.</div>';
+    html += '<div class="ccg-sub">'+(GUARDIANS_READ_OK
+      ? 'No guardian on file'+(m.age && m.age<18?' - add one at the next signing':'')+'.'
+      : '⚠ Guardians could not be loaded, so this is not a statement that there are none.')
+      +'</div>';
   }
   html += '<hr class="prof-rule">';
   html += '<div class="ccg-sub" style="margin-bottom:4px">Household</div><div id="prof-hh">Loading…</div>';
