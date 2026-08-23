@@ -6310,11 +6310,24 @@ async function profFnError(e){
 async function profCardLink(){
   const who = PROF_CARDS.contact || selectedId;
   if(!who) return;
-  const to = PROF_CARDS.email;
-  if(!confirm(to ? ('Email a Stripe link to add or replace a card?\n\nGoes to '+to)
-                 : 'Create a Stripe link to add a card?')) return;
+  // A child has no card; the adult who pays for them does. The primary
+  // contact is who this goes to, and the card will land on THEIR account so
+  // it joins the ones they already have.
+  const gs = profGuardiansFor(who);
+  const payer = gs.filter(g=>g.isPrimary)[0] || (gs.length===1 ? gs[0] : null);
+  const me = MEMBERS.find(x=>x.id===who);
+  const to = payer ? ((payer.emails[0]||{}).email||'') : (PROF_CARDS.email||'');
+  const label = payer ? (payer.name || 'their guardian') : ((me?me.first+' '+me.last:'them'));
+  if(!to){
+    toast(gs.length>1
+      ? 'Set a primary contact first, so this knows which parent to ask'
+      : 'No email address to send to');
+    return;
+  }
+  if(!confirm('Email '+label+' a link to add or replace a card?\n\nGoes to '+to
+    + (payer ? '\n\nThe card lands on '+label+"'s account, alongside any they already have." : ''))) return;
   const { data, error } = await sb.functions.invoke('payment-methods', {
-    body:{ action:'link', contact_id:who }
+    body:{ action:'link', contact_id:who, guardian_id: payer ? payer.id : null }
   });
   if(error || !data || (data.error && !data.url)){ toast((data&&data.error)||'Could not create the link'); return; }
   if(data.sent) toast('Link sent to '+data.to);

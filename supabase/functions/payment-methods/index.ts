@@ -134,8 +134,12 @@ Deno.serve(async (req) => {
     // ── list ──────────────────────────────────────────────────────────────
     if (action === "list") {
       // Everyone whose cards count here: the person asked about, plus anybody
-      // else the caller named (their household).
-      const holders = [{ id: contactId, name, cust: custId }];
+      // else the caller named (their household), plus the GUARDIANS of all of
+      // them - a parent's cards belong to the parent, not to whichever child
+      // their email happened to match when they first paid.
+      const holders: { id: string; name: string; cust: string; guardian?: string }[] =
+        [{ id: contactId, name, cust: custId }];
+      const family = [contactId, ...alsoIds];
       if (alsoIds.length) {
         const more = await admin.from("contacts")
           .select("id,first_name,last_name,stripe_customer_id")
@@ -146,6 +150,20 @@ Deno.serve(async (req) => {
             name: [str(m.first_name), str(m.last_name)].filter(Boolean).join(" "),
             cust: str(m.stripe_customer_id),
           });
+        }
+      }
+      const gRows = await admin.from("student_guardians")
+        .select("guardians(id,name,stripe_customer_id,guardian_emails(email))")
+        .in("student_id", family);
+      const guardians: Record<string, any>[] = [];
+      const seenG = new Set<string>();
+      for (const row of (gRows.data || []) as Record<string, any>[]) {
+        const gg = row.guardians;
+        if (!gg || seenG.has(gg.id)) continue;
+        seenG.add(gg.id);
+        guardians.push(gg);
+        if (gg.stripe_customer_id && !holders.some((h) => h.cust === gg.stripe_customer_id)) {
+          holders.push({ id: contactId, name: str(gg.name), cust: str(gg.stripe_customer_id), guardian: gg.id });
         }
       }
       const cards: Record<string, unknown>[] = [];
@@ -183,6 +201,27 @@ Deno.serve(async (req) => {
         }));
         if (rows.length && !rows.some((c: Record<string, unknown>) => c.def)) rows[0].def = true;
         cards.push(...rows);
+
+        // ADOPTION. A Stripe customer created at checkout carries the paying
+        // adult's address, and so does their guardian record, so the two can
+        // be matched on it. Done here rather than as a migration because it
+        // is self-healing: any customer that turns up later is claimed the
+        // first time its family's cards are listed.
+        if (payerEmail && !h.guardian) {
+          const owner = guardians.find((gg) =>
+            !gg.stripe_customer_id
+            && (gg.guardian_emails || []).some((e: Record<string, unknown>) =>
+              str(e.email).toLowerCase() === payerEmail));
+          if (owner) {
+            const claim = await admin.from("guardians")
+              .update({ stripe_customer_id: h.cust })
+              .eq("id", owner.id).is("stripe_customer_id", null);
+            // A unique index means two guardians cannot claim one customer.
+            // Losing the race is fine: somebody already owns it.
+            if (claim.error) console.error("adopt customer", claim.error);
+            else owner.stripe_customer_id = h.cust;
+          }
+        }
       }
       // THE FAMILY DEFAULT. His override if he set one; otherwise the primary
       // contact's card, because he has already said who that is and one
@@ -278,17 +317,52 @@ Deno.serve(async (req) => {
     // A Stripe Checkout session in setup mode: their browser to Stripe, no
     // card data anywhere near the studio or this function.
     if (action === "link") {
-      const to = str(body.email) || str(person.email);
-      if (!to) return json({ error: "No email address for that person" }, 400, cors);
-      let cust = custId;
+      // WHO IS BEING ASKED FOR A CARD. A child has no card; the adult who pays
+      // for them does. Named explicitly, or the household's primary contact,
+      // or the participant themselves when they are their own payer.
+      let gid = str(body.guardian_id);
+      if (!gid) {
+        const hhRow = await admin.from("household_members")
+          .select("households(primary_guardian_id)").eq("contact_id", contactId).maybeSingle();
+        gid = str((hhRow.data as Record<string, any> | null)?.households?.primary_guardian_id);
+      }
+      if (!gid) {
+        const only = await admin.from("student_guardians")
+          .select("guardian_id").eq("student_id", contactId).limit(2);
+        if ((only.data || []).length === 1) gid = str(only.data![0].guardian_id);
+      }
+
+      let payer: Record<string, any> | null = null;
+      if (gid) {
+        const gRes = await admin.from("guardians")
+          .select("id,name,stripe_customer_id,guardian_emails(email)").eq("id", gid).maybeSingle();
+        payer = gRes.data as Record<string, any> | null;
+      }
+
+      // The address the link goes to, and the account the card lands on.
+      const to = str(body.email)
+        || (payer ? str((payer.guardian_emails || [])[0]?.email) : "")
+        || str(person.email);
+      if (!to) {
+        return json({ error: payer
+          ? "No email address for " + (str(payer.name) || "that guardian")
+          : "Nobody on this profile has an email address to send to" }, 400, cors);
+      }
+
+      // Attach to the PARENT's customer, so the new card joins the ones they
+      // already have instead of starting a second pile under a child's name.
+      let cust = payer ? str(payer.stripe_customer_id) : "";
+      if (!cust && !payer) cust = custId;
       if (!cust) {
         const cf = new URLSearchParams();
         cf.set("email", to);
-        cf.set("name", name);
+        cf.set("name", payer ? (str(payer.name) || name) : name);
         cf.set("metadata[contact_id]", contactId);
+        if (payer) cf.set("metadata[guardian_id]", String(payer.id));
         const made = await stripe("customers", secretKey, cf);
         cust = str(made.id);
-        await admin.from("contacts").update({ stripe_customer_id: cust }).eq("id", contactId);
+        if (payer) await admin.from("guardians").update({ stripe_customer_id: cust }).eq("id", payer.id);
+        else await admin.from("contacts").update({ stripe_customer_id: cust }).eq("id", contactId);
       }
       const sf = new URLSearchParams();
       sf.set("mode", "setup");
