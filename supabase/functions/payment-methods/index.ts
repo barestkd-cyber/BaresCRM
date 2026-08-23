@@ -272,6 +272,57 @@ Deno.serve(async (req) => {
       return json({ ok: true }, 200, cors);
     }
 
+    // ── setup-intent : key a card at the desk, on this page ───────────────
+    // A SetupIntent saves a card and moves no money. The client secret is
+    // scoped to this one setup and this one customer, which is what makes it
+    // safe to hand to a browser.
+    if (action === "setup-intent") {
+      const gid = str(body.guardian_id);
+      let cust = "";
+      let label = name;
+      if (gid) {
+        const gRes = await admin.from("guardians")
+          .select("id,name,stripe_customer_id,guardian_emails(email)")
+          .eq("id", gid).maybeSingle();
+        const payer = gRes.data as Record<string, any> | null;
+        if (!payer) return json({ error: "No such guardian" }, 404, cors);
+        label = str(payer.name) || "them";
+        cust = str(payer.stripe_customer_id);
+        if (!cust) {
+          // Their first card: give them their own customer, named and
+          // addressed as themselves, so it is never filed under a child.
+          const cf = new URLSearchParams();
+          const addr = str((payer.guardian_emails || [])[0]?.email);
+          if (addr) cf.set("email", addr);
+          if (payer.name) cf.set("name", str(payer.name));
+          cf.set("metadata[guardian_id]", String(payer.id));
+          const made = await stripe("customers", secretKey, cf);
+          cust = str(made.id);
+          await admin.from("guardians")
+            .update({ stripe_customer_id: cust }).eq("id", payer.id);
+        }
+      } else {
+        cust = custId;
+        if (!cust) {
+          const cf = new URLSearchParams();
+          if (person.email) cf.set("email", str(person.email));
+          cf.set("name", name);
+          cf.set("metadata[contact_id]", contactId);
+          const made = await stripe("customers", secretKey, cf);
+          cust = str(made.id);
+          await admin.from("contacts")
+            .update({ stripe_customer_id: cust }).eq("id", contactId);
+        }
+      }
+      const sf = new URLSearchParams();
+      sf.set("customer", cust);
+      sf.set("payment_method_types[]", "card");
+      // The whole point of saving it: staff charge it later, nobody present.
+      sf.set("usage", "off_session");
+      const si = await stripe("setup_intents", secretKey, sf);
+      return json({ client_secret: str(si.client_secret), customer: cust, who: label }, 200, cors);
+    }
+
     // ── family-default ────────────────────────────────────────────────────
     // His override. Distinct from Stripe's per-customer default, which only
     // decides which card Stripe reaches for within ONE customer and knows

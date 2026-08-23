@@ -8304,17 +8304,26 @@ async function gSheetOpen(guardianId, backToContactId){
   const theirs = (PROF_CARDS.cards||[]).filter(c=>mine.indexOf(String(c.owner_email||''))>-1);
   body += '<div class="ccg-sub" style="margin:16px 0 6px">Payment method</div>';
   if(theirs.length){
-    body += theirs.map(c=>'<div class="ccg-row">'
+    body += theirs.map(c=>'<div class="pmrow">'
       + '<span class="pm-brand">'+escHtml(c.brand)+'</span>'
       + '<span class="pm-dots">•••• '+escHtml(c.last4)+'</span>'
       + '<span class="pm-exp">exp '+escHtml(c.exp)+'</span>'
       + (c.family_default?'<span class="pm-fam">FAMILY DEFAULT</span>':'')
-      + '</div>').join('');
+      + '<span class="pm-acts">'
+      + (c.family_default?'':'<button onclick="gSheetFamilyDefault(\''+escJs(c.id)+'\',\''+escJs(g.id)+'\',\''+escJs(backToContactId)+'\')">Make family default</button>')
+      // Removing here detaches at Stripe, so afterwards nobody has it - which
+      // is the point he asked for: "so I don't have any access to it at all."
+      + '<button class="danger" onclick="gSheetCardRemove(\''+escJs(c.id)+'\',\''+escJs(g.id)+'\',\''+escJs(backToContactId)+'\')">Remove</button>'
+      + '</span></div>').join('');
   } else {
     body += '<div class="ccg-sub">No card on file for them.</div>';
   }
-  body += '<button class="addopt" style="margin-top:8px" onclick="gSheetCardLink(\''+escJs(g.id)+'\',\''+escJs(backToContactId)+'\')">'
-    + (theirs.length?'Send them a link to update it':'Send them a link to add one')+'</button>';
+  // Two ways to get a card. The field is for a parent standing at the desk;
+  // the link is for one who is not.
+  body += '<div id="g-cardbox"></div>'
+    + '<button class="addopt" style="margin-top:8px" id="g-addcard" onclick="gSheetAddCard(\''+escJs(g.id)+'\',\''+escJs(backToContactId)+'\')">＋ Add a card here</button>'
+    + '<button class="addopt" onclick="gSheetCardLink(\''+escJs(g.id)+'\',\''+escJs(backToContactId)+'\')">'
+    + (theirs.length?'Send them a link to add another':'Send them a link to add one')+'</button>';
 
   body += '<div class="ccg-sub" style="margin:14px 0 8px">'
     + (kids.length ? 'Guardian of '+escHtml(kids.join(', ')) : 'Not linked to anybody')+'</div>';
@@ -8330,6 +8339,77 @@ async function gSheetOpen(guardianId, backToContactId){
     + '<button class="close" onclick="closeSheet()">&times;</button></div>'
     + '<div class="sheet-body spk-body">'+body+'</div>';
   openSheet();
+}
+
+/* KEY A CARD HERE. The same Stripe Elements field the checkout pages mount,
+ * confirming a SetupIntent rather than a payment: it saves the card and moves
+ * no money. The number goes from Stripe's iframe straight to Stripe and never
+ * touches this page, which is what keeps the studio out of PCI scope. */
+let G_SETUP = null;
+async function gSheetAddCard(guardianId, contactId){
+  const box = document.getElementById('g-cardbox');
+  const btn = document.getElementById('g-addcard');
+  if(!box) return;
+  if(btn){ btn.disabled = true; btn.textContent = 'Loading the secure field…'; }
+  box.innerHTML = '<div class="pm-cardbox" id="pmCardBox"><div class="pm-cardload">Loading secure card field…</div></div>'
+    + '<div id="pmCardErr" class="pm-carderr"></div>';
+  await pmCardMount();
+  if(!PM_CARD || !PM_STRIPE){
+    box.innerHTML = '<div class="ccg-sub">The card field could not load. Reload and try again.</div>';
+    if(btn){ btn.disabled = false; btn.textContent = '＋ Add a card here'; }
+    return;
+  }
+  const r = await sb.functions.invoke('payment-methods', {
+    body:{ action:'setup-intent', contact_id:contactId, guardian_id:guardianId }
+  });
+  if(r.error || !r.data || !r.data.client_secret){
+    box.innerHTML = '<div class="ccg-sub">Could not start that. Try again.</div>';
+    if(btn){ btn.disabled = false; btn.textContent = '＋ Add a card here'; }
+    return;
+  }
+  G_SETUP = { secret: r.data.client_secret, guardianId: guardianId, contactId: contactId };
+  if(btn){
+    btn.disabled = false;
+    btn.textContent = 'Save this card';
+    btn.setAttribute('onclick', "gSheetSaveCard()");
+  }
+}
+
+async function gSheetSaveCard(){
+  if(!G_SETUP){ toast('Start again'); return; }
+  const btn = document.getElementById('g-addcard');
+  if(btn){ btn.disabled = true; btn.textContent = 'Saving…'; }
+  // Stripe confirms this, not us. A card that fails validation never leaves
+  // the iframe, and nothing is written on our side until Stripe says yes.
+  const res = await PM_STRIPE.confirmCardSetup(G_SETUP.secret, { payment_method: { card: PM_CARD } });
+  if(res.error || !res.setupIntent || res.setupIntent.status !== 'succeeded'){
+    const msg = (res.error && res.error.message) || 'That card was not accepted.';
+    pmCardErr(msg); toast(msg);
+    if(btn){ btn.disabled = false; btn.textContent = 'Save this card'; }
+    return;
+  }
+  const { guardianId, contactId } = G_SETUP;
+  G_SETUP = null; PM_CARD = null;
+  toast('Card saved');
+  await loadProfileCards(contactId);
+  gSheetOpen(guardianId, contactId);
+}
+
+async function gSheetFamilyDefault(pmId, guardianId, contactId){
+  const r = await sb.functions.invoke('payment-methods', {
+    body:{ action:'family-default', contact_id:contactId, payment_method_id:pmId }
+  });
+  if(r.error || !r.data || r.data.error){ toast((r.data&&r.data.error)||'Could not set that'); return; }
+  toast('Family default set');
+  await loadProfileCards(contactId);
+  gSheetOpen(guardianId, contactId);
+}
+
+async function gSheetCardRemove(pmId, guardianId, contactId){
+  // profCardRemove already asks, counts the scheduled payments riding on the
+  // card, and detaches it at Stripe. Reusing it keeps one removal path.
+  await profCardRemove(pmId);
+  gSheetOpen(guardianId, contactId);
 }
 
 /* One link, to one person, at their own address. The picker at the top of
