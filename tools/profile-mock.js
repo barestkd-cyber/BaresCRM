@@ -37,19 +37,39 @@ const S = {
   lessonCredits: 0, moneyCredits: '$0.00',
   phone: '(903) 555-0100', email: 'pat.lee@example.com',
   address: '1234 Taekwondo Way<br>Tyler, TX 75701',
-  guardian: { name: 'Pat Lee', rel: 'Mother', phone: '(903) 555-0100', email: 'pat.lee@example.com' },
   household: { name: 'Alex Lee', program: 'Juniors', belt: 'Green Belt' },
   attendance30: 11,
   balance: '$109.04', balanceCount: '2 invoices',
 };
 
-/* ── cards on file ──────────────────────────────────────────────────────
-   These live in Stripe; the CRM only ever shows the last four. Removing one
+/* ── the guardians ──────────────────────────────────────────────────────
+   One record per PERSON, referenced by each child, shared live across the
+   household. Pat has two addresses because real parents do; Sam is borrowed
+   from the sibling's profile, which is what the household chip means.
+   Only the primary is labelled - a parent who is not the one you ring first
+   is not a lesser parent, so there is no "secondary". */
+const GUARDIANS = [
+  { id: 'g_pat', name: 'Pat Lee', primary: true, borrowed: false,
+    phones: ['(903) 555-0100'],
+    emails: [{ addr: 'pat.lee@example.com', copy: false },
+             { addr: 'p.lee@work.example.com', copy: true }] },
+  { id: 'g_sam', name: 'Sam Lee', primary: false, borrowed: true,
+    phones: ['(903) 555-0177'],
+    emails: [{ addr: 'sam.lee@example.com', copy: false }] },
+];
+
+/* ── cards on file ────────────────────────────────────────────────────── the CRM only ever shows the last four. Removing one
    here means removing it there, which is why a card a scheduled payment
    depends on cannot go quietly. */
+// A card belongs to the PARENT. Stripe's own default only decides which card
+// it reaches for within one customer and knows nothing about families, so it
+// is a quiet note; the family default is the one that matters and follows the
+// primary contact unless overridden.
 const CARDS = [
-  { id: 'pm_1', brand: 'Visa', last4: '4242', exp: '02/27', owner: 'Pat Lee', def: true },
-  { id: 'pm_2', brand: 'Mastercard', last4: '1925', exp: '07/30', owner: 'Pat Lee', def: false },
+  { id: 'pm_1', brand: 'Visa', last4: '4242', exp: '02/27', owner: 'Pat Lee',
+    def: true, family: true, borrowed: false },
+  { id: 'pm_2', brand: 'Mastercard', last4: '1925', exp: '07/30', owner: 'Sam Lee',
+    def: true, family: false, borrowed: true },
 ];
 
 /* ── the payment schedule ───────────────────────────────────────────────
@@ -433,6 +453,16 @@ body{margin:0;background:#fff}
 .mk-unsigned-bar{background:#FFF4F4;border:1px solid #EBC2C2;color:var(--accent);
   border-radius:11px;padding:12px 14px;font-size:13.5px;font-weight:800;margin-top:16px}
 
+/* ── guardians on the contact card ─────────────────────────────────────── */
+.mk-grow{border:1.5px solid var(--line);border-radius:12px;padding:11px 13px;margin-bottom:8px;cursor:pointer}
+.mk-grow:active{background:var(--surface)}
+.mk-gname{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.mk-gname b{font-size:15px}
+.mk-gline{font-size:13px;color:var(--muted);margin-top:3px;word-break:break-all}
+.mk-chip.pri{background:#E4F5EE;color:#0B6B4A}
+.mk-chip.hh{background:#EEF1F4;color:var(--muted)}
+.mk-chip.cp{background:#E4F5EE;color:#0B6B4A}
+
 /* ── cards on file ─────────────────────────────────────────────────────── */
 .mk-cardrow{display:flex;align-items:center;gap:11px;padding:12px 0;
   border-bottom:1px solid var(--line);flex-wrap:wrap}
@@ -441,6 +471,10 @@ body{margin:0;background:#fff}
 .mk-dots{color:var(--muted);font-weight:700}
 .mk-exp{font-size:13px;color:var(--muted);font-weight:600}
 .mk-def{background:#E4F5EE;color:var(--go);border-radius:5px;padding:3px 8px;
+  font-size:10.5px;font-weight:800;letter-spacing:.04em}
+/* Stripe’s own default is a quiet note: it only picks a card within one
+   customer and knows nothing about families. */
+.mk-stripedef{background:#EEF1F4;color:var(--muted);border-radius:5px;padding:3px 8px;
   font-size:10.5px;font-weight:800;letter-spacing:.04em}
 .mk-cardacts{margin-left:auto;display:flex;gap:7px}
 .mk-cardacts button{border:1.5px solid var(--line);background:#fff;border-radius:9px;
@@ -593,17 +627,31 @@ body{margin:0;background:#fff}
     </div>
   </div>
 
+  <!-- THEIR OWN DETAILS FIRST, then the guardians, then the address, then
+       who else is in the house. When a participant has nothing of their own
+       the first block is simply empty and the guardians sit at the top: one
+       layout, not two, because a card that changes shape between profiles is
+       harder to read than one that does not. -->
   <div class="mk-card">
     <h3>Contact <span class="mk-edit">&#9998; Edit</span></h3>
     <div class="mk-row"><span class="ic">&#9742;</span><a href="#">${S.phone}</a></div>
     <div class="mk-row"><span class="ic">&#9993;</span><a href="#">${S.email}</a></div>
-    <div class="mk-row"><span class="ic">&#127968;</span><span>${S.address}</span></div>
 
     <hr class="mk-hr">
-    <div class="mk-sub">Guardian</div>
-    <div class="mk-row"><span class="ic">&#128100;</span><b>${S.guardian.name}</b><span class="mk-chip">${S.guardian.rel}</span></div>
-    <div class="mk-row"><span class="ic">&#9742;</span><a href="#">${S.guardian.phone}</a></div>
-    <div class="mk-row"><span class="ic">&#9993;</span><a href="#">${S.guardian.email}</a></div>
+    <div class="mk-sub">Guardians</div>
+    ${GUARDIANS.map((g) => `
+    <div class="mk-grow" onclick="gOpen('${g.id}')">
+      <div class="mk-gname"><b>${g.name}</b>
+        ${g.primary ? '<span class="mk-chip pri">PRIMARY</span>' : ''}
+        ${g.borrowed ? '<span class="mk-chip hh">household</span>' : ''}</div>
+      ${g.phones.map((p) => `<div class="mk-gline">${p}</div>`).join('')}
+      ${g.emails.map((e) => `<div class="mk-gline">${e.addr}${e.copy
+        ? ' <span class="mk-chip cp">always copy</span>' : ''}</div>`).join('')}
+    </div>`).join('')}
+
+    <hr class="mk-hr">
+    <div class="mk-sub">Address</div>
+    <div class="mk-row"><span class="ic">&#127968;</span><span>${S.address}</span></div>
 
     <hr class="mk-hr">
     <div class="mk-sub">Household</div>
@@ -1219,7 +1267,9 @@ body{margin:0;background:#fff}
         + '<span class="mk-brand">' + c.brand + '</span>'
         + '<span class="mk-dots">\\u2022\\u2022\\u2022\\u2022 ' + c.last4 + '</span>'
         + '<span class="mk-exp">exp ' + c.exp + '</span>'
-        + (c.def ? '<span class="mk-def">DEFAULT</span>' : '')
+        + (c.family ? '<span class="mk-def">FAMILY DEFAULT</span>' : '')
+        + (c.def && !c.family ? '<span class="mk-stripedef">stripe default</span>' : '')
+        + '<span class="mk-chip hh">' + c.owner + '</span>'
         + '<span class="mk-cardacts">'
         + (c.def ? '' : '<button onclick="cardMakeDefault(\\'' + c.id + '\\')">Make default</button>')
         + '<button class="danger" onclick="cardRemove(\\'' + c.id + '\\')">Remove</button>'

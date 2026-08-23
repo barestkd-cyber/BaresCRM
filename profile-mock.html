@@ -82,12 +82,37 @@ main{flex:1;overflow-y:auto}
 /* ---------- profile ---------- */
 .pbar{background:var(--ink);color:#fff;display:flex;align-items:center;gap:6px;padding:12px 14px;position:sticky;top:0;z-index:20}
 .pbar .back{color:#fff;font-weight:600;font-size:15px;display:flex;align-items:center;gap:4px}
-.phead{background:var(--ink);color:#fff;padding:6px 18px 20px;text-align:center}
-.phead .pav{width:78px;height:78px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:30px;color:#fff;position:relative}
-.phead .pav .belt-ring{position:absolute;inset:-4px;border-radius:50%;border:3px solid transparent}
-.phead .pname{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:24px}
-.phead .pmeta{color:#AEB4BD;font-size:13.5px;margin-top:5px;line-height:1.5}
-.phead .pseg{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;margin-top:9px}
+/* A light card, avatar left, Actions under it. The avatar carries the belt
+   colour ringed in near-black, so rank reads without being read. */
+.phead{background:#fff;border:1px solid var(--line);border-radius:16px;
+  margin:12px 14px 0;padding:18px;color:var(--ink);text-align:left}
+.phead-top{display:flex;gap:16px;align-items:center}
+.pavcol{flex:none;display:flex;flex-direction:column;align-items:center;gap:11px}
+.phead .pav{width:84px;height:84px;border-radius:50%;margin:0;display:flex;
+  align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;
+  font-weight:700;font-size:30px;box-shadow:0 0 0 4px var(--ink)}
+.phead-body{flex:1;min-width:0}
+.phead .pname{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:24px;
+  line-height:1.15;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.phead .pmeta{color:var(--muted);font-size:13.5px;margin-top:4px;line-height:1.5}
+.phead .pseg{display:inline-block;font-size:11px;font-weight:700;padding:4px 10px;border-radius:7px}
+/* Dates on the left, what they are holding on the right. */
+.phead-facts{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:16px;
+  padding-top:14px;border-top:1px solid var(--line)}
+.phead-facts > div + div{border-left:1px solid var(--line);padding-left:18px}
+.pf-l{color:var(--muted);font-weight:700;font-size:12.5px}
+.pf-v{font-size:14px;margin:2px 0 12px}
+.pf-v:last-child{margin-bottom:0}
+.prof-rule{border:none;border-top:1px solid var(--line);margin:14px 0}
+@media (max-width:560px){
+  .phead{padding:15px}
+  .phead-top{gap:13px}
+  .phead .pav{width:72px;height:72px;font-size:25px;box-shadow:0 0 0 3px var(--ink)}
+  .phead .pname{font-size:21px}
+  .phead-facts{grid-template-columns:1fr;gap:0}
+  .phead-facts > div + div{border-left:none;border-top:1px solid var(--line);
+    padding-left:0;padding-top:13px;margin-top:13px}
+}
 
 
 .sec{padding:18px 16px 0}
@@ -290,21 +315,34 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 
 /* ---------- profile redesign (2026-08-17 mocks): stat strip, belt bar,
    actions menu, tabs. PC-first; phone keeps stacked cards. ---------- */
-.pstats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:12px 14px 0}
-.pstat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-width:0}
-.pstat .n{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px}
-.pstat .l{font-size:10.5px;color:var(--muted);line-height:1.3;margin-top:2px}
+/* Thin, read-only, first on the page. Label left, number right, one line each,
+   and a shorter label on a phone so neither wraps. */
+.pstats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:12px 14px 0}
+.pstat{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}
+.pstat .n{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;
+  flex:none;white-space:nowrap}
+.pstat .l{font-size:11px;color:var(--muted);font-weight:700;line-height:1.2;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pstat .narrow{display:none}
+.pstat.owe{background:#FFF6F6;border-color:#F3D2D2}
 .pstat.owe .n{color:#18A974}
 .pstat.owe.due .n{color:#c8102e}
+@media (max-width:560px){
+  .pstat .wide{display:none}
+  .pstat .narrow{display:inline}
+}
 /* The current belt, and only that. */
 .beltnow{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
 .beltdot{width:14px;height:14px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.22)}
 .beltname{font-size:13px;font-weight:800;color:var(--ink)}
 .beltsince{font-size:11.5px;color:#AEB4BD;font-weight:700}
-.phead-facts{font-size:12.5px;color:#AEB4BD;margin-top:9px}
 .pact{position:relative;display:inline-block;margin-top:12px}
 .pact-btn{background:none;border:1.5px solid var(--accent);color:var(--accent);font-weight:700;font-size:13.5px;border-radius:9px;padding:8px 16px;cursor:pointer;font-family:inherit}
-.phead .pact-btn{border-color:#fff;color:#fff}
+/* The header is a light card now, so the Actions button keeps the accent
+   colour rather than the white-on-dark treatment it had. */
+.phead .pact{margin-top:0}
+.phead .pact-menu{right:auto;left:0}
 .pact-menu{display:none;position:absolute;right:0;top:calc(100% + 6px);background:#fff;color:var(--ink);border-radius:12px;box-shadow:0 12px 34px rgba(0,0,0,.22);min-width:256px;padding:6px;z-index:70;text-align:left}
 .pact-menu.open{display:block}
 .pact-it{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border-radius:8px;font-size:14px;font-weight:600;background:none;border:none;text-align:left;cursor:pointer;color:var(--ink);font-family:inherit}
@@ -342,9 +380,18 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .memx{background:#fff;border:1px solid var(--line);border-radius:14px;padding:15px 16px;margin-bottom:12px;display:flex;flex-direction:column;gap:11px}
 .memx-name{font-weight:700;font-size:15.5px}
 .memx-plan{color:var(--muted);font-size:12.5px;margin-top:2px}
-.memx-price .big{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px}
-.memx-price .sub,.memx-terms div{font-size:12.5px;color:var(--muted);margin-top:3px}
-.memx-terms div{margin-top:0;line-height:1.7}
+/* Four labelled facts rather than a stack of sentences. Two columns on a
+   phone, four across on a desktop. */
+.memx-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px;
+  margin-top:14px;padding-top:13px;border-top:1px solid var(--line);font-size:14px}
+.memx-facts span{display:block;font-size:10.5px;font-weight:800;color:var(--muted);
+  letter-spacing:.05em;text-transform:uppercase;margin-bottom:2px}
+.memx-down{font-size:12px;color:var(--muted);margin-top:11px}
+.memx-payer{font-size:13px;color:var(--muted);margin-top:9px;padding-top:9px;
+  border-top:1px solid var(--line)}
+@media (min-width:760px){
+  .memx-facts{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
 .memx-agr{background:#F0FAF4;border:1px solid #BFE6D6;border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.6}
 .memx-agr b{color:#18A974}
 .memx-agr.miss{background:#FDF1F1;border-color:#F3C2C2}
@@ -354,15 +401,27 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .ccg-row:last-child{border-bottom:none}
 .ccg-chip{font-size:10px;font-weight:800;background:#E7F1FB;color:#2563EB;padding:2px 8px;border-radius:6px}
 .ccg-sub{color:var(--muted);font-size:12.5px}
+.ccg-chip.borrowed{background:#EEF1F4;color:var(--muted)}
+.ccg-chip.primary{background:#E4F5EE;color:var(--go)}
+.ccg-chip.copy{background:#E4F5EE;color:var(--go)}
+.gcard{cursor:pointer;border-radius:8px;padding-left:6px;padding-right:6px;margin-left:-6px;margin-right:-6px}
+.gcard:hover{background:var(--surface)}
+/* naming a guardian */
+.gmail{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.gmail input{flex:1;min-width:0;font:inherit;font-size:14px;padding:9px 10px;border:1.5px solid var(--line);border-radius:9px}
+.gmail .cp{border:1.5px solid var(--line);background:#fff;border-radius:8px;padding:6px 9px;font:inherit;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;color:var(--muted)}
+.gmail .cp.on{background:#E4F5EE;border-color:#BFE6D6;color:var(--go)}
+.gmail .rm{border:none;background:none;color:var(--accent);font-size:17px;cursor:pointer;padding:0 4px;line-height:1}
+.gkids{font-size:12.5px;color:var(--muted);line-height:1.6;margin-top:2px}
 @media (min-width:900px){
   .pstats{grid-template-columns:repeat(2,minmax(0,240px));padding:18px 26px 0}
   .pstat .n{font-size:24px}
   .pstat .l{font-size:12px}
-  .phead{display:flex;text-align:left;align-items:flex-start;gap:22px;padding:22px 26px;margin:14px 26px 0;border-radius:16px}
-  .phead .pav{margin:0;flex:0 0 auto}
-  .phead-body{flex:1;min-width:0}
-  .phead .pseg{margin-top:0;margin-left:10px;vertical-align:middle}
-  .pact{margin-top:0;flex:0 0 auto}
+  /* The header is a card with TWO stacked children now (.phead-top and
+     .phead-facts), so it must not be a flex row: that put the facts beside
+     the avatar instead of under it. .phead-top does the row itself. */
+  .phead{padding:22px 26px;margin:14px 26px 0}
+  .phead-facts{gap:24px}
   .ptabs{display:flex;gap:2px;margin:16px 26px 0;border-bottom:2px solid var(--line);flex-wrap:wrap}
   .ptab{padding:12px 15px;font-weight:700;font-size:13.5px;color:var(--muted);border:none;background:none;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-2px;font-family:inherit;display:flex;align-items:center;gap:7px}
   .ptab.on{color:var(--accent);border-color:var(--accent)}
@@ -471,12 +530,13 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
   .pos-prods{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:11px}
   .pos-prodsel{display:none}
   .mright{flex-direction:column;align-items:flex-end}
-  /* profile is a normal full-width view with its back bar */
-  .phead{display:flex;align-items:center;text-align:left;gap:18px;padding:24px 28px}
-  .phead .pav{margin:0;width:62px;height:62px;font-size:23px}
+  /* profile is a normal full-width view with its back bar. The header keeps
+     its card layout; only the padding and type sizes change on a wide screen.
+     This block used to force display:flex and shrink the avatar back to 62px,
+     both written for a three-child header that no longer exists. */
+  .phead{padding:24px 28px}
   .phead .pname{font-size:25px}
   .phead .pmeta{margin-top:4px}
-  .phead .pseg{margin-top:8px}
   .psections{column-count:2;column-gap:20px;padding:14px 28px 0}
   .psections .sec{padding:0;margin-bottom:18px;break-inside:avoid}
   .spacer{height:30px}
@@ -630,6 +690,64 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .inst-st.pd{background:#E4F5EE;color:var(--go)}
 .inst-st.wv{background:#FBE9E9;color:var(--accent)}
 .inst-acts{margin-left:auto;display:flex;gap:6px}
+.inst-acts button{border:1.5px solid var(--line);background:#fff;border-radius:8px;padding:5px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+/* cards on file - Stripe is the record, this is only a window onto it */
+.pmrow{display:flex;align-items:center;gap:11px;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid var(--line)}
+.pmrow:last-of-type{border-bottom:none}
+.pm-brand{font-weight:800;font-size:13.5px;text-transform:capitalize}
+.pm-dots{color:var(--muted);letter-spacing:.06em;font-size:13.5px}
+.pm-exp{color:var(--muted);font-size:12.5px}
+.pm-def{font-size:10.5px;font-weight:800;letter-spacing:.05em;background:#EEF1F4;color:var(--muted);border-radius:6px;padding:3px 7px}
+.pm-fam{font-size:10.5px;font-weight:800;letter-spacing:.05em;background:#E4F5EE;color:var(--go);border-radius:6px;padding:3px 7px}
+/* who gets the update-card link */
+.lnkrow{display:flex;align-items:flex-start;gap:11px;border:1.5px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px;cursor:pointer;background:#fff}
+.lnkrow.on{border-color:var(--go);background:#F2FBF7}
+.lnkrow input{margin-top:2px;width:18px;height:18px;flex:none;accent-color:var(--go)}
+.lnkrow b{display:block;font-size:14.5px}
+.lnkrow i{display:block;font-style:normal;font-size:12.5px;color:var(--muted);margin-top:2px;word-break:break-all}
+.pm-acts{margin-left:auto;display:flex;gap:7px}
+.pm-acts button{border:1.5px solid var(--line);background:#fff;border-radius:9px;padding:6px 11px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;color:var(--ink)}
+.pm-acts button.danger{color:var(--accent);border-color:#EBC2C2}
+.pm-inuse{flex-basis:100%;font-size:12px;color:var(--muted)}
+.pm-note{font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:12px}
+/* an unsigned agreement is not a quiet thing */
+.unsg{border:1.5px solid #EBC2C2;background:#FFF8F8;border-radius:12px;padding:14px 16px;margin-bottom:16px}
+.unsg-top{display:flex;align-items:baseline;gap:10px}
+.unsg-n{font-size:25px;font-weight:800;color:var(--accent);line-height:1}
+.unsg-l{font-size:14px;font-weight:700;color:var(--accent)}
+.unsg-list{margin-top:11px;border-top:1px solid #EBC2C2;padding-top:2px}
+.unsg-row{display:flex;align-items:center;gap:9px;padding:9px 0;font-size:13px;color:var(--muted);border-bottom:1px solid #F3DEDE;flex-wrap:wrap}
+.unsg-row:last-child{border-bottom:none}
+.unsg-row b{color:var(--ink);font-size:14px}
+.unsg-row .go{margin-left:auto;display:flex;gap:7px}
+.unsg-row .go button{border:1.5px solid #EBC2C2;background:#fff;color:var(--accent);border-radius:8px;padding:5px 11px;font:inherit;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
+.unsg-more{font-size:12.5px;color:var(--muted);padding-top:9px}
+/* the same fact on one profile */
+.punsg{border:1.5px solid #EBC2C2;background:#FFF8F8;color:var(--accent);border-radius:11px;padding:12px 14px;font-size:13.5px;font-weight:800;margin-bottom:14px}
+/* pick a card already on file, or type a new one */
+.pmpick{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.pmpick label{display:flex;gap:11px;align-items:flex-start;border:1.5px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;background:#fff}
+.pmpick label.on{border-color:var(--accent);background:#FFF6F6}
+.pmpick input{margin-top:2px;width:17px;height:17px;flex:none}
+.pmpick b{display:block;font-size:14px}
+.pmpick i{display:block;font-style:normal;font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:2px}
+/* add a membership, in three steps */
+.madd-steps{display:flex;gap:5px;margin:-4px 0 14px}
+.madd-steps i{flex:1;height:3px;border-radius:99px;background:var(--line)}
+.madd-steps i.on{background:var(--accent)}
+.madd-due{background:var(--surface);border-radius:11px;padding:14px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.madd-due span{font-size:13px;color:var(--muted);line-height:1.5}
+.madd-due b{font-size:21px;white-space:nowrap}
+.madd-done{background:#E4F5EE;color:#0B6B4A;border-radius:11px;padding:13px;font-size:13.5px;line-height:1.55;margin-bottom:14px}
+.madd-done.bad{background:#FFF4F4;color:var(--accent)}
+.madd-warn{background:#FFF8F8;border:1.5px solid #EBC2C2;color:var(--accent);border-radius:11px;padding:12px 14px;font-size:12.5px;font-weight:700;margin-top:12px;line-height:1.5}
+.madd-has{font-size:12px;color:var(--gold);font-weight:700;margin-top:5px}
+.pm-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:2px}
+.pm-link{border:none;background:none;font:inherit;font-size:12.5px;font-weight:700;color:var(--go);cursor:pointer;padding:0}
+/* which card a single scheduled payment goes on */
+.inst-card{flex-basis:100%;display:flex;align-items:center;gap:8px;margin-top:-2px}
+.inst-card label{font-size:11.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+.inst-card select{flex:1;font:inherit;font-size:13px;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;background:#fff;min-width:0}
 .spk-form>.spk-label:first-child{margin-top:0}
 .spk-select{appearance:auto}
 .spk-price{display:flex;align-items:stretch}
@@ -1060,6 +1178,16 @@ body{margin:0;background:#fff}
 .mk-unsigned-bar{background:#FFF4F4;border:1px solid #EBC2C2;color:var(--accent);
   border-radius:11px;padding:12px 14px;font-size:13.5px;font-weight:800;margin-top:16px}
 
+/* ── guardians on the contact card ─────────────────────────────────────── */
+.mk-grow{border:1.5px solid var(--line);border-radius:12px;padding:11px 13px;margin-bottom:8px;cursor:pointer}
+.mk-grow:active{background:var(--surface)}
+.mk-gname{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.mk-gname b{font-size:15px}
+.mk-gline{font-size:13px;color:var(--muted);margin-top:3px;word-break:break-all}
+.mk-chip.pri{background:#E4F5EE;color:#0B6B4A}
+.mk-chip.hh{background:#EEF1F4;color:var(--muted)}
+.mk-chip.cp{background:#E4F5EE;color:#0B6B4A}
+
 /* ── cards on file ─────────────────────────────────────────────────────── */
 .mk-cardrow{display:flex;align-items:center;gap:11px;padding:12px 0;
   border-bottom:1px solid var(--line);flex-wrap:wrap}
@@ -1068,6 +1196,10 @@ body{margin:0;background:#fff}
 .mk-dots{color:var(--muted);font-weight:700}
 .mk-exp{font-size:13px;color:var(--muted);font-weight:600}
 .mk-def{background:#E4F5EE;color:var(--go);border-radius:5px;padding:3px 8px;
+  font-size:10.5px;font-weight:800;letter-spacing:.04em}
+/* Stripe’s own default is a quiet note: it only picks a card within one
+   customer and knows nothing about families. */
+.mk-stripedef{background:#EEF1F4;color:var(--muted);border-radius:5px;padding:3px 8px;
   font-size:10.5px;font-weight:800;letter-spacing:.04em}
 .mk-cardacts{margin-left:auto;display:flex;gap:7px}
 .mk-cardacts button{border:1.5px solid var(--line);background:#fff;border-radius:9px;
@@ -1220,17 +1352,37 @@ body{margin:0;background:#fff}
     </div>
   </div>
 
+  <!-- THEIR OWN DETAILS FIRST, then the guardians, then the address, then
+       who else is in the house. When a participant has nothing of their own
+       the first block is simply empty and the guardians sit at the top: one
+       layout, not two, because a card that changes shape between profiles is
+       harder to read than one that does not. -->
   <div class="mk-card">
     <h3>Contact <span class="mk-edit">&#9998; Edit</span></h3>
     <div class="mk-row"><span class="ic">&#9742;</span><a href="#">(903) 555-0100</a></div>
     <div class="mk-row"><span class="ic">&#9993;</span><a href="#">pat.lee@example.com</a></div>
-    <div class="mk-row"><span class="ic">&#127968;</span><span>1234 Taekwondo Way<br>Tyler, TX 75701</span></div>
 
     <hr class="mk-hr">
-    <div class="mk-sub">Guardian</div>
-    <div class="mk-row"><span class="ic">&#128100;</span><b>Pat Lee</b><span class="mk-chip">Mother</span></div>
-    <div class="mk-row"><span class="ic">&#9742;</span><a href="#">(903) 555-0100</a></div>
-    <div class="mk-row"><span class="ic">&#9993;</span><a href="#">pat.lee@example.com</a></div>
+    <div class="mk-sub">Guardians</div>
+    
+    <div class="mk-grow" onclick="gOpen('g_pat')">
+      <div class="mk-gname"><b>Pat Lee</b>
+        <span class="mk-chip pri">PRIMARY</span>
+        </div>
+      <div class="mk-gline">(903) 555-0100</div>
+      <div class="mk-gline">pat.lee@example.com</div><div class="mk-gline">p.lee@work.example.com <span class="mk-chip cp">always copy</span></div>
+    </div>
+    <div class="mk-grow" onclick="gOpen('g_sam')">
+      <div class="mk-gname"><b>Sam Lee</b>
+        
+        <span class="mk-chip hh">household</span></div>
+      <div class="mk-gline">(903) 555-0177</div>
+      <div class="mk-gline">sam.lee@example.com</div>
+    </div>
+
+    <hr class="mk-hr">
+    <div class="mk-sub">Address</div>
+    <div class="mk-row"><span class="ic">&#127968;</span><span>1234 Taekwondo Way<br>Tyler, TX 75701</span></div>
 
     <hr class="mk-hr">
     <div class="mk-sub">Household</div>
@@ -1909,7 +2061,7 @@ body{margin:0;background:#fff}
      The list lives in Stripe. Removing one here removes it there, so a card
      that scheduled payments are pointed at cannot go quietly: those payments
      would have nothing to charge. */
-  var CARDS = [{"id":"pm_1","brand":"Visa","last4":"4242","exp":"02/27","owner":"Pat Lee","def":true},{"id":"pm_2","brand":"Mastercard","last4":"1925","exp":"07/30","owner":"Pat Lee","def":false}];
+  var CARDS = [{"id":"pm_1","brand":"Visa","last4":"4242","exp":"02/27","owner":"Pat Lee","def":true,"family":true,"borrowed":false},{"id":"pm_2","brand":"Mastercard","last4":"1925","exp":"07/30","owner":"Sam Lee","def":true,"family":false,"borrowed":true}];
   function cardLabel(id) {
     var c = CARDS.filter(function (x) { return x.id === id; })[0];
     return c ? c.brand + ' \u2022\u2022\u2022\u2022 ' + c.last4 : 'card removed';
@@ -1933,7 +2085,9 @@ body{margin:0;background:#fff}
         + '<span class="mk-brand">' + c.brand + '</span>'
         + '<span class="mk-dots">\u2022\u2022\u2022\u2022 ' + c.last4 + '</span>'
         + '<span class="mk-exp">exp ' + c.exp + '</span>'
-        + (c.def ? '<span class="mk-def">DEFAULT</span>' : '')
+        + (c.family ? '<span class="mk-def">FAMILY DEFAULT</span>' : '')
+        + (c.def && !c.family ? '<span class="mk-stripedef">stripe default</span>' : '')
+        + '<span class="mk-chip hh">' + c.owner + '</span>'
         + '<span class="mk-cardacts">'
         + (c.def ? '' : '<button onclick="cardMakeDefault(\'' + c.id + '\')">Make default</button>')
         + '<button class="danger" onclick="cardRemove(\'' + c.id + '\')">Remove</button>'
