@@ -154,6 +154,11 @@ Deno.serve(async (req) => {
         const cust = await stripe("customers/" + encodeURIComponent(h.cust), secretKey, undefined, "GET")
           .catch(() => null);
         const defPm = str(cust?.invoice_settings?.default_payment_method);
+        // WHOSE CARD, not which contact record holds the Stripe customer.
+        // Every checkout sets the customer name to the adult who paid, so
+        // Stripe already knows this is Carlton and not his seven-year-old
+        // daughter, whose contact the customer happens to hang off.
+        const payerName = str(cust?.name) || h.name;
         const pms = await stripe(
           "payment_methods?customer=" + encodeURIComponent(h.cust) + "&type=card&limit=20",
           secretKey, undefined, "GET",
@@ -168,7 +173,7 @@ Deno.serve(async (req) => {
           // an off_session charge would actually pick, so say so honestly.
           def: defPm ? p.id === defPm : false,
           owner_contact_id: h.id,
-          owner_name: h.name,
+          owner_name: payerName,
           borrowed: h.id !== contactId,
         }));
         if (rows.length && !rows.some((c: Record<string, unknown>) => c.def)) rows[0].def = true;
