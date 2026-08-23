@@ -119,6 +119,8 @@ const FNS = [
   // cards already on file: posPayRender draws the picker and posPaySubmit
   // routes past the card field when one is chosen
   'pmLoadSaved', 'pmDrawPicker', 'pmPick', 'pmBuyerId', 'pmChargeSaved', 'profFnError',
+  // a card belongs to the family, so every card list asks the household
+  'householdSiblings', 'loadHouseholds', 'householdOf',
   'pmNowParts', 'pmOccurredAt',
   'posAddMembership', 'posPickProgram', 'posAddMemLine',
   'posAttachSheet', 'posAttachSearch', 'posPickStudentForLine', 'posRequoteLine', 'posSetBuyer',

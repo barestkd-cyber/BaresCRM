@@ -91,6 +91,12 @@ Deno.serve(async (req) => {
     const action = str(body.action);
     const contactId = str(body.contact_id);
     if (!UUID_RE.test(contactId)) return json({ error: "Which person?" }, 400, cors);
+    // list may span a household: a card belongs to the family, not to
+    // whichever child was on the invoice when it was saved. Every id is
+    // checked, so a caller cannot read a stranger's cards by adding one.
+    const alsoRaw: unknown[] = Array.isArray(body.contact_ids) ? body.contact_ids : [];
+    const alsoIds = [...new Set(alsoRaw.map((x) => str(x)).filter((x) => UUID_RE.test(x) && x !== contactId))]
+      .slice(0, 20);
 
     const { data: person, error: pErr } = await admin.from("contacts")
       .select("id,first_name,last_name,email,stripe_customer_id")
@@ -127,25 +133,49 @@ Deno.serve(async (req) => {
 
     // ── list ──────────────────────────────────────────────────────────────
     if (action === "list") {
-      if (!custId) return json({ cards: [], usage: {}, email: str(person.email) }, 200, cors);
-      const cust = await stripe("customers/" + encodeURIComponent(custId), secretKey, undefined, "GET")
-        .catch(() => null);
-      const defPm = str(cust?.invoice_settings?.default_payment_method);
-      const pms = await stripe(
-        "payment_methods?customer=" + encodeURIComponent(custId) + "&type=card&limit=20",
-        secretKey, undefined, "GET",
-      );
-      const cards = (pms.data || []).map((p: Record<string, any>) => ({
-        id: p.id,
-        brand: p.card?.brand || "card",
-        last4: p.card?.last4 || "",
-        exp: (p.card?.exp_month ? String(p.card.exp_month).padStart(2, "0") : "??")
-          + "/" + (p.card?.exp_year ? String(p.card.exp_year).slice(-2) : "??"),
-        // Stripe's own default wins; with none set, the newest card is what
-        // an off_session charge would actually pick, so say so honestly.
-        def: defPm ? p.id === defPm : false,
-      }));
-      if (cards.length && !cards.some((c: Record<string, unknown>) => c.def)) cards[0].def = true;
+      // Everyone whose cards count here: the person asked about, plus anybody
+      // else the caller named (their household).
+      const holders = [{ id: contactId, name, cust: custId }];
+      if (alsoIds.length) {
+        const more = await admin.from("contacts")
+          .select("id,first_name,last_name,stripe_customer_id")
+          .in("id", alsoIds).not("stripe_customer_id", "is", null);
+        for (const m of (more.data || []) as Record<string, unknown>[]) {
+          holders.push({
+            id: String(m.id),
+            name: [str(m.first_name), str(m.last_name)].filter(Boolean).join(" "),
+            cust: str(m.stripe_customer_id),
+          });
+        }
+      }
+      const cards: Record<string, unknown>[] = [];
+      for (const h of holders) {
+        if (!h.cust) continue;
+        const cust = await stripe("customers/" + encodeURIComponent(h.cust), secretKey, undefined, "GET")
+          .catch(() => null);
+        const defPm = str(cust?.invoice_settings?.default_payment_method);
+        const pms = await stripe(
+          "payment_methods?customer=" + encodeURIComponent(h.cust) + "&type=card&limit=20",
+          secretKey, undefined, "GET",
+        ).catch(() => null);
+        const rows = (pms?.data || []).map((p: Record<string, any>) => ({
+          id: p.id,
+          brand: p.card?.brand || "card",
+          last4: p.card?.last4 || "",
+          exp: (p.card?.exp_month ? String(p.card.exp_month).padStart(2, "0") : "??")
+            + "/" + (p.card?.exp_year ? String(p.card.exp_year).slice(-2) : "??"),
+          // Stripe's own default wins; with none set, the newest card is what
+          // an off_session charge would actually pick, so say so honestly.
+          def: defPm ? p.id === defPm : false,
+          owner_contact_id: h.id,
+          owner_name: h.name,
+          borrowed: h.id !== contactId,
+        }));
+        if (rows.length && !rows.some((c: Record<string, unknown>) => c.def)) rows[0].def = true;
+        cards.push(...rows);
+      }
+      // The profile's own cards lead; the household's follow.
+      cards.sort((a, b) => Number(a.borrowed) - Number(b.borrowed));
       return json({ cards, usage: await usage(), email: str(person.email) }, 200, cors);
     }
 

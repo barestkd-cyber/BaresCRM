@@ -287,17 +287,29 @@ Deno.serve(async (req) => {
       if (balance < 50) return json({ error: "Card minimum is $0.50." }, 409, cors);
       if (!s.buyer_contact_id) return json({ error: "A walk-in sale has nobody to charge. Use the card field." }, 409, cors);
 
-      const buyer = await admin.from("contacts")
-        .select("stripe_customer_id").eq("id", s.buyer_contact_id).maybeSingle();
-      const customerId = str(buyer.data?.stripe_customer_id);
-      if (!customerId) return json({ error: "No card on file for the buyer." }, 409, cors);
-
-      // The card must belong to the buyer. Without this, a caller could name
-      // any pm_ id and charge somebody else's card.
+      // A card belongs to the FAMILY. Carlton's sits on Emerson's contact,
+      // because that is who his email resolved to when he paid, and it is the
+      // card that pays for Luther. So the customer charged is the card's own
+      // owner, and what is verified is that the owner is in the buyer's
+      // household - not that the buyer happens to hold the card.
       const owned = await stripe("payment_methods/" + encodeURIComponent(pm), secretKey, undefined, "GET");
-      if (str(owned.customer) !== customerId) {
-        return json({ error: "That card is not on this account." }, 409, cors);
+      const cardCustomer = str(owned.customer);
+      if (!cardCustomer) return json({ error: "That card is not on file with anybody." }, 409, cors);
+
+      // Everyone the buyer shares a household with, plus the buyer.
+      const kin = await admin.rpc("household_contact_ids", { p_contact: s.buyer_contact_id });
+      if (kin.error) console.error("household ids", kin.error);
+      const allowed = new Set<string>([String(s.buyer_contact_id)]);
+      for (const row of (kin.data ?? []) as { contact_id: string }[]) allowed.add(String(row.contact_id));
+
+      const holders = await admin.from("contacts")
+        .select("id,stripe_customer_id").in("id", [...allowed]).eq("stripe_customer_id", cardCustomer);
+      if (!holders.data || !holders.data.length) {
+        // Not a refusal about the card being bad - a refusal about it being
+        // somebody else's. Naming any pm_ id must never charge a stranger.
+        return json({ error: "That card belongs to somebody outside this household." }, 409, cors);
       }
+      const customerId = cardCustomer;
 
       // Same double-charge guard as intent: an invoice that already has a
       // live or recorded payment intent does not get a second one.

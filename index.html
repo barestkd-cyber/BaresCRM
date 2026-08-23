@@ -3944,7 +3944,9 @@ async function pmLoadSaved(){
   if(!who){ PM_SAVED = { forWho:null, cards:[] }; return; }
   if(PM_SAVED.forWho !== who){
     PM_SAVED = { forWho:who, cards:[] };
-    const r = await sb.functions.invoke('payment-methods', { body:{ action:'list', contact_id:who } });
+    await loadHouseholds();
+    const r = await sb.functions.invoke('payment-methods', {
+      body:{ action:'list', contact_id:who, contact_ids: householdSiblings(who) } });
     // Still the same invoice, same buyer, same tab? Otherwise this answer is
     // about a payment nobody is looking at any more.
     if(!PAY || PAY.method!=='Card' || pmBuyerId()!==who) return;
@@ -6174,12 +6176,25 @@ async function loadProfileStats(contactId){
  * so the warning is about the real state of the schedule. */
 let PROF_CARDS = { contact:null, cards:[], usage:{}, email:'' };
 
+/* The rest of a contact's household, for any card list. A card belongs to
+ * the family: Carlton's sits on Emerson's contact and pays for Luther. */
+function householdSiblings(contactId){
+  const hh = (typeof householdOf==='function') ? householdOf(contactId) : null;
+  return hh ? hh.contactIds.filter(id=>id!==contactId) : [];
+}
+
 async function loadProfileCards(contactId){
   const box = document.getElementById('prof-cards');
   if(!box) return;
   PROF_CARDS = { contact:contactId, cards:[], usage:{}, email:'' };
+  // The household's cards, not just this child's. Carlton's card is on
+  // Emerson's contact because that is who his email resolved to when he paid,
+  // and Luther is the one it pays for.
+  await loadHouseholds();
+  const hh = (typeof householdOf==='function') ? householdOf(contactId) : null;
   const { data, error } = await sb.functions.invoke('payment-methods', {
-    body:{ action:'list', contact_id:contactId }
+    body:{ action:'list', contact_id:contactId,
+           contact_ids: hh ? hh.contactIds.filter(id=>id!==contactId) : [] }
   });
   if(profStale(contactId)) return;   // they opened somebody else
   if(error || !data || data.error){
@@ -6206,6 +6221,9 @@ function profCardsDraw(){
       + '<span class="pm-dots">•••• '+escHtml(c.last4)+'</span>'
       + '<span class="pm-exp">exp '+escHtml(c.exp)+'</span>'
       + (c.def?'<span class="pm-def">DEFAULT</span>':'')
+      // Whose card this is, when it is not this profile's own. Without it a
+      // card appears on a child's page with no account behind it.
+      + (c.borrowed?'<span class="ccg-chip borrowed">'+escHtml(c.owner_name||'household')+'</span>':'')
       + '<span class="pm-acts">'
       + (c.def?'':'<button onclick="profCardDefault(\''+escJs(c.id)+'\')">Make default</button>')
       + '<button class="danger" onclick="profCardRemove(\''+escJs(c.id)+'\')">Remove</button>'
@@ -6220,8 +6238,16 @@ function profCardName(id){
   return c ? (c.brand+' ••••'+c.last4) : 'that card';
 }
 
+/* A borrowed card belongs to somebody else's Stripe account, so anything
+ * done to it must be done against THEM, not against the profile it is being
+ * viewed from. */
+function profCardOwner(id){
+  const c = PROF_CARDS.cards.filter(x=>x.id===id)[0];
+  return (c && c.owner_contact_id) || PROF_CARDS.contact;
+}
+
 async function profCardDefault(id){
-  const who = PROF_CARDS.contact;
+  const who = profCardOwner(id);
   const { data, error } = await sb.functions.invoke('payment-methods', {
     body:{ action:'default', contact_id:who, payment_method_id:id }
   });
@@ -6231,7 +6257,7 @@ async function profCardDefault(id){
 }
 
 async function profCardRemove(id){
-  const who = PROF_CARDS.contact;
+  const who = profCardOwner(id);
   const label = profCardName(id);
   if(!confirm('Remove '+label+' from Stripe? This cannot be undone.')) return;
   let res = await sb.functions.invoke('payment-methods', {
@@ -6556,8 +6582,9 @@ async function memEditOpen(id){
   // The payer's cards, from Stripe. Whoever pays is who the card belongs to,
   // which for a child is the parent and not the student.
   const cardOwner = data.payer_contact_id || data.contact_id;
+  await loadHouseholds();
   const cardRes = await sb.functions.invoke('payment-methods', {
-    body:{ action:'list', contact_id:cardOwner }
+    body:{ action:'list', contact_id:cardOwner, contact_ids: householdSiblings(cardOwner) }
   });
   const meCards = (cardRes.data && cardRes.data.cards) || [];
   meCardsAtOpen = meCards;   // the save names these long after the sheet is gone
@@ -6970,8 +6997,9 @@ function memAddPay(v){ MADD.pay = v; memAddRender(); }
 /* Cards for whoever pays. Asked once, when step 2 is reached, so step 1 is
  * not held up by a network call it does not need. */
 async function memAddLoadCards(){
+  await loadHouseholds();
   const r = await sb.functions.invoke('payment-methods', {
-    body:{ action:'list', contact_id: MADD.contactId }
+    body:{ action:'list', contact_id: MADD.contactId, contact_ids: householdSiblings(MADD.contactId) }
   });
   if(!MADD || MADD.step!==2) return;   // he moved on
   if(r.error || !r.data || r.data.error){ console.error('add cards', r.error||r.data); }
@@ -7166,7 +7194,9 @@ async function memSchedOpen(id){
   // Cards come from Stripe, so they land after the schedule is already on
   // screen rather than holding it up. The rows redraw when they arrive.
   const payer = ms.payer_contact_id || ms.contact_id;
-  const cr = await sb.functions.invoke("payment-methods", { body:{ action:"list", contact_id:payer } });
+  await loadHouseholds();
+  const cr = await sb.functions.invoke("payment-methods", {
+    body:{ action:"list", contact_id:payer, contact_ids: householdSiblings(payer) } });
   if(!SCHED || SCHED.ms.id !== ms.id) return;   // he closed it, or opened another
   if(cr.error || !cr.data || cr.data.error){ console.error("sched cards", cr.error||cr.data); return; }
   SCHED.cards = cr.data.cards || [];
