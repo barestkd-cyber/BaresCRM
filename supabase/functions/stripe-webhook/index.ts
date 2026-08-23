@@ -317,6 +317,82 @@ Deno.serve(async (req) => {
           }
         }
       }
+    } else if (event.type === "payment_method.attached") {
+      // A card was saved, however it arrived: the public update-card page,
+      // the field at the desk, a checkout that kept the card, or somebody
+      // typing it into Stripe. The browser is what confirms a SetupIntent, so
+      // this is the only moment the SERVER can be sure it happened.
+      const cust = typeof obj.customer === "string" ? obj.customer : obj.customer?.id;
+      const brand = String(obj.card?.brand ?? "card");
+      const last4 = String(obj.card?.last4 ?? "????");
+      const exp = String(obj.card?.exp_month ?? "?").padStart(2, "0")
+        + "/" + String(obj.card?.exp_year ?? "????").slice(-2);
+
+      // Whose it is. A Stripe customer belongs to a guardian now, and only
+      // falls back to a contact for the older rows that were filed that way.
+      let whose = "somebody not on file";
+      let where = "";
+      let flagged = false;
+      if (cust) {
+        const g = await admin.from("guardians")
+          .select("id,name").eq("stripe_customer_id", cust).maybeSingle();
+        if (g.data) {
+          whose = String(g.data.name || "an unnamed guardian");
+          const kids = await admin.from("student_guardians")
+            .select("contacts:student_id(first_name,last_name)").eq("guardian_id", g.data.id);
+          const names = (kids.data ?? [])
+            .map((r: Record<string, any>) => r.contacts
+              ? [r.contacts.first_name, r.contacts.last_name].filter(Boolean).join(" ") : "")
+            .filter(Boolean);
+          if (names.length) where = "Guardian of " + names.join(", ");
+        } else {
+          const c = await admin.from("contacts")
+            .select("id,first_name,last_name").eq("stripe_customer_id", cust).maybeSingle();
+          if (c.data) {
+            whose = [c.data.first_name, c.data.last_name].filter(Boolean).join(" ");
+            // A card on a PARTICIPANT rather than a guardian is the fallback
+            // the update-card page uses when an address matches nobody. It
+            // wants moving, so say so rather than leaving it to be noticed.
+            where = "On the participant's own record - may need moving to a guardian";
+            flagged = true;
+          }
+        }
+      }
+
+      const resendKey = Deno.env.get("RESEND_API_KEY");
+      // The same address his paid-notifications already use, so card alerts
+      // and payment alerts land in one place rather than two.
+      const ownerAddr = (Deno.env.get("OWNER_NOTIFY_EMAIL") || "race@barestkd.fit").trim().toLowerCase();
+      if (resendKey) {
+        const esc = (x: string) => String(x ?? "")
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const html = '<div style="font-family:Arial,Helvetica,sans-serif;color:#111;max-width:460px;'
+          + 'margin:0 auto;padding:18px 14px">'
+          + '<p style="font-size:12px;letter-spacing:.08em;color:#777;margin:0 0 4px">CARD SAVED</p>'
+          + '<p style="font-size:22px;font-weight:bold;margin:0 0 14px;text-transform:capitalize">'
+          + esc(brand) + ' &bull;&bull;&bull;&bull; ' + esc(last4) + '</p>'
+          + '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="font-size:14px;line-height:1.6">'
+          + '<tr><td style="color:#777;padding-right:12px;vertical-align:top">Whose</td><td>' + esc(whose) + '</td></tr>'
+          + (where ? '<tr><td style="color:#777;padding-right:12px;vertical-align:top">Where</td><td'
+              + (flagged ? ' style="color:#c8102e;font-weight:bold"' : '') + '>' + esc(where) + '</td></tr>' : '')
+          + '<tr><td style="color:#777;padding-right:12px;vertical-align:top">Expires</td><td>' + esc(exp) + '</td></tr>'
+          + '</table>'
+          + '<p style="margin:16px 0 0;font-size:12.5px;color:#777">Nothing was charged. '
+          + 'This is a card being kept on file.</p></div>';
+        // Best effort: a notification that fails must never fail the webhook,
+        // or Stripe retries an event that was handled perfectly well.
+        fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + resendKey, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from: "Bares Taekwondo <receipts@barestkd.fit>",
+            to: [ownerAddr],
+            subject: "Card saved: " + brand + " ••••" + last4 + " · " + whose,
+            html,
+          }),
+        }).then((r) => { if (!r.ok) console.error("card notify failed", r.status); })
+          .catch((e) => console.error("card notify threw", e));
+      }
     } else if (event.type === "charge.refunded") {
       // Record refunds issued from the Stripe dashboard so the CRM ledger and
       // Stripe never disagree. Amount is the NEWLY refunded portion.
