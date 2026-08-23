@@ -8352,18 +8352,19 @@ function profDrawGuardians(contactId){
     return '<div class="grow'+(g.isPrimary?' pri':'')+'" onclick="gSheetOpen(\''+escJs(g.id)+'\',\''+escJs(contactId)+'\')">'
       + '<div class="gav">'+escHtml(gInitials(g.name))+'</div>'
       + '<div class="gmeta">'
-        // Chips above the name rather than after it. On a phone the row is
-        // narrow enough that a name plus two or three chips wraps, and what
-        // wrapped was the label - so PRIMARY ended up under the person it was
-        // meant to be labelling.
-        + ((g.relation || g.isPrimary || g.borrowed)
+        // PRIMARY sits above, where it labels the row rather than trailing
+        // off the end of a name and wrapping on a narrow screen. Mom or Dad
+        // belongs beside the name, because it is part of who they are rather
+        // than a note about how the studio treats them.
+        + ((g.isPrimary || g.borrowed)
             ? '<div class="gchips">'
-              + (g.relation ? '<span class="ccg-chip rel">'+escHtml(g.relation)+'</span>' : '')
               + (g.isPrimary ? '<span class="ccg-chip primary">PRIMARY</span>' : '')
               + (g.borrowed ? '<span class="ccg-chip borrowed">household</span>' : '')
               + '</div>'
             : '')
-        + '<div class="gtop">'+name+'</div>'
+        + '<div class="gtop">'+name
+        + (g.relation ? '<span class="ccg-chip rel">'+escHtml(g.relation)+'</span>' : '')
+        + '</div>'
         + (ways.length ? '<div class="gsub">'+escHtml(ways.join(' · '))+'</div>' : '')
       + '</div>'
       + '<span class="gchev">›</span>'
