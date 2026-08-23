@@ -1179,6 +1179,13 @@ body{margin:0;background:#fff}
   border-radius:11px;padding:12px 14px;font-size:13.5px;font-weight:800;margin-top:16px}
 
 /* ── guardians on the contact card ─────────────────────────────────────── */
+.mk-gmail{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.mk-gmail input{flex:1;min-width:0;font:inherit;font-size:14px;padding:10px 11px;
+  border:1.5px solid var(--line);border-radius:9px}
+.mk-gmail .cp{border:1.5px solid var(--line);background:#fff;border-radius:8px;padding:7px 9px;
+  font:800 11px/1 inherit;cursor:pointer;color:var(--muted);white-space:nowrap}
+.mk-gmail .cp.on{background:#E4F5EE;border-color:#BFE6D6;color:#0B6B4A}
+.mk-gmail .rm{border:none;background:none;color:var(--accent);font-size:19px;cursor:pointer;padding:0 4px}
 .mk-grow{border:1.5px solid var(--line);border-radius:12px;padding:11px 13px;margin-bottom:8px;cursor:pointer}
 .mk-grow:active{background:var(--surface)}
 .mk-gname{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
@@ -1734,6 +1741,24 @@ body{margin:0;background:#fff}
   </div>
 </div>
 
+<!-- ── a guardian ───────────────────────────────────────────────────────
+     One person, however many children. Editing here changes them on every
+     child at once, which is the whole point of the record and the reason the
+     sheet says so out loud. -->
+<div class="mk-sheet" id="mk-guardian" role="dialog" aria-modal="true" aria-label="Guardian">
+  <div class="mk-sheet-grab"></div>
+  <div class="mk-sheet-head">
+    <div><h3 id="mk-gtitle">Guardian</h3>
+      <div class="mk-sheet-sub" id="mk-gsub">One person, however many children</div></div>
+    <button class="mk-x" onclick="gClose()">&times;</button>
+  </div>
+  <div class="mk-sheet-body" id="mk-gbody"></div>
+  <div class="mk-sheet-foot">
+    <button class="mk-btn ghost" onclick="gClose()">Cancel</button>
+    <button class="mk-btn" onclick="gSave()">Save</button>
+  </div>
+</div>
+
 <div class="mk-toast" id="mk-toast"></div>
 
 <script>
@@ -2055,6 +2080,74 @@ body{margin:0;background:#fff}
     bar.style.display = n ? '' : 'none';
     bar.textContent = n === 1 ? '1 membership has no signed agreement'
       : n + ' memberships have no signed agreement';
+  }
+
+  /* ── a guardian ─────────────────────────────────────────────────────────
+     Everything here belongs to the PERSON, so a change lands on every child
+     they are attached to. The mock keeps that literal: edit Pat and both her
+     children show it. */
+  var GUARDIANS = [{"id":"g_pat","name":"Pat Lee","primary":true,"borrowed":false,"phones":["(903) 555-0100"],"emails":[{"addr":"pat.lee@example.com","copy":false},{"addr":"p.lee@work.example.com","copy":true}]},{"id":"g_sam","name":"Sam Lee","primary":false,"borrowed":true,"phones":["(903) 555-0177"],"emails":[{"addr":"sam.lee@example.com","copy":false}]}];
+  var GOPEN = null;
+
+  function gOpen(id) {
+    GOPEN = GUARDIANS.filter(function (g) { return g.id === id; })[0];
+    if (!GOPEN) return;
+    gDraw();
+    $('mk-scrim').classList.add('on');
+    $('mk-guardian').classList.add('on');
+  }
+  function gClose() {
+    $('mk-scrim').classList.remove('on');
+    $('mk-guardian').classList.remove('on');
+    GOPEN = null;
+  }
+  function gDraw() {
+    var g = GOPEN;
+    $('mk-gtitle').textContent = g.name || 'Name this guardian';
+    $('mk-gsub').textContent = g.primary
+      ? 'Primary contact for the Lee Family'
+      : 'One person, however many children';
+    $('mk-gbody').innerHTML =
+      '<div class="mk-f"><span class="mk-f-l">Guardian of</span>'
+      + '<div class="mk-f-h">Jamie Lee, Alex Lee</div></div>'
+      + '<label class="mk-f"><span class="mk-f-l">Name</span>'
+      + '<input id="mk-gname" value="' + (g.name || '') + '"></label>'
+      + '<div class="mk-f"><span class="mk-f-l">Email addresses</span></div>'
+      + g.emails.map(function (e, i) {
+          return '<div class="mk-gmail"><input value="' + e.addr + '">'
+            + '<button class="cp' + (e.copy ? ' on' : '') + '" onclick="gCopy(' + i + ')">'
+            + (e.copy ? 'always copy' : 'copy off') + '</button>'
+            + '<button class="rm" onclick="gDropMail(' + i + ')">&times;</button></div>';
+        }).join('')
+      + '<button class="mk-addrow" onclick="gAddMail()">+ Add another email</button>'
+      + '<div class="mk-f" style="margin-top:14px"><span class="mk-f-l">Phone numbers</span></div>'
+      + g.phones.map(function (p, i) {
+          return '<div class="mk-gmail"><input value="' + p + '">'
+            + '<button class="rm" onclick="gDropPhone(' + i + ')">&times;</button></div>';
+        }).join('')
+      + '<button class="mk-addrow" onclick="gAddPhone()">+ Add another phone</button>'
+      + (g.primary
+          ? '<div class="mk-f-h" style="margin-top:16px">This is who the Lee Family hears from first.</div>'
+          : '<button class="mk-addrow" style="margin-top:16px" onclick="gMakePrimary()">'
+            + 'Make primary contact for the Lee Family</button>')
+      + '<div class="mk-f-h" style="margin-top:10px">Editing here changes this person '
+      + 'everywhere. They are on 2 profiles.</div>';
+  }
+  function gCopy(i) { GOPEN.emails[i].copy = !GOPEN.emails[i].copy; gDraw(); }
+  function gDropMail(i) { GOPEN.emails.splice(i, 1); gDraw(); }
+  function gAddMail() { GOPEN.emails.push({ addr: '', copy: false }); gDraw(); }
+  function gDropPhone(i) { GOPEN.phones.splice(i, 1); gDraw(); }
+  function gAddPhone() { GOPEN.phones.push(''); gDraw(); }
+  function gMakePrimary() {
+    GUARDIANS.forEach(function (x) { x.primary = x.id === GOPEN.id; });
+    gDraw();
+    memToast((GOPEN.name || 'They') + ' now hear from us first');
+  }
+  function gSave() {
+    var n = $('mk-gname').value.trim();
+    GOPEN.name = n;
+    gClose();
+    memToast(n ? n + ' saved' : 'Guardian saved');
   }
 
   /* ── cards on file ──────────────────────────────────────────────────────
