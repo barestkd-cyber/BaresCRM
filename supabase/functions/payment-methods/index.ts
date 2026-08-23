@@ -415,16 +415,26 @@ Deno.serve(async (req) => {
         if (payer) await admin.from("guardians").update({ stripe_customer_id: cust }).eq("id", payer.id);
         else await admin.from("contacts").update({ stripe_customer_id: cust }).eq("id", contactId);
       }
-      const sf = new URLSearchParams();
-      sf.set("mode", "setup");
-      sf.set("customer", cust);
-      sf.set("payment_method_types[0]", "card");
-      sf.set("success_url", "https://www.barestkd.fit/card-saved/");
-      sf.set("cancel_url", "https://www.barestkd.fit/");
-      sf.set("metadata[contact_id]", contactId);
-      const sess = await stripe("checkout/sessions", secretKey, sf);
-      const link = str(sess.url);
-      if (!link) return json({ error: "Stripe did not return a link" }, 502, cors);
+      // Our own page rather than a Stripe-hosted one. Owner, 2026-08-17,
+      // when the checkout pages moved the same way: a Stripe URL in a text
+      // message does not look like the studio.
+      //
+      // The token carries WHERE THE LINK CAME FROM. If the address they type
+      // matches no guardian, the card lands on this participant rather than
+      // on a guardian invented for the occasion, and is flagged for staff to
+      // move. A card that arrives has to land somewhere real.
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      const token = Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+      const inv = await admin.from("card_invites").insert({
+        token, contact_id: contactId, guardian_id: payer ? payer.id : null,
+        sent_to: to, created_by: str(body.staff_email) || null,
+      }).select("id").single();
+      if (inv.error || !inv.data) {
+        console.error("card invite", inv.error);
+        return json({ error: "Could not create the link" }, 500, cors);
+      }
+      const link = "https://www.barestkd.fit/update-card/?t=" + token;
 
       if (body.send === false) return json({ ok: true, url: link, sent: false }, 200, cors);
 
