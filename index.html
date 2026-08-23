@@ -251,6 +251,12 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .pdf-hint{font-size:12.5px;color:var(--muted);max-width:280px;line-height:1.45}
 .prog-edit:active{transform:scale(.99)}
 .planrow{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px;margin-bottom:10px}
+/* pb-change had no styling at all, so everywhere it was used it rendered as
+   bare text. Owner: "easy to not know it's a button." */
+.pb-change{border:1.5px solid var(--line);background:#fff;color:var(--ink);border-radius:10px;
+  padding:9px 13px;font:700 13px/1 inherit;cursor:pointer}
+.pb-change:active{background:var(--surface)}
+.pb-change.warn{color:var(--accent);border-color:#EBC2C2}
 .addopt{width:100%;padding:12px;text-align:center;font-weight:700;color:var(--go);font-size:14px;background:#fff;border:1.5px dashed #BFE6D6;border-radius:var(--radius-sm);margin-bottom:14px}
 /* reuse builder list styles in this app */
 .bld{padding:18px}
@@ -421,6 +427,7 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .grow:active{background:var(--surface)}
 .gav{width:38px;height:38px;border-radius:50%;background:#C7CCD2;color:#fff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex:none}
 .gmeta{min-width:0;flex:1}
+.gchips{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:3px}
 .gtop{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .gtop b{font-size:14.5px}
 .gsub{font-size:12.5px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -6568,10 +6575,9 @@ function ecHouseholdBlock(m){
   return h + '<div class="ccg-sub" style="margin-bottom:8px">'+escHtml(hh.household.name)
     + (others ? ' · '+others+' other member'+(others===1?'':'s') : ' · nobody else yet')+'</div>'
     + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
-    + '<button class="pb-change" onclick="hhAddSheet(\''+escJs(hh.household.id)+'\',\''+escJs(m.id)+'\')">Add member</button>'
-    + '<button class="pb-change" onclick="hhAddPersonSheet(\''+escJs(hh.household.id)+'\',\''+escJs(m.id)+'\')">Add someone who does not train</button>'
-    + '<button class="pb-change" style="color:var(--accent);border-color:#EBC2C2" '
-    + 'onclick="ecLeaveHousehold(\''+escJs(m.id)+'\')">Leave household</button></div>';
+    + '<button class="pb-change" onclick="hhAddSheet(\''+escJs(hh.household.id)+'\',\''+escJs(m.id)+'\')">Add participant</button>'
+    + '<button class="pb-change" onclick="hhAddPersonSheet(\''+escJs(hh.household.id)+'\',\''+escJs(m.id)+'\')">Add family/guardian</button>'
+    + '<button class="pb-change warn" onclick="ecLeaveHousehold(\''+escJs(m.id)+'\')">Leave household</button></div>';
 }
 
 async function ecLeaveHousehold(contactId){
@@ -8334,11 +8340,18 @@ function profDrawGuardians(contactId){
     return '<div class="grow'+(g.isPrimary?' pri':'')+'" onclick="gSheetOpen(\''+escJs(g.id)+'\',\''+escJs(contactId)+'\')">'
       + '<div class="gav">'+escHtml(gInitials(g.name))+'</div>'
       + '<div class="gmeta">'
-        + '<div class="gtop">'+name
-        + (g.relation ? '<span class="ccg-chip rel">'+escHtml(g.relation)+'</span>' : '')
-        + (g.isPrimary ? '<span class="ccg-chip primary">PRIMARY</span>' : '')
-        + (g.borrowed ? '<span class="ccg-chip borrowed">household</span>' : '')
-        + '</div>'
+        // Chips above the name rather than after it. On a phone the row is
+        // narrow enough that a name plus two or three chips wraps, and what
+        // wrapped was the label - so PRIMARY ended up under the person it was
+        // meant to be labelling.
+        + ((g.relation || g.isPrimary || g.borrowed)
+            ? '<div class="gchips">'
+              + (g.relation ? '<span class="ccg-chip rel">'+escHtml(g.relation)+'</span>' : '')
+              + (g.isPrimary ? '<span class="ccg-chip primary">PRIMARY</span>' : '')
+              + (g.borrowed ? '<span class="ccg-chip borrowed">household</span>' : '')
+              + '</div>'
+            : '')
+        + '<div class="gtop">'+name+'</div>'
         + (ways.length ? '<div class="gsub">'+escHtml(ways.join(' · '))+'</div>' : '')
       + '</div>'
       + '<span class="gchev">›</span>'
@@ -8525,7 +8538,7 @@ function hhJoinSheet(contactId){
 }
 function hhAddSheet(householdId, backTo){
   $("#sheet").innerHTML = '<div class="grab"></div>'
-    + '<div class="sheet-head"><div><h3>Add member</h3><div class="sub">Search the roster, tap to add</div></div>'
+    + '<div class="sheet-head"><div><h3>Add participant</h3><div class="sub">Search the roster, tap to add</div></div>'
     + '<button class="close" onclick="closeSheet()">×</button></div>'
     + '<div class="sheet-body"><div class="search-wrap" style="padding:0 0 10px"><span class="search-ico" style="left:14px">⌕</span>'
     + '<input id="hh-search" class="search" oninput="hhSearch(\'add\',\''+householdId+'\',\''+backTo+'\')" placeholder="Search members"></div>'
@@ -8542,8 +8555,8 @@ function hhAddSheet(householdId, backTo){
 function hhAddPersonSheet(householdId, backTo){
   $("#sheet").classList.remove("sheet-lg");
   $("#sheet").innerHTML = '<div class="grab"></div>'
-    + '<div class="sheet-head spk-head"><div><h3>Add someone who does not train</h3>'
-    + '<div class="sub">A grandparent, an uncle, anyone under that roof</div></div>'
+    + '<div class="sheet-head spk-head"><div><h3>Add family/guardian</h3>'
+    + '<div class="sub">Somebody under that roof who does not train</div></div>'
     + '<button class="close" onclick="closeSheet()">&times;</button></div>'
     + '<div class="sheet-body spk-body"><div class="spk-form">'
     + '<label class="spk-label">Name</label>'
