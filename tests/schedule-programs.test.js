@@ -190,6 +190,36 @@ test('every roster the columns name is one you can actually tick', () => {
     'the columns resolve to rosters with no checkbox: ' + orphan.join(', '));
 });
 
+test('every belt value is from the closed list, and every rank range can filter', () => {
+  // The belt field used to be free text, and a typo like BRN-BLK silently
+  // no-opped the filter so the class listed the whole roster. The editor is a
+  // dropdown now (classplan BELT_OPTIONS); this holds the schedule to it, and
+  // holds attendance to knowing every hyphenated range on the list.
+  const optDecl = /\nconst BELT_OPTIONS = (\[[^\]]*\])/.exec(classplan);
+  assert.ok(optDecl, 'could not lift BELT_OPTIONS from class plan');
+  const OPTIONS = vm.runInNewContext('(' + optDecl[1] + ')');
+  const rangeDecl = /\nconst ATT_RANGE=(\{[^}]*\})/.exec(crm);
+  assert.ok(rangeDecl, 'could not lift ATT_RANGE from the CRM');
+  const RANGES = vm.runInNewContext('(' + rangeDecl[1] + ')');
+
+  const offList = ROWS.filter((r) => OPTIONS.indexOf(r.belt || '') === -1).map(where);
+  assert.strictEqual(offList.length, 0,
+    'belt values the dropdown does not offer:\n         ' + offList.join('\n         '));
+
+  // Anything shaped like a rank range must be one attendance can filter by;
+  // an unknown one silently shows everyone, which is the failure this pins.
+  const rankLooking = OPTIONS.filter((b) => /^[A-Z]{2,3}-[A-Z]{2,3}$/.test(b));
+  const blind = rankLooking.filter((b) => !RANGES[b]);
+  assert.strictEqual(blind.length, 0,
+    'rank ranges attendance cannot filter (they would list everyone): ' + blind.join(', '));
+
+  // The reason this test exists today: Leadership is Orange through Black.
+  assert.ok(RANGES['ORG-BLK'], 'ORG-BLK is not a range attendance knows');
+  const lead = ROWS.find((r) => r.label === 'Leadership');
+  assert.ok(lead, 'no Leadership class on the schedule');
+  assert.strictEqual(lead.belt, 'ORG-BLK', 'Leadership does not carry ORG-BLK');
+});
+
 test('every roster the CRM names is one you can actually tick', () => {
   // A gate that returns a program missing from the checkbox list is a roster
   // no one can ever be put on.
