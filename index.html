@@ -652,8 +652,19 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
   .phead{padding:24px 28px}
   .phead .pname{font-size:25px}
   .phead .pmeta{margin-top:4px}
-  .psections{column-count:2;column-gap:20px;padding:14px 28px 0}
-  .psections .sec{padding:0;margin-bottom:18px;break-inside:avoid}
+  /* Owner 2026-08-24: "center the text". The identity block centers as a
+     unit (avatar beside name), and the facts pull into two modest columns
+     centered under it instead of smearing across the whole card. */
+  .phead-top{justify-content:center}
+  .phead-body{flex:0 1 auto;text-align:center}
+  .phead .pname{justify-content:center}
+  .phead-facts{grid-template-columns:repeat(2,minmax(0,330px));justify-content:center}
+  /* After profBuildPanel, #psections holds only the overview (the Contact
+     card). column-count:2 stranded that one card in the LEFT column with an
+     empty right half - owner: "the contact column is still on left of page".
+     One centered column instead. */
+  .psections{max-width:680px;margin:0 auto;padding:14px 28px 0}
+  .psections .sec{padding:0;margin-bottom:18px}
   .spacer{height:30px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
