@@ -120,6 +120,9 @@ main{flex:1;overflow-y:auto}
 .appmark .dot{width:15px;height:15px;border-radius:50%;border:1.5px solid var(--line);
   display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff}
 .appmark.on .dot{background:var(--go);border-color:var(--go)}
+.gearmark{display:inline-flex;align-items:center;gap:4px;margin-left:10px;vertical-align:middle;
+  font-size:13px;font-weight:700;color:var(--muted)}
+.gearmark .ph{font-size:15px}
 @media (max-width:560px){
   .phead{padding:15px}
   .phead-top{gap:13px}
@@ -5994,7 +5997,13 @@ function renderProfile(){
   // checkbox on that circle."
   const appMark = '<span class="appmark'+(m.app?' on':'')+'" title="'
     + (m.app?'Using the student app':'Not on the student app')+'">'
-    + '<span class="ph">📱</span><span class="dot">'+(m.app?'✓':'')+'</span></span>';
+    + '<span class="ph">📱</span><span class="dot">'+(m.app?'✓':'')+'</span></span>'
+    // Gear beside it, and only when there is a size. A shoe with nothing next
+    // to it is a worse answer than no shoe.
+    + (m.beltSize ? '<span class="gearmark" title="Belt size"><span class="ph">🥋</span>'
+        + escHtml(m.beltSize)+'</span>' : '')
+    + (m.kickSize ? '<span class="gearmark" title="Kick size"><span class="ph">👟</span>'
+        + escHtml(m.kickSize)+'</span>' : '');
 
   html += '<div class="phead">'
     + '<div class="phead-top">'
@@ -6088,14 +6097,8 @@ function renderProfile(){
   // data rather than something anybody reads - it is still on the record and
   // still in Edit, just not taking up a card.
   //
-  // Sizes only appear when there are any, since an empty card is worse than no
-  // card at all.
-  if(m.beltSize || m.kickSize){
-    html += '<div class="sec" data-ptab="overview"><div class="sec-h">Gear</div><div class="card pad">';
-    if(m.beltSize) html += kv("Belt size", escHtml(m.beltSize));
-    if(m.kickSize) html += kv("Kick size", escHtml(m.kickSize));
-    html += '</div></div>';
-  }
+  // Sizes are marks on the top card now, beside the app, so there is no Gear
+  // card at all. They are two short facts and were costing a whole section.
 
   // attendance (real, from the attendance table)
   html += '<div class="sec" data-ptab="attendance"><div class="sec-h">Attendance'
