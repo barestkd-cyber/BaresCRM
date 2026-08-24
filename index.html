@@ -365,6 +365,17 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 /* .beltnow / .beltname / .beltsince deleted with the derived belt line. */
 .beltdot{width:14px;height:14px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.22)}
 .pf-datecell{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.rost{display:flex;align-items:center;gap:11px;width:100%;border:none;background:none;
+  padding:11px 2px;font:inherit;font-family:inherit;cursor:pointer;text-align:left;
+  border-bottom:1px solid var(--line);-webkit-tap-highlight-color:transparent}
+.rost:last-of-type{border-bottom:none}
+.rost:active{background:var(--surface)}
+.rostbox{width:21px;height:21px;flex:none;border-radius:6px;border:1.5px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff}
+.rost.on .rostbox{background:var(--go);border-color:var(--go)}
+.rostn{font-size:14px;font-weight:700;color:var(--ink)}
+.rost:not(.on) .rostn{font-weight:600;color:var(--muted)}
+.rostw{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap}
 /* An empty fact reads as the prompt it is: present, muted, and tappable. */
 .pf-empty{border:none;background:none;padding:0;font:inherit;font-size:14px;color:#C7CCD2;
   cursor:pointer;font-family:inherit;text-align:left}
@@ -6157,7 +6168,14 @@ function renderProfile(){
   // card the loudest thing on it.
 
   html += '<hr class="prof-rule">';
-  html += '<div class="ccg-sub" style="margin-bottom:2px">Guardians</div>';
+  // Minors are the bulk of the roll and "Guardians" is exactly right for them.
+  // For an adult it is not: it made Lee's wife his guardian. Same records, same
+  // tags, one word that follows who is being looked at. Unknown age reads as a
+  // minor, which is the safer guess on a martial arts roll and the wording the
+  // rest of the app already assumes.
+  const adult = m.age >= 18;
+  html += '<div class="ccg-sub" style="margin-bottom:2px">'
+    + (adult ? 'Family and contacts' : 'Guardians')+'</div>';
   html += '<div id="prof-guardians"></div>';
 
   html += '<hr class="prof-rule">';
@@ -6191,7 +6209,8 @@ function renderProfile(){
     + '</span></div><div class="card pad" id="prof-att">Loading…</div></div>';
 
   // class rosters - the enrollments truth, never shown on the profile before.
-  html += '<div class="sec" data-ptab="overview"><div class="sec-h">Class rosters</div><div class="card pad" id="prof-rosters" style="color:var(--muted);font-size:13.5px">Loading…</div></div>';
+  // Class rosters moved to the Memberships tab, where the thing that creates
+  // them lives. On the overview it was a row of chips nobody could act on.
 
   // notes - real rows from contact_notes, newest first
   html += '<div class="sec" data-ptab="notes"><div class="sec-h">Notes <span style="float:right;color:var(--accent);cursor:pointer;font-size:12px" onclick="openAddNote()">＋ Add</span></div><div class="card" id="prof-notes"><div class="note-empty">Loading…</div></div></div>';
@@ -6232,7 +6251,11 @@ function renderProfile(){
     + '<div id="prof-mems"><div class="card pad" style="color:var(--muted);font-size:14px">Loading…</div></div>'
     + '<button class="add-mem" onclick="memAddOpen(\''+m.id+'\')">＋ Add a membership</button>'
     + '<div class="ccg-sub" style="margin-top:6px;text-align:center">Selling more than one thing at once? '
-    + '<a href="javascript:void(0)" style="color:var(--accent);font-weight:700" onclick="posOpenMembershipFor(\''+m.id+'\')">Use the till</a>.</div></div>';
+    + '<a href="javascript:void(0)" style="color:var(--accent);font-weight:700" onclick="posOpenMembershipFor(\''+m.id+'\')">Use the till</a>.</div>'
+    // Rosters sit under the memberships that create them.
+    + '<div class="sec-h" style="margin-top:22px">Class rosters</div>'
+    + '<div id="prof-rosters"><div class="card pad" style="color:var(--muted);font-size:14px">Loading…</div></div>'
+    + '</div>';
 
   // stub accordions (fed by other apps)
   // More is gone. Every accordion in it repeated a tab that already exists:
@@ -6767,22 +6790,100 @@ async function saveEditContact(){
   closeSheet(); renderProfile(); toast('Saved');
 }
 
-/* ── class rosters: where this student actually stands in class ───────────*/
+/* ── class rosters ────────────────────────────────────────────────────────
+ * A roster is not a table. It is an ACTIVE enrollments row: the check-in
+ * screen reads enrollments where status=active, matches program against the
+ * class's gate in schedule_template, then filters on belt range. So being on
+ * a roster means your name comes up by itself on that class's list.
+ *
+ * It is not permission to attend. He can add anyone to any class at check-in
+ * whether they are enrolled or not, which is how trials and drop-ins work,
+ * and nothing here narrows that. */
+const ROSTER_PROGRAMS = ['Cubs','Little Kickers','Juniors','Teens/Adults','Kickboxing',"AMP'D",'Leadership'];
+let ROSTERS = null;
+
 async function loadProfileRosters(contactId){
   const box = document.getElementById('prof-rosters'); if(!box) return;
   const { data, error } = await sb.from('enrollments')
-    .select('program,status').eq('student_id', contactId);
+    .select('id,program,status,started_on,ended_on,sale_id').eq('student_id', contactId);
   if(profStale(contactId)) return;   // they opened somebody else
-  if(error){ box.textContent = 'Could not load rosters.'; return; }
-  const rows = data||[];
-  if(!rows.length){ box.textContent = 'Not on any class roster yet. A membership adds them automatically.'; return; }
-  box.innerHTML = rows.map(r=>{
-    const on = (r.status||'active')==='active';
-    return '<span class="pseg" style="margin:0 6px 6px 0;background:'+(on?'#E4F5EE':'#EDEFF2')+';color:'+(on?'#18A974':'#9AA1AC')+'">'
-      + escHtml(r.program||'?')+(on?'':' · '+escHtml(r.status))+'</span>';
-  }).join('');
+  if(error){
+    console.error('rosters', error);
+    // Not "on no rosters". That is a claim about the student rather than
+    // about the read that failed.
+    box.innerHTML = '<div class="card pad" style="color:var(--muted);font-size:14px">Could not read their rosters.</div>';
+    return;
+  }
+  ROSTERS = { contactId: contactId, rows: data||[] };
+  box.innerHTML = rostersHtml();
 }
 
+/* The live row for a program, if there is one. Only an active row counts as
+ * being ON the roster; an ended one is history and is kept for the sale it
+ * came from. */
+function rosterRow(program){
+  const rows = (ROSTERS && ROSTERS.rows) || [];
+  return rows.filter(r=>r.program === program && (r.status||'') === 'active')[0]
+      || rows.filter(r=>r.program === program)[0] || null;
+}
+
+function rostersHtml(){
+  if(!ROSTERS) return '';
+  // A program nobody standardised on still shows, or unchecking it would be
+  // the only way to ever see it and it would look like it was never there.
+  const extra = (ROSTERS.rows||[]).map(r=>r.program)
+    .filter(p=>p && ROSTER_PROGRAMS.indexOf(p) === -1);
+  const progs = ROSTER_PROGRAMS.concat(extra.filter((p,i)=>extra.indexOf(p)===i));
+  const rowHtml = p => {
+    const r = rosterRow(p);
+    const on = !!(r && (r.status||'') === 'active');
+    const note = on
+      ? (r.sale_id ? 'from a membership' : (r.started_on ? 'since '+escHtml(prettyDate(r.started_on)) : 'added here'))
+      : (r && r.ended_on ? 'ended '+escHtml(prettyDate(r.ended_on)) : '');
+    return '<button class="rost'+(on?' on':'')+'" onclick="rosterToggle(\''+escJs(p)+'\')">'
+      + '<span class="rostbox">'+(on?'✓':'')+'</span>'
+      + '<span class="rostn">'+escHtml(p)+'</span>'
+      + (note?'<span class="rostw">'+note+'</span>':'')
+      + '</button>';
+  };
+  return '<div class="card pad">'+progs.map(rowHtml).join('')
+    + '<div class="ccg-sub" style="margin-top:12px;line-height:1.5">Being on a roster puts their name on that program\'s class lists by itself. '
+    + 'It is not permission to attend: anyone can be added to any class at check-in, on a roster or not.</div>'
+    + '</div>';
+}
+
+async function rosterToggle(program){
+  const c = ROSTERS; if(!c) return;
+  const r = rosterRow(program);
+  const on = !!(r && (r.status||'') === 'active');
+  const today = studioYmd(new Date().toISOString());
+  if(on){
+    // Ended, never deleted. The row carries sale_id, so it is part of the
+    // membership sale that created it, and attendance already filters on
+    // active - so ending it drops them off class lists straight away while
+    // the sale keeps its record.
+    const { error } = await sb.from('enrollments')
+      .update({ status:'ended', ended_on: today }).eq('id', r.id);
+    if(error){ console.error('roster off', error); toast('Could not take them off that roster'); return; }
+    r.status = 'ended'; r.ended_on = today;
+  } else if(r){
+    const { error } = await sb.from('enrollments')
+      .update({ status:'active', ended_on: null, started_on: r.started_on || today }).eq('id', r.id);
+    if(error){ console.error('roster on', error); toast('Could not add them to that roster'); return; }
+    r.status = 'active'; r.ended_on = null; r.started_on = r.started_on || today;
+  } else {
+    const row = { id: crypto.randomUUID(), student_id: c.contactId, program: program,
+      status:'active', started_on: today };
+    const { error } = await sb.from('enrollments').insert(row);
+    if(error){ console.error('roster add', error); toast('Could not add them to that roster'); return; }
+    c.rows.push(row);
+  }
+  // The check-in screen caches enrollments on first load, so a roster changed
+  // here would not show up at class until a reload without this.
+  ATT_LOADED = false;
+  const box = document.getElementById('prof-rosters');
+  if(box) box.innerHTML = rostersHtml();
+}
 /* ── notes: real rows, author and date on every one ───────────────────────*/
 async function loadProfileNotes(contactId){
   const box = document.getElementById('prof-notes'); if(!box) return;
@@ -8384,7 +8485,9 @@ async function gEditSave(){
  * field people type into ends up holding "mom", "Mother", "MOM" and "mum",
  * and then nothing can count them. Tapping the chosen one again clears it,
  * since not every adult is one of the three. */
-const REL_OPTIONS = ['Mom', 'Dad', 'Household'];
+// Spouse earns its place because Lee's wife was being listed as his guardian.
+// Household stays the catch-all for anyone who is none of these.
+const REL_OPTIONS = ['Mom', 'Dad', 'Spouse', 'Household'];
 let REL_PICK = {};
 function relPicker(key, current){
   REL_PICK[key] = current || '';

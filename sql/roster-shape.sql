@@ -1,7 +1,13 @@
--- The enrollment vocabulary actually in use, and the programs classes gate on.
-select 'program' as kind, program as value, status, count(*) as rows
-  from enrollments group by 1,2,3
+-- Will the database accept what the roster checkbox writes?
+-- 1) any check constraint on enrollments.status
+select 'constraint' as kind, conname as name, pg_get_constraintdef(oid) as detail
+  from pg_constraint
+ where conrelid = 'public.enrollments'::regclass
 union all
-select 'schedule prog_css', prog_css, null, count(*)
-  from schedule_template group by 1,2,3
- order by 1, 4 desc, 2;
+-- 2) can staff insert/update at all
+select 'policy', policyname || ' [' || cmd || ']', coalesce(qual, with_check)
+  from pg_policies
+ where schemaname = 'public' and tablename = 'enrollments'
+union all
+select 'rls enabled', relname, relrowsecurity::text
+  from pg_class where oid = 'public.enrollments'::regclass;
