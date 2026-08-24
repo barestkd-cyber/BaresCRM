@@ -1341,10 +1341,11 @@ function attProgramFor(row){
 }
 const ATT_BELT_ORDER=['white','yellow','orange','green','purple','blue','brown','red','black'];
 // Rank ranges attendance can filter a class list by, as [lo,hi] tiers into
-// ATT_BELT_ORDER. ORG-BLK exists for Leadership (owner, 2026-08-24). WHI-BLK
-// is everyone, listed anyway so a rank-looking value is never silently
-// unknown - the schedule test fails on any hyphenated range missing here.
-const ATT_RANGE={'WHI-ORG':[0,2],'WHI-BLU':[0,5],'ORG-BLK':[2,8],'GR-BLK':[3,8],'BR-BLK':[6,8],'WHI-BLK':[0,8]};
+// ATT_BELT_ORDER. ORG-BLK exists for Leadership (owner, 2026-08-24). There is
+// deliberately no WHI-BLK: white through black is everyone, and everyone is
+// spelled 'All' (owner: "whi-blk is same as all"). The schedule test fails on
+// any hyphenated range that is offered but missing here.
+const ATT_RANGE={'WHI-ORG':[0,2],'WHI-BLU':[0,5],'ORG-BLK':[2,8],'GR-BLK':[3,8],'BR-BLK':[6,8]};
 async function attLoadData(){
   const [enr,sched]=await Promise.all([
     sb.from('enrollments').select('student_id,program').eq('status','active'),
