@@ -529,7 +529,8 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
      width (owner 2026-08-24: "contents of the card up top need to be centered
      on pc"). Contents inside the cards stay left-aligned. */
   #view-profile{max-width:1050px;margin:0 auto}
-  .pstats{grid-template-columns:repeat(2,minmax(0,240px));padding:18px 26px 0}
+  /* The two stat cards center over the header card (owner 2026-08-24). */
+  .pstats{grid-template-columns:repeat(2,minmax(0,240px));justify-content:center;padding:18px 26px 0}
   .pstat .n{font-size:24px}
   .pstat .l{font-size:12px}
   /* The header is a card with TWO stacked children now (.phead-top and
@@ -664,10 +665,10 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
      rides along. Phones keep the stacked column. */
   .pavcol{flex-direction:row-reverse;align-items:center;gap:14px}
   /* The facts row leans back left (owner 2026-08-24: "dob gender and size of
-     belt foot and app, you can go back to the left some") - columns stay
-     modest so nothing smears, but they anchor to the card's left edge while
-     the identity block above stays centered. */
-  .phead-facts{grid-template-columns:repeat(2,minmax(0,330px));justify-content:start}
+     belt foot and app, you can go back to the left some") - and each column
+     is sized to what it holds. Fixed 330px columns left the credits cell
+     stretched long around three short lines. */
+  .phead-facts{grid-template-columns:auto auto;justify-content:start}
   /* After profBuildPanel, #psections holds only the overview (the Contact
      card). column-count:2 stranded that one card in the LEFT column with an
      empty right half - owner: "the contact column is still on left of page".
