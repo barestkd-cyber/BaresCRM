@@ -121,7 +121,11 @@ main{flex:1;overflow-y:auto}
   display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff}
 .appmark.on .dot{background:var(--go);border-color:var(--go)}
 .gearmark{display:inline-flex;align-items:center;gap:4px;margin-left:10px;vertical-align:middle;
-  font-size:13px;font-weight:700;color:var(--muted)}
+  font-size:13px;font-weight:700;color:var(--muted);background:none;border:none;padding:2px 3px;
+  cursor:pointer;font-family:inherit;border-radius:7px}
+.gearmark:active{background:var(--surface)}
+.gearmark.empty{color:#C7CCD2}
+.gearmark.empty .ph{filter:grayscale(1);opacity:.45}
 .gearmark .ph{font-size:15px}
 @media (max-width:560px){
   .phead{padding:15px}
@@ -5998,12 +6002,15 @@ function renderProfile(){
   const appMark = '<span class="appmark'+(m.app?' on':'')+'" title="'
     + (m.app?'Using the student app':'Not on the student app')+'">'
     + '<span class="ph">📱</span><span class="dot">'+(m.app?'✓':'')+'</span></span>'
-    // Gear beside it, and only when there is a size. A shoe with nothing next
-    // to it is a worse answer than no shoe.
-    + (m.beltSize ? '<span class="gearmark" title="Belt size"><span class="ph">🥋</span>'
-        + escHtml(m.beltSize)+'</span>' : '')
-    + (m.kickSize ? '<span class="gearmark" title="Kick size"><span class="ph">👟</span>'
-        + escHtml(m.kickSize)+'</span>' : '');
+    // Always shown, empty or not. An empty one is the prompt: he reads the
+    // profile with the student in front of him, sees a blank, and measures
+    // them on the spot. Tapping edits it without leaving the page.
+    + '<button class="gearmark'+(m.beltSize?'':' empty')+'" title="Belt size" '
+      + 'onclick="gearEdit(\'belt\')"><span class="ph">🥋</span>'
+      + (m.beltSize?escHtml(m.beltSize):':')+'</button>'
+    + '<button class="gearmark'+(m.kickSize?'':' empty')+'" title="Kick size" '
+      + 'onclick="gearEdit(\'kick\')"><span class="ph">👟</span>'
+      + (m.kickSize?escHtml(m.kickSize):':')+'</button>';
 
   html += '<div class="phead">'
     + '<div class="phead-top">'
@@ -6138,6 +6145,12 @@ function renderProfile(){
   // Contact, so the page carried two #prof-hh and the loader only ever filled
   // the first. One card, one id.
 
+  // Rank and testing history. Read-only here: the testing app owns rank and
+  // the CRM has never written it. Editing deep-links there rather than
+  // duplicating a workflow that already exists.
+  html += '<div class="sec" data-ptab="rank"><div class="sec-h">Rank and testing</div>'
+    + '<div id="prof-rank"><div class="card pad" style="color:var(--muted);font-size:14px">Loading…</div></div></div>';
+
   // memberships - live from the memberships table (frozen snapshots), async
   html += '<div class="sec" data-ptab="memberships"><div class="sec-h">Memberships and agreements</div>'
     + '<div id="prof-mems"><div class="card pad" style="color:var(--muted);font-size:14px">Loading…</div></div>'
@@ -6157,6 +6170,7 @@ function renderProfile(){
   html += '<div class="ptabs">'
     + tab('notes','Notes') + tab('memberships','Membership')
     + tab('invoices','Invoices and Payments') + tab('attendance','Attendance')
+    + tab('rank','Rank &amp; testing')
     + tab('docs','Documents',true) + tab('email','History',true)
     + '</div>';
   html += '<div id="ptabpanel"></div>';
@@ -6165,6 +6179,7 @@ function renderProfile(){
   $("#view-profile").innerHTML = html;
   profBuildPanel();
   profDrawGuardians(m.id);
+  loadProfileRank(m.id);
   loadProfileCredits(m.id);
   loadProfileAttendance(m.id);
   loadProfileHousehold(m.id);
@@ -8299,6 +8314,42 @@ function relSet(key, val){
   [...box.children].forEach(b=>b.classList.toggle('on', b.textContent === REL_PICK[key]));
 }
 
+/* Measure them and type it in, without leaving the profile. Two fields
+ * rather than one, because he will usually be measuring both at once and a
+ * second sheet for the second number is a second interruption. */
+function gearEdit(which){
+  const m = currentMember; if(!m) return;
+  $("#sheet").classList.remove("sheet-lg");
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head spk-head"><div><h3>Gear sizes</h3>'
+    + '<div class="sub">'+escHtml(m.first+' '+m.last)+'</div></div>'
+    + '<button class="close" onclick="closeSheet()">&times;</button></div>'
+    + '<div class="sheet-body spk-body"><div class="spk-form">'
+    + '<label class="spk-label">🥋 Belt size</label>'
+    + '<input id="gs-belt" class="ed-in" value="'+escAttr(m.beltSize||'')+'" placeholder="e.g. 2" autocomplete="off">'
+    + '<label class="spk-label">👟 Kick size</label>'
+    + '<input id="gs-kick" class="ed-in" value="'+escAttr(m.kickSize||'')+'" placeholder="e.g. child S" autocomplete="off">'
+    + '</div></div>'
+    + '<div class="spk-foot"><button class="spk-cancel" onclick="closeSheet()">Cancel</button>'
+    + '<button class="spk-add" onclick="gearSave()">Save</button></div>';
+  openSheet();
+  const f = document.getElementById(which==='kick'?'gs-kick':'gs-belt');
+  if(f) f.focus();
+}
+
+async function gearSave(){
+  const m = currentMember; if(!m) return;
+  const belt = ($("#gs-belt").value||'').trim();
+  const kick = ($("#gs-kick").value||'').trim();
+  const r = await sb.from('contacts')
+    .update({ belt_size: belt || null, kick_size: kick || null }).eq('id', m.id);
+  if(r.error){ console.error('gear save', r.error); toast('Could not save that'); return; }
+  m.beltSize = belt; m.kickSize = kick;
+  closeSheet();
+  toast('Sizes saved');
+  renderProfile();
+}
+
 /* Initials for a guardian, or a person icon when they have no name yet. */
 function gInitials(name){
   const parts = String(name||'').trim().split(/\s+/).filter(Boolean);
@@ -8482,6 +8533,50 @@ async function gSheetMakePrimary(guardianId, contactId){
   closeSheet();
   if(selectedId === contactId) profDrawGuardians(contactId);
   toast('Primary contact set');
+}
+
+/* Their testing history. Matched on NAME, because testing_history carries a
+ * student_name and no contact id - the testing app writes what was typed at
+ * the desk on the day. Said out loud on the card rather than hidden, since a
+ * name match is a guess and this roster has four Race Bares in it. */
+async function loadProfileRank(contactId){
+  const box = document.getElementById('prof-rank'); if(!box) return;
+  const m = MEMBERS.find(x=>x.id===contactId);
+  if(!m){ box.innerHTML=''; return; }
+  const full = (m.first+' '+m.last).trim();
+  const { data, error } = await sb.from('testing_history')
+    .select('tested_date,session_name,rank_from,rank_to,result,group_name')
+    .ilike('student_name', full)
+    .order('tested_date', { ascending:false });
+  if(profStale(contactId)) return;   // they opened somebody else
+  if(error){
+    console.error('testing history', error);
+    box.innerHTML = '<div class="card pad" style="color:var(--muted);font-size:14px">Could not load their testing history.</div>';
+    return;
+  }
+  const rows = data||[];
+  let h = '<div class="card pad">'
+    + '<div class="kv"><span class="k">Belt now</span><span class="v">'+escHtml(m.rank||'-')+'</span></div>'
+    + (m.rankDate ? '<div class="kv"><span class="k">Earned</span><span class="v">'+escHtml(m.rankDate)+'</span></div>' : '')
+    + '<button class="addopt" style="margin:10px 0 0" onclick="launchApp(\'testing\')">Edit rank in the testing app</button>'
+    + '<div class="ccg-sub" style="margin-top:6px">The testing app owns rank. The CRM shows it and never writes it.</div>'
+    + '</div>';
+  if(rows.length){
+    h += '<div class="card pad" style="margin-top:12px">'
+      + '<div class="ccg-sub" style="margin-bottom:8px">'+rows.length+' test'+(rows.length===1?'':'s')+' on record</div>'
+      + rows.map(r=>'<div class="ccg-row">'
+          + '<b>'+escHtml(r.rank_from||'?')+' → '+escHtml(r.rank_to||'?')+'</b>'
+          + (r.result && String(r.result).toLowerCase()!=='pass'
+              ? '<span class="ccg-chip" style="background:#FBE9E9;color:var(--accent)">'+escHtml(r.result)+'</span>' : '')
+          + '<span class="ccg-sub">'+escHtml(r.tested_date?prettyDate(r.tested_date):(r.session_name||''))+'</span>'
+          + '</div>').join('')
+      + '</div>';
+  } else {
+    h += '<div class="card pad" style="margin-top:12px;color:var(--muted);font-size:14px">'
+      + 'No testing history under that name.</div>';
+  }
+  h += '<div class="ccg-sub" style="margin-top:8px">Matched on name, since testing records carry the name typed on the day rather than a link to this profile.</div>';
+  box.innerHTML = h;
 }
 
 /* Draw the guardian block. Called once on paint and again once households
