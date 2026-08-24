@@ -1303,6 +1303,35 @@ const ATT_PROG_GATE={'prog-cubs':'Cubs','prog-juniors':'Juniors','prog-teen':'Te
  * exactly, and tests/rosters.test.js compares the two so they cannot drift.
  *
  * Without it, taking attendance for Jiu Jitsu listed the Kickboxing roster. */
+/* Which roster(s) a scheduled class pulls, from what the schedule SAYS.
+ *
+ * The schedule describes the class (program + who attends); this function
+ * owns how that maps onto enrollment records. Taekwondo splits by division,
+ * because Juniors and Teens/Adults are sold and rostered separately; every
+ * other program keys on the program alone. When Kickboxing splits into Kids
+ * and Teens/Adults later, only this map changes - the schedule already says
+ * who attends.
+ *
+ * Rows the new columns have not reached fall back to the old colour-plus-
+ * label inference below, so nothing breaks mid-migration. The drift test
+ * (tests/schedule-programs.test.js) asserts both paths agree on every row. */
+function attProgramsFor(row){
+  if(row && row.program){
+    if(row.program === 'Taekwondo'){
+      const d = (row.divisions||[]).filter(x => x === 'Juniors' || x === 'Teens/Adults');
+      if(d.length) return d;
+      // A Taekwondo class with no divisions is a half-authored row. The
+      // inference still knows these labels, so fall through rather than
+      // return a roster of nobody.
+    } else {
+      // Enrollment keys are the program names, on purpose.
+      return [row.program];
+    }
+  }
+  const legacy = attProgramFor(row);
+  return Array.isArray(legacy) ? legacy : [legacy];
+}
+
 function attProgramFor(row){
   const label = String((row && row.label) || '');
   if(row && row.prog_css === 'prog-kick'){
@@ -1315,13 +1344,13 @@ const ATT_RANGE={'WHI-ORG':[0,2],'WHI-BLU':[0,5],'GR-BLK':[3,8],'BR-BLK':[6,8]};
 async function attLoadData(){
   const [enr,sched]=await Promise.all([
     sb.from('enrollments').select('student_id,program').eq('status','active'),
-    sb.from('schedule_template').select('day,time,label,belt,prog_css')
+    sb.from('schedule_template').select('day,time,label,belt,prog_css,program,divisions')
   ]);
   ENROLLMENTS=enr.data||[];
   const order=['MON','TUE','WED','THU','FRI','SAT'];
   let rows=(sched.data||[]).slice().sort((a,b)=>(a.day-b.day)||((a.time||'').localeCompare(b.time||'')));
   if(rows.length){
-    ATT_CLASSES=rows.map(r=>({label:(r.label||'Class')+(r.belt?(' · '+r.belt):'')+(r.time?('  '+order[r.day]+' '+r.time):''),program:attProgramFor(r),belt:r.belt||'',day:r.day}));
+    ATT_CLASSES=rows.map(r=>({label:(r.label||'Class')+(r.belt?(' · '+r.belt):'')+(r.time?('  '+order[r.day]+' '+r.time):''),program:attProgramsFor(r),belt:r.belt||'',day:r.day}));
   }else{
     const progs=[...new Set(ENROLLMENTS.map(e=>e.program))];
     ATT_CLASSES=progs.map(p=>({label:p+' (all enrolled)',program:p,belt:'',day:null}));

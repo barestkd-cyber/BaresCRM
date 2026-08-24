@@ -82,7 +82,7 @@ function liftFn(src, name) {
 /* ── the corpus: class plan's shipped schedule ───────────────────────── */
 const SCHEDULE = vm.runInNewContext('(' + block(classplan, 'const SCHEDULE_TEMPLATE', '[', ']') + ')');
 const ROWS = SCHEDULE.map((t) => ({ label: t.label, belt: t.belt, prog_css: t.progCss, progCss: t.progCss,
-  day: t.day, time: t.time }));
+  program: t.program, divisions: t.divisions, day: t.day, time: t.time }));
 
 /* ── each app's real rules ───────────────────────────────────────────── */
 const cpCtx = vm.createContext({});
@@ -92,7 +92,12 @@ const colourOf = (r) => vm.runInContext('progCssOf(' + JSON.stringify(r) + ')', 
 const crmCtx = vm.createContext({});
 const gateDecl = /\nconst ATT_PROG_GATE\s*=[^\n]*/.exec(crm);
 assert.ok(gateDecl, 'could not lift ATT_PROG_GATE');
-vm.runInContext(gateDecl[0] + '\n' + liftFn(crm, 'attProgramFor'), crmCtx);
+vm.runInContext(gateDecl[0] + '\n' + liftFn(crm, 'attProgramFor') + '\n' + liftFn(crm, 'attProgramsFor'), crmCtx);
+// Phase 1 (2026-08-24): the schedule now carries program + divisions and the
+// CRM reads THOSE, with the old inference as fallback. columnsOf is what
+// attendance actually uses; the legacy path stays lifted so the agreement
+// test below can hold the two against each other for as long as both exist.
+const columnsOf = (r) => vm.runInContext('attProgramsFor(' + JSON.stringify(r) + ')', crmCtx);
 // A class may legitimately pull from MORE THAN ONE roster: Forms and Sparring
 // serve Juniors and Teens/Adults together, so the gate returns an array and
 // attRenderRoster unions them. Always compare as a list.
@@ -125,6 +130,64 @@ test('the CRM can name a roster for every class', () => {
   const lost = ROWS.filter((r) => rosterOf(r).indexOf('TKD') > -1).map(where);
   assert.strictEqual(lost.length, 0,
     'the CRM cannot place these classes, so attendance would list nobody:\n         ' + lost.join('\n         '));
+});
+
+/* ── Phase 1: the schedule states program + divisions outright ───────── */
+
+test('every class carries the approved program and divisions', () => {
+  // The backfill is total, in the snapshot as well as the live table. A class
+  // added without them still WORKS (the fallback inference catches it) but it
+  // is a half-authored row, and this is where that shows up.
+  const bare = ROWS.filter((r) => !r.program || !Array.isArray(r.divisions)).map(where);
+  assert.strictEqual(bare.length, 0,
+    'classes with no program or divisions authored:\n         ' + bare.join('\n         '));
+  const tkdEmpty = ROWS.filter((r) => r.program === 'Taekwondo' && !r.divisions.length).map(where);
+  assert.strictEqual(tkdEmpty.length, 0,
+    'Taekwondo classes must say who attends, these do not:\n         ' + tkdEmpty.join('\n         '));
+});
+
+test('the columns agree with the legacy inference, except where they correct it', () => {
+  // The safety argument of the migration: both paths exist during the
+  // transition, and an UNDOCUMENTED disagreement means one of them is lying.
+  // Two disagreements are deliberate, approved in the backfill table, and the
+  // columns are the correct side of both:
+  const CORRECTED = {
+    // The inference lumped Little Kickers onto the Cubs roster because they
+    // share prog-cubs. Two people are enrolled in Little Kickers; they were
+    // invisible to their own class.
+    '2|9:30': { now: 'Little Kickers', old: 'Cubs' },
+    // The label says Juniors/Teens/Adults. The inference only ever returned
+    // Juniors, silently hiding every Teens/Adults member from the morning
+    // class's attendance list. Found by this test on 2026-08-24.
+    '2|10:15': { now: 'Juniors + Teens/Adults', old: 'Juniors' },
+  };
+  const asSet = (a) => [...new Set(a)].sort().join(' + ');
+  const bad = [];
+  ROWS.forEach((r) => {
+    const stripped = { label: r.label, prog_css: r.prog_css, progCss: r.progCss };
+    const now = asSet(columnsOf(r)), old = asSet(rosterOf(stripped));
+    const fix = CORRECTED[r.day + '|' + r.time];
+    if (fix) {
+      // The exception is pinned exactly: drift in EITHER direction fails.
+      if (now !== fix.now || old !== fix.old) {
+        bad.push(where(r) + ': documented correction changed, columns say ' + now + ', inference says ' + old);
+      }
+    } else if (now !== old) {
+      bad.push(where(r) + ': columns say ' + now + ', inference says ' + old);
+    }
+  });
+  assert.strictEqual(bad.length, 0,
+    'the two paths disagree:\n         ' + bad.join('\n         '));
+});
+
+test('every roster the columns name is one you can actually tick', () => {
+  // Same guarantee as the legacy check above, for the path attendance now
+  // actually uses: program/divisions must resolve to enrollment keys that
+  // exist as checkboxes on the profile.
+  const orphan = [...new Set(ROWS.flatMap(columnsOf))]
+    .filter((p) => ROSTER_PROGRAMS.indexOf(p) === -1 && p !== 'TKD');
+  assert.strictEqual(orphan.length, 0,
+    'the columns resolve to rosters with no checkbox: ' + orphan.join(', '));
 });
 
 test('every roster the CRM names is one you can actually tick', () => {
