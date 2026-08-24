@@ -153,6 +153,19 @@ test('the derived belt line is gone and the rank is the tappable thing', () => {
   assert.ok(out.indexOf('rankprog') < out.indexOf('rankchip'), 'the program is not above the chip');
 });
 
+test('an adult reads Family and contacts, a minor reads Guardians', () => {
+  // Age says adult; and a Spouse tag says adult even with NO DOB on file,
+  // because that is exactly Lee: no birthday, a wife, and the wrong heading.
+  const kid = render({ age: 9, guardians: [] });
+  assert.ok(kid.includes('Guardians'), 'a minor lost the Guardians heading');
+  assert.ok(!kid.includes('Family and contacts'), 'a minor reads as an adult');
+  const byAge = render({ age: 41 });
+  assert.ok(byAge.includes('Family and contacts'), 'an 18+ member still reads Guardians');
+  const bySpouse = render({ age: 0, dob: '', guardians: [{ relation: 'Spouse', name: 'Lindsay' }] });
+  assert.ok(bySpouse.includes('Family and contacts'),
+    'a spouse-tagged member with no DOB still reads Guardians');
+});
+
 test('gender shows, filled or empty, like DOB and the gear sizes', () => {
   // Owner (household design pass): "may need gender on profile too for easy
   // data collection." 102 of 141 contacts have no value; the blank that

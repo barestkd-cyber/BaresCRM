@@ -389,7 +389,9 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
    the right wall (owner 2026-08-23). */
 .markcol{display:flex;flex-direction:column;align-items:flex-start;gap:3px;
   flex:none;width:92px;padding-top:2px}
-.rankstack{display:inline-flex;flex-direction:column;align-items:center;gap:1px}
+/* Program beside the chip on one line (owner 2026-08-24: "TKD and the rank
+   should be next to each other instead of stacked"). */
+.rankstack{display:inline-flex;align-items:center;gap:8px}
 .rankprog{font-size:13.5px;color:var(--muted);line-height:1.4}
 .markcol .appmark,.markcol .gearmark{margin-left:0}
 .rankchip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);
@@ -6227,10 +6229,15 @@ function renderProfile(){
   html += '<hr class="prof-rule">';
   // Minors are the bulk of the roll and "Guardians" is exactly right for them.
   // For an adult it is not: it made Lee's wife his guardian. Same records, same
-  // tags, one word that follows who is being looked at. Unknown age reads as a
-  // minor, which is the safer guess on a martial arts roll and the wording the
-  // rest of the app already assumes.
-  const adult = m.age >= 18;
+  // tags, one word that follows who is being looked at.
+  //
+  // Adult is age 18+, OR anyone linked as a Spouse - because the adult this
+  // exists for had no DOB on file, read as a minor, and kept the wrong word.
+  // A spouse implies an adult with no birthday needed. Unknown age with no
+  // spouse still reads as a minor, the safer guess on a martial arts roll.
+  const profPeople = (typeof profGuardiansFor === 'function' ? profGuardiansFor(m.id) : m.guardians) || [];
+  const adult = m.age >= 18
+    || profPeople.some(g => String(g.relation||'').toLowerCase() === 'spouse');
   html += '<div class="ccg-sub" style="margin-bottom:2px">'
     + (adult ? 'Family and contacts' : 'Guardians')+'</div>';
   html += '<div id="prof-guardians"></div>';
