@@ -371,8 +371,13 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .pf-empty:active{color:var(--muted)}
 /* Left-aligned inside a column that sits on the right, so the emoji line up
    with each other rather than ragging off their differing widths. */
+/* A FIXED width, with the contents left-aligned inside it. The column is
+   pushed right by the cell, so a fixed width puts its left edge at the same
+   place on every profile: the icons do not shuffle sideways when one student
+   has "9/10" and the next has nothing. The spare width is what holds them off
+   the right wall (owner 2026-08-23). */
 .markcol{display:flex;flex-direction:column;align-items:flex-start;gap:3px;
-  flex:none;padding-top:2px}
+  flex:none;width:92px;padding-top:2px}
 .rankstack{display:inline-flex;flex-direction:column;align-items:center;gap:1px}
 .rankprog{font-size:13.5px;color:var(--muted);line-height:1.4}
 .markcol .appmark,.markcol .gearmark{margin-left:0}

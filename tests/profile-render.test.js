@@ -165,6 +165,15 @@ test('DOB shows even when there is no DOB', () => {
   assert.ok(!not.includes('(age'), 'an age was invented for a member with no birthday');
 });
 
+test('the marks hold the same spot whether they are filled or empty', () => {
+  // Owner, 2026-08-23: "whether filled in or empty they need to be in the same
+  // spot." The column is right-positioned, so it needs a FIXED width; sized to
+  // its content it slides left as soon as somebody's kick size is "9/10".
+  const css = html.slice(html.indexOf('.markcol{'), html.indexOf('.markcol{') + 220);
+  assert.ok(/width:\s*\d+px/.test(css), 'the marks column has no fixed width, so it will shift');
+  assert.ok(/align-items:\s*flex-start/.test(css), 'the marks are not left-aligned inside the column');
+});
+
 test('the marks are beside the dates, not in the credits column', () => {
   // On a phone .phead-facts collapses to one column, so a second grid column
   // lands UNDER the dates. Owner caught exactly that: "you put this in the
