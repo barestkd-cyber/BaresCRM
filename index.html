@@ -362,11 +362,15 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
   .pstat .narrow{display:inline}
 }
 /* The current belt, and only that. */
-.beltnow{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+/* .beltnow / .beltname / .beltsince deleted with the derived belt line. */
 .beltdot{width:14px;height:14px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.22)}
-.beltname{font-size:13px;font-weight:800;color:var(--ink)}
-.beltsince{font-size:11.5px;color:#AEB4BD;font-weight:700}
-.markcol{display:flex;flex-direction:column;align-items:flex-start;gap:3px;margin:-2px 0 14px}
+.pf-datecell{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+/* Left-aligned inside a column that sits on the right, so the emoji line up
+   with each other rather than ragging off their differing widths. */
+.markcol{display:flex;flex-direction:column;align-items:flex-start;gap:3px;
+  flex:none;padding-top:2px}
+.rankstack{display:inline-flex;flex-direction:column;align-items:center;gap:1px}
+.rankprog{font-size:13.5px;color:var(--muted);line-height:1.4}
 .markcol .appmark,.markcol .gearmark{margin-left:0}
 .rankchip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);
   background:var(--surface);border-radius:999px;padding:5px 10px 5px 9px;margin-top:2px;
@@ -6073,24 +6077,35 @@ function renderProfile(){
     + '<div class="phead-body">'
     + '<div class="pname">'+escHtml(m.first+' '+m.last)
     + ' <span class="pseg" style="background:'+segBg+';color:'+segCol+'">'+escHtml(m.segment)+'</span></div>'
-    + '<div class="pmeta">'+ (rankChip
-        ? (m.phase?escHtml(m.phase)+' · ':'')+rankChip
+    // The program label is centred OVER the chip rather than running into it
+    // on one line. The wrapper is inline-flex so it shrinks to the chip's
+    // width, which is what makes 'centred' mean centred on the chip and not
+    // on the whole card.
+    + '<div class="pmeta">'
+      + (rankChip
+        ? '<span class="rankstack">'
+          + (m.phase?'<span class="rankprog">'+escHtml(m.phase)+'</span>':'')
+          + rankChip + '</span>'
         : escHtml(m.phase||m.segment))+'</div>'
     + '</div>'
     + '</div>'
     // Dates on the left, what they are holding on the right. Credits are
     // real: prepaid private lessons come off private_lesson_packs.
     + '<div class="phead-facts">'
+    // Dates and marks are ONE cell holding a row, not two grid columns. The
+    // grid collapses to a single column on a phone, so a second column would
+    // land under the dates instead of beside them - which is exactly what it
+    // did on the first attempt (owner 2026-08-23).
+    + '<div class="pf-datecell">'
     + '<div>'
     + (m.dob ? '<div class="pf-l">DOB</div><div class="pf-v">'
         + escHtml(fmtDate(String(m.dob).slice(0,10)))+(m.age?' (age '+m.age+')':'')+'</div>' : '')
     + (m.since ? '<div class="pf-l">Member since</div><div class="pf-v">'+escHtml(m.since)+'</div>'
         : m.entered ? '<div class="pf-l">Lead since</div><div class="pf-v">'+escHtml(m.entered)+'</div>' : '')
     + '</div>'
-    + '<div>'
-    // Gear and app sit beside the dates rather than under the name, where
-    // they were crowding the rank (owner 2026-08-23).
     + appMark
+    + '</div>'
+    + '<div>'
     + '<div class="pf-l">Credits</div>'
     + '<div class="pf-v">Private lesson credits: <span id="pc-lessons">–</span></div>'
     + '<div class="pf-v">Money credits: <span id="pc-money">$0.00</span></div>'

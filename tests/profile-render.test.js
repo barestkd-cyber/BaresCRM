@@ -148,7 +148,23 @@ test('the derived belt line is gone and the rank is the tappable thing', () => {
   assert.ok(out.includes('profShowRank()'), 'the rank chip does not go anywhere');
   assert.ok(out.includes('Senior Yellow Belt'), 'the real rank is not shown');
   assert.ok(out.includes('beltdot'), 'the belt colour cue was lost with the line');
-  assert.ok(out.includes('TKD · '), 'the program fell off the subtitle');
+  // The program sits centred ABOVE the chip, not run into it on one line.
+  assert.ok(out.includes('rankprog'), 'the program fell off the subtitle');
+  assert.ok(out.indexOf('rankprog') < out.indexOf('rankchip'), 'the program is not above the chip');
+});
+
+test('the marks are beside the dates, not in the credits column', () => {
+  // On a phone .phead-facts collapses to one column, so a second grid column
+  // lands UNDER the dates. Owner caught exactly that: "you put this in the
+  // credit section instead of right to the right of the date of birth
+  // section." They have to share a cell to sit side by side at every width.
+  const out = render({ belt: 'Green', rank: 'Green Belt', beltSize: '3' });
+  const cell = out.indexOf('pf-datecell');
+  assert.ok(cell > -1, 'the dates and marks are not sharing a cell');
+  assert.ok(cell < out.indexOf('markcol'), 'the marks are outside the dates cell');
+  assert.ok(out.indexOf('markcol') < out.indexOf('Credits'), 'the marks drifted into credits');
+  // The cell must close before Credits opens, or they are siblings again.
+  assert.ok(out.indexOf('markcol') < out.indexOf('>Credits<'), 'credits is inside the dates cell');
 });
 
 test('somebody with no rank gets no chip and no empty subtitle', () => {
