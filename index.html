@@ -366,8 +366,16 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .beltdot{width:14px;height:14px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.22)}
 .beltname{font-size:13px;font-weight:800;color:var(--ink)}
 .beltsince{font-size:11.5px;color:#AEB4BD;font-weight:700}
-.markrow{display:flex;align-items:center;margin-top:9px;flex-wrap:wrap}
-.markrow .appmark,.markrow .gearmark{margin-left:0;margin-right:16px}
+.markcol{display:flex;flex-direction:column;align-items:flex-start;gap:3px;margin:-2px 0 14px}
+.markcol .appmark,.markcol .gearmark{margin-left:0}
+.rankchip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);
+  background:var(--surface);border-radius:999px;padding:5px 10px 5px 9px;margin-top:2px;
+  font:700 13px/1 inherit;font-family:inherit;color:var(--ink);cursor:pointer;
+  -webkit-tap-highlight-color:transparent}
+.rankchip:active{background:#E4E9EE}
+.rankchip .beltdot{width:12px;height:12px;border-radius:50%;flex:none;
+  box-shadow:0 0 0 1.5px rgba(0,0,0,.30)}
+.rankchev{color:var(--muted);font-weight:800;margin-left:1px}
 /* the belt, drawn as curriculum draws it */
 .stbelt{display:flex;align-items:stretch;height:44px;border-radius:5px;overflow:hidden;
   border:1px solid rgba(0,0,0,.10)}
@@ -5985,21 +5993,27 @@ function renderProfile(){
   // Built FIRST, because the belt bar below reads it. Declared after it, a
   // const in the same scope is not merely undefined - it throws, and every
   // member with a belt failed to open at all while trials were fine.
-  // On the app or not, as a mark rather than a row of prose. Owner: "a phone
-  // emoji with a circle next to it, and if they're on the app there's a
-  // checkbox on that circle."
-  const appMark = '<span class="appmark'+(m.app?' on':'')+'" title="'
-    + (m.app?'Using the student app':'Not on the student app')+'">'
-    + '<span class="ph">📱</span><span class="dot">'+(m.app?'✓':'')+'</span></span>'
-    // Always shown, empty or not. An empty one is the prompt: he reads the
-    // profile with the student in front of him, sees a blank, and measures
-    // them on the spot. Tapping edits it without leaving the page.
+  // Uniform, shoe, phone, stacked, in that order (owner 2026-08-23). Side by
+  // side they wrapped on a phone and the shoe ended up under the phone at a
+  // different indent, reading as a second unrelated thing.
+  //
+  // The two sizes are always shown, empty or not. An empty one is the prompt:
+  // he reads the profile with the student in front of him, sees a blank, and
+  // measures them on the spot. Tapping edits it without leaving the page.
+  const appMark = '<div class="markcol">'
     + '<button class="gearmark'+(m.beltSize?'':' empty')+'" title="Belt size" '
       + 'onclick="gearEdit(\'belt\')"><span class="ph">🥋</span>'
       + (m.beltSize?escHtml(m.beltSize):':')+'</button>'
     + '<button class="gearmark'+(m.kickSize?'':' empty')+'" title="Kick size" '
       + 'onclick="gearEdit(\'kick\')"><span class="ph">👟</span>'
-      + (m.kickSize?escHtml(m.kickSize):':')+'</button>';
+      + (m.kickSize?escHtml(m.kickSize):':')+'</button>'
+    // On the app or not, as a mark rather than a row of prose. Owner: "a phone
+    // emoji with a circle next to it, and if they're on the app there's a
+    // checkbox on that circle."
+    + '<span class="appmark'+(m.app?' on':'')+'" title="'
+    + (m.app?'Using the student app':'Not on the student app')+'">'
+    + '<span class="ph">📱</span><span class="dot">'+(m.app?'✓':'')+'</span></span>'
+    + '</div>';
 
   const segClass = m.segment==="Active"?"active":m.segment==="Lead"?"lead":m.segment==="Trial"?"trial":"former";
   const segBg = m.segment==="Active"?"#E4F5EE":m.segment==="Lead"?"#FBF1DC":m.segment==="Trial"?"#E7F1FB":"#EDEFF2";
@@ -6025,20 +6039,16 @@ function renderProfile(){
     + '<div class="n" id="psOwe">–</div></div>'
     + '</div>';
 
-  // header: identity + rank. Belt bar = position in the nine-belt order.
-  // The belt they hold, in its own colour. No ladder: nobody opens a
-  // profile to find out how many belts exist.
-  let beltBar = '';
-  if(m.belt){
-    beltBar = '<div class="beltnow"><span class="beltdot" style="background:'+beltC+'"></span>'
-      + '<span class="beltname">'+escHtml(m.belt)+' Belt</span>'
-      + (m.rankDate?'<span class="beltsince">earned '+escHtml(m.rankDate)+'</span>':'')
-      + '</div>';
-  }
-  // The marks sit on a row of their own. Inline after the belt name they
-  // wrapped halfway through, so the shoe dropped under the phone at a
-  // different indent and read as a second, unrelated thing.
-  beltBar += '<div class="markrow">'+appMark+'</div>';
+  // The rank itself, as the thing you tap. There used to be a second belt
+  // line under this one, but m.belt is DERIVED - deriveBelt() scans the rank
+  // for a colour word - so "Senior Yellow Belt" printed "Yellow Belt"
+  // underneath itself. It existed to name the colour dot; the dot moves in
+  // here instead, which keeps the cue and drops the duplicate sentence.
+  const rankChip = m.rank
+    ? '<button class="rankchip" onclick="profShowRank()" title="Rank and testing">'
+      + (m.belt?'<span class="beltdot" style="background:'+beltC+'"></span>':'')
+      + escHtml(m.rank)+'<span class="rankchev">›</span></button>'
+    : '';
   // The avatar carries the belt colour so rank reads from across the room,
   // and Actions sits under it, beside the thing it acts on.
   const avInk = (m.belt==="White"||m.belt==="Yellow") ? "#15171C" : "#fff";
@@ -6063,8 +6073,9 @@ function renderProfile(){
     + '<div class="phead-body">'
     + '<div class="pname">'+escHtml(m.first+' '+m.last)
     + ' <span class="pseg" style="background:'+segBg+';color:'+segCol+'">'+escHtml(m.segment)+'</span></div>'
-    + '<div class="pmeta">'+escHtml([m.phase, m.rank||''].filter(Boolean).join(' · ')||m.segment)+'</div>'
-    + beltBar
+    + '<div class="pmeta">'+ (rankChip
+        ? (m.phase?escHtml(m.phase)+' · ':'')+rankChip
+        : escHtml(m.phase||m.segment))+'</div>'
     + '</div>'
     + '</div>'
     // Dates on the left, what they are holding on the right. Credits are
@@ -6077,6 +6088,9 @@ function renderProfile(){
         : m.entered ? '<div class="pf-l">Lead since</div><div class="pf-v">'+escHtml(m.entered)+'</div>' : '')
     + '</div>'
     + '<div>'
+    // Gear and app sit beside the dates rather than under the name, where
+    // they were crowding the rank (owner 2026-08-23).
+    + appMark
     + '<div class="pf-l">Credits</div>'
     + '<div class="pf-v">Private lesson credits: <span id="pc-lessons">–</span></div>'
     + '<div class="pf-v">Money credits: <span id="pc-money">$0.00</span></div>'
@@ -6247,6 +6261,16 @@ function profApplyTab(){
     s.style.display = (s.dataset.ptab === PROF_TAB) ? '' : 'none';
   });
 }
+/* The rank chip on the header card. It goes to the Rank and testing tab and
+ * scrolls there, because switching a tab out of view looks like nothing
+ * happened. Owner has not seen that tab yet and wants to before deciding
+ * whether the stripes belong in a sheet instead, so this commits to nothing. */
+function profShowRank(){
+  profSetTab('rank');
+  const sec = document.querySelector('#ptabpanel > .sec[data-ptab="rank"]');
+  if(sec && sec.scrollIntoView) sec.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
 function profSetTab(t){
   PROF_TAB = t;
   document.querySelectorAll('.ptab').forEach(b=>b.classList.toggle('on', b.getAttribute('onclick')==="profSetTab('"+t+"')"));

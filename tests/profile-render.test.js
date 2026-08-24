@@ -125,14 +125,36 @@ test('gear marks render whether the sizes are there or not', () => {
   assert.ok(!/gearmark empty/.test(full), 'a filled size must not read as empty');
 });
 
-test('the marks sit on their own row, not inline after the belt name', () => {
-  // Inline they wrapped mid-line, so the shoe dropped under the phone at a
-  // different indent and read as a second, unrelated thing.
-  const out = render({ belt: 'Green', rank: 'Green Belt', beltSize: '3' });
-  assert.ok(out.includes('markrow'), 'the marks are not on a row of their own');
-  const row = out.indexOf('markrow');
-  assert.ok(out.indexOf('beltname') < row, 'the row is above the belt name');
-  assert.ok(out.indexOf('gearmark') > row, 'the gear marks are outside the row');
+test('the marks stack uniform, shoe, phone, beside the dates', () => {
+  // Owner, 2026-08-23: "stack the uniform first the shoe second and then the
+  // phone third and that should be in the DOB and lead since section."
+  const out = render({ belt: 'Green', rank: 'Green Belt', beltSize: '3', kickSize: 'child S' });
+  assert.ok(out.includes('markcol'), 'the marks are not stacked');
+  const uniform = out.indexOf('🥋'), shoe = out.indexOf('👟'), phone = out.indexOf('📱');
+  assert.ok(uniform < shoe && shoe < phone, 'the marks are not in uniform, shoe, phone order');
+  // Beside the dates, not under the name. Both live in the header, so position
+  // relative to the facts grid is what actually says which block they are in.
+  assert.ok(out.indexOf('phead-facts') < out.indexOf('markcol'), 'the marks are still above the facts grid');
+  assert.ok(out.indexOf('markcol') < out.indexOf('Credits'), 'the marks are not in the credits column');
+});
+
+test('the derived belt line is gone and the rank is the tappable thing', () => {
+  // m.belt is DERIVED from the rank, so "Senior Yellow Belt" was printing
+  // "Yellow Belt" underneath itself. The colour dot moved into the chip.
+  const out = render({ belt: 'Yellow', rank: 'Senior Yellow Belt', phase: 'TKD' });
+  assert.ok(!out.includes('beltnow'), 'the duplicate belt line is still rendered');
+  assert.ok(!out.includes('Yellow Belt</span>'), 'the derived belt name is still printed');
+  assert.ok(out.includes('rankchip'), 'the rank is not a chip');
+  assert.ok(out.includes('profShowRank()'), 'the rank chip does not go anywhere');
+  assert.ok(out.includes('Senior Yellow Belt'), 'the real rank is not shown');
+  assert.ok(out.includes('beltdot'), 'the belt colour cue was lost with the line');
+  assert.ok(out.includes('TKD · '), 'the program fell off the subtitle');
+});
+
+test('somebody with no rank gets no chip and no empty subtitle', () => {
+  const out = render({ belt: '', rank: '', phase: '', segment: 'Trial' });
+  assert.ok(!out.includes('rankchip'), 'a chip for a rank that does not exist');
+  assert.ok(out.includes('>Trial<'), 'the subtitle fell back to nothing');
 });
 
 test('the student app mark reflects both answers', () => {
