@@ -153,6 +153,18 @@ test('the derived belt line is gone and the rank is the tappable thing', () => {
   assert.ok(out.indexOf('rankprog') < out.indexOf('rankchip'), 'the program is not above the chip');
 });
 
+test('DOB shows even when there is no DOB', () => {
+  // Owner, 2026-08-23: "if DOB field is empty it still needs to show up." A row
+  // that disappears when empty is a question nobody ever gets asked.
+  const has = render({ dob: '2016-10-03', age: 9 });
+  assert.ok(has.includes('>DOB<'), 'the label is missing when there IS a dob');
+  assert.ok(has.includes('(age 9)'), 'the age fell off');
+  const not = render({ dob: '', age: 0 });
+  assert.ok(not.includes('>DOB<'), 'the label vanished with the value');
+  assert.ok(not.includes('Add date of birth'), 'the blank is not offered as something to fill');
+  assert.ok(!not.includes('(age'), 'an age was invented for a member with no birthday');
+});
+
 test('the marks are beside the dates, not in the credits column', () => {
   // On a phone .phead-facts collapses to one column, so a second grid column
   // lands UNDER the dates. Owner caught exactly that: "you put this in the

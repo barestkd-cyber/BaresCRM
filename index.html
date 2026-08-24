@@ -365,6 +365,10 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 /* .beltnow / .beltname / .beltsince deleted with the derived belt line. */
 .beltdot{width:14px;height:14px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.22)}
 .pf-datecell{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+/* An empty fact reads as the prompt it is: present, muted, and tappable. */
+.pf-empty{border:none;background:none;padding:0;font:inherit;font-size:14px;color:#C7CCD2;
+  cursor:pointer;font-family:inherit;text-align:left}
+.pf-empty:active{color:var(--muted)}
 /* Left-aligned inside a column that sits on the right, so the emoji line up
    with each other rather than ragging off their differing widths. */
 .markcol{display:flex;flex-direction:column;align-items:flex-start;gap:3px;
@@ -6098,8 +6102,15 @@ function renderProfile(){
     // did on the first attempt (owner 2026-08-23).
     + '<div class="pf-datecell">'
     + '<div>'
-    + (m.dob ? '<div class="pf-l">DOB</div><div class="pf-v">'
-        + escHtml(fmtDate(String(m.dob).slice(0,10)))+(m.age?' (age '+m.age+')':'')+'</div>' : '')
+    // DOB shows whether we have one or not (owner 2026-08-23). Same reasoning
+    // as the gear sizes: a missing birthday is a thing to go and collect, and a
+    // row that vanishes when empty is a question that never gets asked. Tapping
+    // the blank opens the contact editor, which is where DOB lives.
+    + '<div class="pf-l">DOB</div>'
+    + (m.dob
+        ? '<div class="pf-v">'+escHtml(fmtDate(String(m.dob).slice(0,10)))
+          + (m.age?' (age '+m.age+')':'')+'</div>'
+        : '<div class="pf-v"><button class="pf-empty" onclick="openEditContact()">Add date of birth</button></div>')
     + (m.since ? '<div class="pf-l">Member since</div><div class="pf-v">'+escHtml(m.since)+'</div>'
         : m.entered ? '<div class="pf-l">Lead since</div><div class="pf-v">'+escHtml(m.entered)+'</div>' : '')
     + '</div>'
