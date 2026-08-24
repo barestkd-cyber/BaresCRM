@@ -1294,6 +1294,22 @@ async function loadMembers(){
 /* ===== Attendance roster check-in ===== */
 let ENROLLMENTS=[], ATT_CLASSES=[], ATT_PRESENT=new Set(), ATT_SAVED=new Set(), ATT_SHOWALL=false, ATT_LOADED=false, ATT_EXTRA=new Set(), ATT_SRC={};
 const ATT_PROG_GATE={'prog-cubs':'Cubs','prog-juniors':'Juniors','prog-teen':'Teens/Adults','prog-forms':['Juniors','Teens/Adults'],'prog-sparring':['Juniors','Teens/Adults'],'prog-kick':'Kickboxing','prog-ampd':"AMP'D",'prog-leader':'Leadership'};
+/* Which roster a scheduled class pulls from.
+ *
+ * prog-kick is SHARED by Kickboxing and Jiu Jitsu, and the label is what
+ * tells them apart. That is not an accident: the public trial-booking
+ * function has always bucketed the schedule this way, which is why the
+ * website already shows Thursday 7pm as Jiu Jitsu. This mirrors that rule
+ * exactly, and tests/rosters.test.js compares the two so they cannot drift.
+ *
+ * Without it, taking attendance for Jiu Jitsu listed the Kickboxing roster. */
+function attProgramFor(row){
+  const label = String((row && row.label) || '');
+  if(row && row.prog_css === 'prog-kick'){
+    return /(jiu|bjj)/i.test(label) ? 'Jiu Jitsu' : 'Kickboxing';
+  }
+  return ATT_PROG_GATE[row && row.prog_css] || 'TKD';
+}
 const ATT_BELT_ORDER=['white','yellow','orange','green','purple','blue','brown','red','black'];
 const ATT_RANGE={'WHI-ORG':[0,2],'WHI-BLU':[0,5],'GR-BLK':[3,8],'BR-BLK':[6,8]};
 async function attLoadData(){
@@ -1305,7 +1321,7 @@ async function attLoadData(){
   const order=['MON','TUE','WED','THU','FRI','SAT'];
   let rows=(sched.data||[]).slice().sort((a,b)=>(a.day-b.day)||((a.time||'').localeCompare(b.time||'')));
   if(rows.length){
-    ATT_CLASSES=rows.map(r=>({label:(r.label||'Class')+(r.belt?(' · '+r.belt):'')+(r.time?('  '+order[r.day]+' '+r.time):''),program:ATT_PROG_GATE[r.prog_css]||'TKD',belt:r.belt||'',day:r.day}));
+    ATT_CLASSES=rows.map(r=>({label:(r.label||'Class')+(r.belt?(' · '+r.belt):'')+(r.time?('  '+order[r.day]+' '+r.time):''),program:attProgramFor(r),belt:r.belt||'',day:r.day}));
   }else{
     const progs=[...new Set(ENROLLMENTS.map(e=>e.program))];
     ATT_CLASSES=progs.map(p=>({label:p+' (all enrolled)',program:p,belt:'',day:null}));
@@ -6799,7 +6815,7 @@ async function saveEditContact(){
  * It is not permission to attend. He can add anyone to any class at check-in
  * whether they are enrolled or not, which is how trials and drop-ins work,
  * and nothing here narrows that. */
-const ROSTER_PROGRAMS = ['Cubs','Little Kickers','Juniors','Teens/Adults','Kickboxing',"AMP'D",'Leadership'];
+const ROSTER_PROGRAMS = ['Cubs','Little Kickers','Juniors','Teens/Adults','Kickboxing','Jiu Jitsu',"AMP'D",'Leadership'];
 let ROSTERS = null;
 
 async function loadProfileRosters(contactId){

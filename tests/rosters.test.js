@@ -92,6 +92,43 @@ test('changing a roster invalidates the check-in cache', () => {
   assert.ok(/ATT_LOADED\s*=\s*false/.test(liftFn('rosterToggle')), 'the check-in cache is left stale');
 });
 
+/* ── the class-to-roster gate, checked against the public site ───────── */
+
+test('a Jiu Jitsu class pulls the Jiu Jitsu roster, not Kickboxing', () => {
+  // Thursday 7pm was a Kickboxing class that got retitled. prog_css stayed
+  // prog-kick, which is correct and deliberate, so the CRM listed Kickboxing
+  // students for a Jiu Jitsu class until it learned to read the label.
+  const gate = vm.createContext({ console });
+  // Declared without spaces round the =, so liftConst's pattern misses it.
+  const decl = /\nconst ATT_PROG_GATE\s*=[^\n]*/.exec(html);
+  assert.ok(decl, 'could not lift ATT_PROG_GATE');
+  vm.runInContext(decl[0] + '\n' + liftFn('attProgramFor'), gate);
+  const of = (prog_css, label) =>
+    vm.runInContext('attProgramFor(' + JSON.stringify({ prog_css, label }) + ')', gate);
+  assert.strictEqual(of('prog-kick', 'Jiu Jitsu'), 'Jiu Jitsu');
+  assert.strictEqual(of('prog-kick', 'Jiu-Jitsu (BJJ)'), 'Jiu Jitsu');
+  assert.strictEqual(of('prog-kick', 'Kickboxing'), 'Kickboxing');
+  assert.strictEqual(of('prog-kick', ''), 'Kickboxing', 'an unlabelled prog-kick class must stay Kickboxing');
+  assert.strictEqual(of('prog-cubs', 'Little Kickers'), 'Cubs');
+});
+
+test('the CRM splits prog-kick exactly the way the public site does', () => {
+  // The website has bucketed the schedule this way all along. If the two ever
+  // disagree, the public page advertises one class and attendance takes the
+  // register for another, which is how this bug existed in the first place.
+  const fnPath = path.join(__dirname, '..', '..', 'barestkd-site',
+    'supabase', 'functions', 'trial-booking', 'index.ts');
+  if (!fs.existsSync(fnPath)) { console.log('       (site function not present, skipped)'); return; }
+  const site = fs.readFileSync(fnPath, 'utf8');
+  const jj = /program:\s*"Jiu Jitsu"[\s\S]{0,200}?match:[^\n]*?prog_css === "([^"]+)"[^\n]*?\/([^/]+)\/i\.test/.exec(site);
+  assert.ok(jj, 'could not find the site rule for Jiu Jitsu');
+  const mine = liftFn('attProgramFor');
+  assert.ok(mine.includes("'" + jj[1] + "'"), 'the CRM gates Jiu Jitsu on a different prog_css than the site');
+  assert.ok(mine.includes('/(' + jj[2].replace(/^\(|\)$/g, '') + ')/i')
+    || mine.includes('/' + jj[2] + '/i'),
+    'the CRM matches a different label pattern than the site: site has ' + jj[2]);
+});
+
 /* ── what he sees ────────────────────────────────────────────────────── */
 
 test('every program is offered, ticked or not', () => {
