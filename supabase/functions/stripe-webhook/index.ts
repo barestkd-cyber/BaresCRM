@@ -393,6 +393,83 @@ Deno.serve(async (req) => {
         }).then((r) => { if (!r.ok) console.error("card notify failed", r.status); })
           .catch((e) => console.error("card notify threw", e));
       }
+    } else if (event.type === "payout.created" || event.type === "payout.paid" || event.type === "payout.failed") {
+      // Owner: "an email for expected payouts... when they plan to send a
+      // batch of money and how much, and I could use the two [this and the
+      // EOD report] to reference each other." payout.created is the plan,
+      // payout.paid is the send, payout.failed is the bank bouncing it.
+      const resendKey = Deno.env.get("RESEND_API_KEY");
+      const ownerAddr = (Deno.env.get("OWNER_NOTIFY_EMAIL") || "race@barestkd.fit").trim().toLowerCase();
+      if (resendKey) {
+        const dollars = (c: number) => "$" + (Number(c || 0) / 100).toFixed(2);
+        const day = (unix: number) => unix
+          ? new Date(unix * 1000).toLocaleDateString("en-US",
+              { timeZone: "America/Chicago", weekday: "short", month: "short", day: "numeric" })
+          : "?";
+        const amount = dollars(obj.amount);
+        const arrives = day(obj.arrival_date);
+
+        // What the payout CONTAINS, so it can be held against the nightly
+        // report. Best effort: if this lookup fails, the email still goes,
+        // just without the breakdown.
+        let breakdown = "";
+        const sk = Deno.env.get("STRIPE_SECRET_KEY");
+        if (sk && event.type !== "payout.failed") {
+          try {
+            const r = await fetch(
+              "https://api.stripe.com/v1/balance_transactions?limit=100&payout=" + obj.id,
+              { headers: { Authorization: "Bearer " + sk } });
+            if (r.ok) {
+              const txs = (await r.json()).data ?? [];
+              const charges = txs.filter((t: Record<string, any>) => t.type === "charge" || t.type === "payment");
+              const gross = charges.reduce((a: number, t: Record<string, any>) => a + (t.amount || 0), 0);
+              const fees = charges.reduce((a: number, t: Record<string, any>) => a + (t.fee || 0), 0);
+              const rows = charges.slice(0, 20).map((t: Record<string, any>) =>
+                '<tr><td style="color:#777;padding-right:12px">' + day(t.created) + "</td>"
+                + '<td style="text-align:right">' + dollars(t.amount) + "</td></tr>").join("");
+              breakdown =
+                '<p style="font-size:12px;letter-spacing:.08em;color:#777;margin:18px 0 4px">COVERS</p>'
+                + '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="font-size:14px;line-height:1.6">'
+                + rows
+                + (charges.length > 20 ? '<tr><td colspan="2" style="color:#777">+ ' + (charges.length - 20) + " more</td></tr>" : "")
+                + '<tr><td style="color:#777;padding-right:12px;border-top:1px solid #ddd">' + charges.length + " charge" + (charges.length === 1 ? "" : "s") + " gross</td>"
+                + '<td style="text-align:right;border-top:1px solid #ddd">' + dollars(gross) + "</td></tr>"
+                + '<tr><td style="color:#777;padding-right:12px">Stripe fees</td>'
+                + '<td style="text-align:right">-' + dollars(fees) + "</td></tr>"
+                + "</table>"
+                + '<p style="margin:14px 0 0;font-size:12.5px;color:#777">Hold the COVERS list against those days\' nightly reports. '
+                + "Cash and checks never ride in a Stripe payout, so only the card portion should match.</p>";
+            }
+          } catch (e) { console.error("payout breakdown failed", e); }
+        }
+
+        const failed = event.type === "payout.failed";
+        const head = failed ? "PAYOUT FAILED" : event.type === "payout.paid" ? "PAYOUT SENT" : "PAYOUT SCHEDULED";
+        const line = failed
+          ? "The bank returned it: " + String(obj.failure_message || obj.failure_code || "no reason given")
+          : (event.type === "payout.paid" ? "Sent to the bank, should land " : "Expected to arrive ") + arrives;
+        const html = '<div style="font-family:Arial,Helvetica,sans-serif;color:#111;max-width:460px;margin:0 auto;padding:18px 14px">'
+          + '<p style="font-size:12px;letter-spacing:.08em;color:#777;margin:0 0 4px">' + head + "</p>"
+          + '<p style="font-size:26px;font-weight:bold;margin:0 0 8px' + (failed ? ';color:#c8102e' : '') + '">' + amount + "</p>"
+          + '<p style="font-size:14px;margin:0">' + line + "</p>"
+          + breakdown + "</div>";
+        // Best effort, same rule as the card email: a notification that
+        // fails must never fail the webhook, or Stripe retries an event
+        // that was handled perfectly well.
+        fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + resendKey, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from: "Bares Taekwondo <receipts@barestkd.fit>",
+            to: [ownerAddr],
+            subject: failed ? "STRIPE PAYOUT FAILED: " + amount
+              : (event.type === "payout.paid" ? "Stripe payout sent: " : "Stripe payout scheduled: ")
+                + amount + " \u00b7 " + arrives,
+            html,
+          }),
+        }).then((r) => { if (!r.ok) console.error("payout notify failed", r.status); })
+          .catch((e) => console.error("payout notify threw", e));
+      }
     } else if (event.type === "charge.refunded") {
       // Record refunds issued from the Stripe dashboard so the CRM ledger and
       // Stripe never disagree. Amount is the NEWLY refunded portion.
