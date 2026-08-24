@@ -366,6 +366,28 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .beltdot{width:14px;height:14px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.22)}
 .beltname{font-size:13px;font-weight:800;color:var(--ink)}
 .beltsince{font-size:11.5px;color:#AEB4BD;font-weight:700}
+.markrow{display:flex;align-items:center;margin-top:9px;flex-wrap:wrap}
+.markrow .appmark,.markrow .gearmark{margin-left:0;margin-right:16px}
+/* the belt, drawn as curriculum draws it */
+.stbelt{display:flex;align-items:stretch;height:44px;border-radius:5px;overflow:hidden;
+  border:1px solid rgba(0,0,0,.10)}
+.stbelt-end{display:flex;align-items:stretch;flex:none;padding:0 4px}
+.stbelt-stripe{width:18px;flex:none;cursor:pointer;display:flex;align-items:center;
+  justify-content:center;-webkit-tap-highlight-color:transparent}
+.stbelt-stripe:active{opacity:.7}
+.stcheck{width:14px;height:14px;border-radius:50%;border:1.5px solid rgba(255,255,255,.6);
+  display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;
+  color:#fff;flex:none;line-height:1}
+.stcheck.on{background:var(--go);border-color:var(--go)}
+.stpanel{display:none;border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:8px}
+.stpanel.open{display:block}
+.stpanel-t{font-size:13.5px;font-weight:800;margin-bottom:5px}
+.stpanel-d{font-size:12.5px;color:var(--muted);line-height:1.55;margin-bottom:10px}
+.stlog{display:flex;align-items:center;gap:9px;width:100%;border:1.5px solid var(--line);
+  background:#fff;border-radius:10px;padding:11px 12px;font:700 13px/1 inherit;
+  cursor:pointer;color:var(--ink);font-family:inherit}
+.stlog.on{border-color:#BFE6D6;background:#F2FBF7;color:var(--go)}
+.stlog .stcheck{border-color:#C7CCD2;color:#fff}
 .pact{position:relative;display:inline-block;margin-top:12px}
 .pact-btn{background:none;border:1.5px solid var(--accent);color:var(--accent);font-weight:700;font-size:13.5px;border-radius:9px;padding:8px 16px;cursor:pointer;font-family:inherit}
 /* The header is a light card now, so the Actions button keeps the accent
@@ -961,6 +983,9 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://portal.barestkd.fit/shared/auth.js?v=2"></script>
+<!-- The one belt and stripe catalogue, shared with curriculum and class
+     plan: window.BELTS / BELT_COLORS. 32 belts, 254 stripes. -->
+<script src="https://portal.barestkd.fit/shared/belts.js?v=2"></script>
 <script src="pricing.js?v=2"></script>
 <script src="agreements.js?v=1"></script>
 </head>
@@ -6007,10 +6032,13 @@ function renderProfile(){
   if(m.belt){
     beltBar = '<div class="beltnow"><span class="beltdot" style="background:'+beltC+'"></span>'
       + '<span class="beltname">'+escHtml(m.belt)+' Belt</span>'
-      + appMark
       + (m.rankDate?'<span class="beltsince">earned '+escHtml(m.rankDate)+'</span>':'')
       + '</div>';
   }
+  // The marks sit on a row of their own. Inline after the belt name they
+  // wrapped halfway through, so the shoe dropped under the phone at a
+  // different indent and read as a second, unrelated thing.
+  beltBar += '<div class="markrow">'+appMark+'</div>';
   // The avatar carries the belt colour so rank reads from across the room,
   // and Actions sits under it, beside the thing it acts on.
   const avInk = (m.belt==="White"||m.belt==="Yellow") ? "#15171C" : "#fff";
@@ -8538,6 +8566,138 @@ async function gSheetMakePrimary(guardianId, contactId){
   toast('Primary contact set');
 }
 
+/* ── STRIPES ──────────────────────────────────────────────────────────────
+ * The same three moves class plan makes: read what they hold, draw the belt
+ * with a tick on each stripe, write or delete a row on tap. Same table, same
+ * columns, same stripe ids, so the two apps stay one record rather than two
+ * views that drift apart.
+ *
+ * A rank the catalogue does not carry gets an honest empty state rather than
+ * a blank belt. That is 17 people, all on Cub grades, which were never added
+ * to the shared catalogue. */
+let STRIPES = null;
+
+async function stripesEarned(contactId, rank){
+  if(!rank) return new Set();
+  const { data, error } = await sb.from('student_stripes')
+    .select('stripe_key').eq('student_id', contactId).eq('belt', rank);
+  if(error){ console.error('stripes read', error); return null; }   // null = could not read
+  return new Set((data||[]).map(r=>r.stripe_key));
+}
+
+/* Straight out of class plan's progStripesFor, stripe ids included, so a
+ * stripe logged here is the same row it would have been in class. */
+function stripesForRank(rank){
+  const belt = (window.BELTS||[]).find(b=>b.name === rank);
+  if(!belt || !belt.stripes) return null;
+  const descOf = st => (st.details||[]).map(d=>(d.title?d.title+': ':'')+(d.items||[]).join(', ')).join('  •  ');
+  return {
+    color: belt.color || '#888',
+    left:  (belt.stripes.black||[]).map(st=>({ id: st.id, label: st.label, color: '#1c1c1c', desc: descOf(st) })),
+    right: (belt.stripes.colored||[]).map(st=>({ id: st.id, label: st.label, color: st.color || '#888', desc: descOf(st) })),
+  };
+}
+
+function stripesHtml(){
+  const c = STRIPES;
+  if(!c) return '';
+  if(c.earned === null){
+    // Said out loud. A read that failed must not render as a belt with no
+    // stripes on it, which is a claim about the student rather than about us.
+    return '<div class="ccg-sub" style="margin-top:14px">Their stripes could not be read, so this is not a statement that they have none.</div>';
+  }
+  // No rank at all is a trial or a lead. "Belt now: -" a few lines up already
+  // says that, and a second sentence about a stripe list they have no claim to
+  // would only be noise.
+  if(!c.rank) return '';
+  const set = stripesForRank(c.rank);
+  if(!set){
+    // Name the rank, and only blame the Cub grades when it IS one. 17 people
+    // are on Cub belts the shared catalogue has never carried; anything else
+    // landing here is a rank nobody has spelled the same way twice.
+    const cub = /^cub\b/i.test(c.rank);
+    return '<div class="ccg-sub" style="margin-top:14px">No stripe list for '
+      + escHtml(c.rank)+'. '
+      + (cub ? 'The Cub grades are not in the shared belt catalogue yet.'
+             : 'That rank is not in the shared belt catalogue.')+'</div>';
+  }
+  const all = set.left.concat(set.right);
+  // A senior belt is its colour with a black band through the middle, which is
+  // what it looks like in the room. Class plan's test, kept identical.
+  const isSr = c.rank && (c.rank.indexOf('Senior') === 0 || c.rank.indexOf('Sr.') === 0);
+  const bg = isSr
+    ? 'linear-gradient(to bottom,'+set.color+' 30%,#111 30%,#111 70%,'+set.color+' 70%)'
+    : set.color;
+  const slot = st => '<div class="stbelt-stripe" style="background:'+st.color+'" title="'+escAttr(st.label)+'"'
+    + ' onclick="stripePanel(\''+escJs(st.id)+'\')">'
+    + '<span class="stcheck'+(c.earned.has(st.id)?' on':'')+'">'+(c.earned.has(st.id)?'✓':'')+'</span></div>';
+  const cluster = arr => arr.map((st,i)=>
+    (i>0?'<div style="width:3px;flex:none;background:'+bg+'"></div>':'')+slot(st)).join('');
+  const wide = n => (n*18 + Math.max(0,n-1)*3 + 8);
+  const diagram = all.length
+    ? '<div class="stbelt">'
+      + '<div class="stbelt-end" style="width:'+wide(set.left.length)+'px;background:'+bg+'">'+cluster(set.left)+'</div>'
+      + '<div style="flex:1;background:'+bg+'"></div>'
+      + '<div class="stbelt-end" style="width:'+wide(set.right.length)+'px;background:'+bg+'">'+cluster(set.right)+'</div>'
+      + '</div>'
+    : '<div class="ccg-sub">No stripes on this belt.</div>';
+  const panels = all.map(st=>{
+    const on = c.earned.has(st.id);
+    return '<div class="stpanel" id="stp-'+escAttr(st.id)+'">'
+      + '<div class="stpanel-t">'+escHtml(st.label)+'</div>'
+      + (st.desc?'<div class="stpanel-d">'+escHtml(st.desc)+'</div>':'')
+      + '<button class="stlog'+(on?' on':'')+'" onclick="stripeToggle(\''+escJs(st.id)+'\')">'
+      + '<span class="stcheck'+(on?' on':'')+'">'+(on?'✓':'')+'</span>'
+      + (on?'Earned, tap to remove':'Log this stripe')+'</button></div>';
+  }).join('');
+  return '<div class="ccg-sub" style="margin:16px 0 8px">Stripes · '+c.earned.size+' of '+all.length
+    + ' <span style="font-weight:400">- tap one to read it or log it</span></div>'
+    + diagram + '<div style="margin-top:10px">'+panels+'</div>';
+}
+
+function stripePanel(id){
+  const p = document.getElementById('stp-'+id);
+  if(!p) return;
+  const was = p.classList.contains('open');
+  document.querySelectorAll('.stpanel').forEach(x=>x.classList.remove('open'));
+  if(!was) p.classList.add('open');
+}
+
+/* Who gets the credit. Class plan reads profiles.name and falls back to the
+ * email, so a stripe logged in either app is attributed the same way. */
+let _stripeAwarder = null;
+async function stripeAwarder(){
+  if(_stripeAwarder) return _stripeAwarder;
+  try {
+    const { data } = await sb.from('profiles').select('name').eq('id', currentUser.id).single();
+    _stripeAwarder = (data && data.name) || (currentUser && currentUser.email) || 'staff';
+  } catch(e){ _stripeAwarder = (currentUser && currentUser.email) || 'staff'; }
+  return _stripeAwarder;
+}
+
+async function stripeToggle(id){
+  const c = STRIPES;
+  if(!c || c.earned === null) return;
+  if(c.earned.has(id)){
+    const { error } = await sb.from('student_stripes').delete()
+      .eq('student_id', c.contactId).eq('belt', c.rank).eq('stripe_key', id);
+    if(error){ console.error('stripe remove', error); toast('Could not remove that stripe'); return; }
+    c.earned.delete(id);
+  } else {
+    const awardedBy = await stripeAwarder();
+    const { error } = await sb.from('student_stripes').insert({ id: crypto.randomUUID(),
+      student_id: c.contactId, belt: c.rank, stripe_key: id,
+      earned_at: new Date().toISOString(), awarded_by: awardedBy, source: 'staff' });
+    // The policy on this table accepts admin and instructor. A stripe that
+    // silently failed to save is worse than one that refused out loud, since
+    // he would walk away believing the student has it.
+    if(error){ console.error('stripe log', error); toast('Could not log that stripe'); return; }
+    c.earned.add(id);
+  }
+  const box = document.getElementById('prof-stripes');
+  if(box){ box.innerHTML = stripesHtml(); stripePanel(id); }
+}
+
 /* Their testing history. Matched on NAME, because testing_history carries a
  * student_name and no contact id - the testing app writes what was typed at
  * the desk on the day. Said out loud on the card rather than hidden, since a
@@ -8558,10 +8718,16 @@ async function loadProfileRank(contactId){
     return;
   }
   const rows = data||[];
+  // Their belt, drawn as curriculum draws it, tappable as class plan is.
+  const earned = await stripesEarned(contactId, m.rank);
+  if(profStale(contactId)) return;
+  STRIPES = { contactId: contactId, rank: m.rank, earned: earned };
+
   let h = '<div class="card pad">'
     + '<div class="kv"><span class="k">Belt now</span><span class="v">'+escHtml(m.rank||'-')+'</span></div>'
     + (m.rankDate ? '<div class="kv"><span class="k">Earned</span><span class="v">'+escHtml(m.rankDate)+'</span></div>' : '')
-    + '<button class="addopt" style="margin:10px 0 0" onclick="launchApp(\'testing\')">Edit rank in the testing app</button>'
+    + '<div id="prof-stripes">'+stripesHtml()+'</div>'
+    + '<button class="addopt" style="margin:12px 0 0" onclick="launchApp(\'testing\')">Edit rank in the testing app</button>'
     + '<div class="ccg-sub" style="margin-top:6px">The testing app owns rank. The CRM shows it and never writes it.</div>'
     + '</div>';
   if(rows.length){

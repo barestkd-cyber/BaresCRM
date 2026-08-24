@@ -125,6 +125,16 @@ test('gear marks render whether the sizes are there or not', () => {
   assert.ok(!/gearmark empty/.test(full), 'a filled size must not read as empty');
 });
 
+test('the marks sit on their own row, not inline after the belt name', () => {
+  // Inline they wrapped mid-line, so the shoe dropped under the phone at a
+  // different indent and read as a second, unrelated thing.
+  const out = render({ belt: 'Green', rank: 'Green Belt', beltSize: '3' });
+  assert.ok(out.includes('markrow'), 'the marks are not on a row of their own');
+  const row = out.indexOf('markrow');
+  assert.ok(out.indexOf('beltname') < row, 'the row is above the belt name');
+  assert.ok(out.indexOf('gearmark') > row, 'the gear marks are outside the row');
+});
+
 test('the student app mark reflects both answers', () => {
   assert.ok(/appmark on/.test(render({ app: true })), 'on the app');
   assert.ok(!/appmark on/.test(render({ app: false })), 'not on the app');
