@@ -6177,6 +6177,13 @@ function renderProfile(){
         ? '<div class="pf-v">'+escHtml(fmtDate(String(m.dob).slice(0,10)))
           + (m.age?' (age '+m.age+')':'')+'</div>'
         : '<div class="pf-v"><button class="pf-empty" onclick="openEditContact()">Add date of birth</button></div>')
+    // Same rule as DOB and the gear sizes (owner: "may need gender on profile
+    // too for easy data collection"): the row shows whether we know it or not,
+    // because a blank that renders is a blank that gets filled.
+    + '<div class="pf-l">Gender</div>'
+    + (m.gender
+        ? '<div class="pf-v">'+escHtml(m.gender)+'</div>'
+        : '<div class="pf-v"><button class="pf-empty" onclick="openEditContact()">Add gender</button></div>')
     + (m.since ? '<div class="pf-l">Member since</div><div class="pf-v">'+escHtml(m.since)+'</div>'
         : m.entered ? '<div class="pf-l">Lead since</div><div class="pf-v">'+escHtml(m.entered)+'</div>' : '')
     + '</div>'
@@ -6776,6 +6783,15 @@ function openEditContact(){
     + f('Email','ecEmail',m.email,'email')
     + f('Phone','ecPhone',(m.phones[0]&&m.phones[0][1])||'','tel')
     + f('Date of birth','ecDob',String(m.dob||'').slice(0,10),'date')
+    // A dropdown of the spellings already in the data (Female/Male), not free
+    // text - same reasoning as the belt field in class plan. A legacy value
+    // that is neither still renders selected rather than being rewritten.
+    + '<label class="ed-lbl">Gender</label>'
+    + '<select id="ecGender" class="ed-in">'
+    + ['','Female','Male'].map(g=>'<option value="'+g+'"'+((m.gender||'')===g?' selected':'')+'>'+(g||'—')+'</option>').join('')
+    + (m.gender && ['Female','Male'].indexOf(m.gender)===-1
+        ? '<option value="'+escAttr(m.gender)+'" selected>'+escHtml(m.gender)+'</option>' : '')
+    + '</select>'
     + f('Address','ecAddr',m.address)
     + '<div class="pm-row"><div>'+f('Belt size','ecBelt',m.beltSize,'text','e.g. 2')+'</div><div>'+f('Kick size','ecKick',m.kickSize,'text','e.g. child S')+'</div></div>'
     // Household membership is a fact about THIS person, so it is edited where
@@ -6823,17 +6839,18 @@ async function saveEditContact(){
   const first = v('ecFirst'), last = v('ecLast');
   if(!first){ toast('First name is required'); return; }
   const email = v('ecEmail').toLowerCase(), phone = v('ecPhone'), dob = v('ecDob');
-  const addr = v('ecAddr'), belt = v('ecBelt'), kick = v('ecKick');
+  const addr = v('ecAddr'), belt = v('ecBelt'), kick = v('ecKick'), gender = v('ecGender');
   const upd = {
     first_name: first, last_name: last,
     email: email || null, phone: phone || null, dob: dob || null,
-    address: addr || null, belt_size: belt || null, kick_size: kick || null
+    address: addr || null, belt_size: belt || null, kick_size: kick || null,
+    gender: gender || null
   };
   const r = await sb.from('contacts').update(upd).eq('id', m.id);
   if(r.error){ toast('Could not save: '+(r.error.message||r.error)); return; }
   // Patch the in-memory row the same way loadMembers maps it.
   m.first = first; m.last = last; m.email = email; m.address = addr;
-  m.beltSize = belt; m.kickSize = kick; m.dob = dob;
+  m.beltSize = belt; m.kickSize = kick; m.dob = dob; m.gender = gender;
   m.phones = phone ? [["Mobile", phone]] : [];
   m.emails = email ? [email] : [];
   m.age = dob ? Math.floor((Date.now() - new Date(dob)) / 3.15576e10) : 0;

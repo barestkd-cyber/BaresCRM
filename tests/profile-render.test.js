@@ -153,6 +153,18 @@ test('the derived belt line is gone and the rank is the tappable thing', () => {
   assert.ok(out.indexOf('rankprog') < out.indexOf('rankchip'), 'the program is not above the chip');
 });
 
+test('gender shows, filled or empty, like DOB and the gear sizes', () => {
+  // Owner (household design pass): "may need gender on profile too for easy
+  // data collection." 102 of 141 contacts have no value; the blank that
+  // renders is the blank that gets filled.
+  const has = render({ gender: 'Female' });
+  assert.ok(has.includes('>Gender<'), 'no gender label');
+  assert.ok(has.includes('>Female<'), 'the value is not shown');
+  const not = render({ gender: '' });
+  assert.ok(not.includes('>Gender<'), 'the label vanished with the value');
+  assert.ok(not.includes('Add gender'), 'an empty gender is not offered as something to fill');
+});
+
 test('DOB shows even when there is no DOB', () => {
   // Owner, 2026-08-23: "if DOB field is empty it still needs to show up." A row
   // that disappears when empty is a question nobody ever gets asked.
