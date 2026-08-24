@@ -524,6 +524,11 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .gmail .rm{border:none;background:none;color:var(--accent);font-size:17px;cursor:pointer;padding:0 4px;line-height:1}
 .gkids{font-size:12.5px;color:var(--muted);line-height:1.6;margin-top:2px}
 @media (min-width:900px){
+  /* The profile is a phone-first layout; edge to edge on a monitor it smeared
+     left with a void on the right. One centered column caps it at a readable
+     width (owner 2026-08-24: "contents of the card up top need to be centered
+     on pc"). Contents inside the cards stay left-aligned. */
+  #view-profile{max-width:1050px;margin:0 auto}
   .pstats{grid-template-columns:repeat(2,minmax(0,240px));padding:18px 26px 0}
   .pstat .n{font-size:24px}
   .pstat .l{font-size:12px}
