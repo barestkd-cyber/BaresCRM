@@ -5957,6 +5957,25 @@ function backToList(){ showSection("members"); }
 function renderProfile(){
   const m = currentMember;
   const beltC = BELT[m.belt] || "#C7CCD2";
+  // Built FIRST, because the belt bar below reads it. Declared after it, a
+  // const in the same scope is not merely undefined - it throws, and every
+  // member with a belt failed to open at all while trials were fine.
+  // On the app or not, as a mark rather than a row of prose. Owner: "a phone
+  // emoji with a circle next to it, and if they're on the app there's a
+  // checkbox on that circle."
+  const appMark = '<span class="appmark'+(m.app?' on':'')+'" title="'
+    + (m.app?'Using the student app':'Not on the student app')+'">'
+    + '<span class="ph">📱</span><span class="dot">'+(m.app?'✓':'')+'</span></span>'
+    // Always shown, empty or not. An empty one is the prompt: he reads the
+    // profile with the student in front of him, sees a blank, and measures
+    // them on the spot. Tapping edits it without leaving the page.
+    + '<button class="gearmark'+(m.beltSize?'':' empty')+'" title="Belt size" '
+      + 'onclick="gearEdit(\'belt\')"><span class="ph">🥋</span>'
+      + (m.beltSize?escHtml(m.beltSize):':')+'</button>'
+    + '<button class="gearmark'+(m.kickSize?'':' empty')+'" title="Kick size" '
+      + 'onclick="gearEdit(\'kick\')"><span class="ph">👟</span>'
+      + (m.kickSize?escHtml(m.kickSize):':')+'</button>';
+
   const segClass = m.segment==="Active"?"active":m.segment==="Lead"?"lead":m.segment==="Trial"?"trial":"former";
   const segBg = m.segment==="Active"?"#E4F5EE":m.segment==="Lead"?"#FBF1DC":m.segment==="Trial"?"#E7F1FB":"#EDEFF2";
   const segCol = m.segment==="Active"?"#18A974":m.segment==="Lead"?"#C98A1A":m.segment==="Trial"?"#2563EB":"#9AA1AC";
@@ -5995,22 +6014,6 @@ function renderProfile(){
   // The avatar carries the belt colour so rank reads from across the room,
   // and Actions sits under it, beside the thing it acts on.
   const avInk = (m.belt==="White"||m.belt==="Yellow") ? "#15171C" : "#fff";
-
-  // On the app or not, as a mark rather than a row of prose. Owner: "a phone
-  // emoji with a circle next to it, and if they're on the app there's a
-  // checkbox on that circle."
-  const appMark = '<span class="appmark'+(m.app?' on':'')+'" title="'
-    + (m.app?'Using the student app':'Not on the student app')+'">'
-    + '<span class="ph">📱</span><span class="dot">'+(m.app?'✓':'')+'</span></span>'
-    // Always shown, empty or not. An empty one is the prompt: he reads the
-    // profile with the student in front of him, sees a blank, and measures
-    // them on the spot. Tapping edits it without leaving the page.
-    + '<button class="gearmark'+(m.beltSize?'':' empty')+'" title="Belt size" '
-      + 'onclick="gearEdit(\'belt\')"><span class="ph">🥋</span>'
-      + (m.beltSize?escHtml(m.beltSize):':')+'</button>'
-    + '<button class="gearmark'+(m.kickSize?'':' empty')+'" title="Kick size" '
-      + 'onclick="gearEdit(\'kick\')"><span class="ph">👟</span>'
-      + (m.kickSize?escHtml(m.kickSize):':')+'</button>';
 
   html += '<div class="phead">'
     + '<div class="phead-top">'
