@@ -658,7 +658,16 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
   .phead-top{justify-content:center}
   .phead-body{flex:0 1 auto;text-align:center}
   .phead .pname{justify-content:center}
-  .phead-facts{grid-template-columns:repeat(2,minmax(0,330px));justify-content:center}
+  /* On a wide screen the avatar column flattens (owner 2026-08-24): Actions
+     sits to the LEFT of the avatar instead of under it, so the avatar lines
+     up dead level with the name text. The dropdown anchors to the button and
+     rides along. Phones keep the stacked column. */
+  .pavcol{flex-direction:row-reverse;align-items:center;gap:14px}
+  /* The facts row leans back left (owner 2026-08-24: "dob gender and size of
+     belt foot and app, you can go back to the left some") - columns stay
+     modest so nothing smears, but they anchor to the card's left edge while
+     the identity block above stays centered. */
+  .phead-facts{grid-template-columns:repeat(2,minmax(0,330px));justify-content:start}
   /* After profBuildPanel, #psections holds only the overview (the Contact
      card). column-count:2 stranded that one card in the LEFT column with an
      empty right half - owner: "the contact column is still on left of page".
