@@ -193,7 +193,7 @@ Deno.serve(async (req) => {
     // ── load the sale; make sure it has a view token ────────────────────────
     const admin = createClient(url, serviceKey);
     const saleRes = await admin.from("pos_sales")
-      .select("id,status,brand,total_cents,sale_date,view_token,buyer_contact_id,stripe_email,customer_note,calendar_url,notes,receipt_sent_at")
+      .select("id,status,brand,total_cents,sale_date,view_token,buyer_contact_id,stripe_email,receipt_email,customer_note,calendar_url,notes,receipt_sent_at")
       .eq("id", saleId).single();
     if (saleRes.error || !saleRes.data) return json({ error: "Sale not found" }, 404, cors);
     const s = saleRes.data;
@@ -224,8 +224,15 @@ Deno.serve(async (req) => {
       // The address typed at checkout still leads: they chose it minutes ago
       // and are watching for the receipt there, and for a walk-in it is the
       // only address that exists.
-      const typed = String(s.stripe_email ?? "").trim().toLowerCase();
-      if (typed && EMAIL_RE.test(typed)) to.push(typed);
+      // BOTH typed-address columns. stripe_email is stamped by the webhook
+      // checkout-session path; receipt_email is what testing-checkout stores.
+      // On 2026-08-24 three testing families paid $309.88 and no receipt
+      // went out because this only read stripe_email while their addresses
+      // sat in receipt_email. Wherever a typed address lands, look there.
+      for (const cand of [s.stripe_email, (s as Record<string, unknown>).receipt_email]) {
+        const typed = String(cand ?? "").trim().toLowerCase();
+        if (typed && EMAIL_RE.test(typed) && !to.includes(typed)) to.push(typed);
+      }
 
       // Then whoever the family says. contact_send_list holds the rule -
       // their own address, else the household primary, plus anyone flagged
