@@ -234,14 +234,20 @@ Deno.serve(async (req) => {
         if (typed && EMAIL_RE.test(typed) && !to.includes(typed)) to.push(typed);
       }
 
-      // Then whoever the family says. contact_send_list holds the rule -
-      // their own address, else the household primary, plus anyone flagged
-      // always_copy - so this function and the CRM cannot disagree about who
-      // a receipt belongs to.
+      // Owner rules, 2026-08-25: the address they JUST TYPED wins outright
+      // ("how confusing to pay with one email and get a receipt at another"),
+      // and always-copy guardians ride on everything regardless ("always
+      // copy can just stay on"). contact_send_list labels each row, so when
+      // something was typed the family list contributes only its always-copy
+      // rows; the own/primary defaults stand in only when nothing was typed,
+      // which is a desk sale. Manual sends from the CRM prefill the union
+      // and the owner chooses.
       if (s.buyer_contact_id) {
+        const hadTyped = to.length > 0;
         const list = await admin.rpc("contact_send_list", { p_contact: s.buyer_contact_id });
         if (list.error) console.error("send list", list.error);
-        for (const row of (list.data ?? []) as { email: string }[]) {
+        for (const row of (list.data ?? []) as { email: string; why?: string }[]) {
+          if (hadTyped && String(row.why ?? "") !== "always copy") continue;
           const addr = String(row.email ?? "").trim().toLowerCase();
           if (addr && EMAIL_RE.test(addr) && !to.includes(addr)) to.push(addr);
         }
