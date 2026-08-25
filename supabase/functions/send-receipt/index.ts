@@ -193,7 +193,7 @@ Deno.serve(async (req) => {
     // ── load the sale; make sure it has a view token ────────────────────────
     const admin = createClient(url, serviceKey);
     const saleRes = await admin.from("pos_sales")
-      .select("id,status,brand,total_cents,sale_date,view_token,buyer_contact_id,stripe_email,receipt_email,customer_note,calendar_url,notes,receipt_sent_at,staff_email")
+      .select("id,status,brand,total_cents,sale_date,view_token,buyer_contact_id,stripe_email,receipt_email,customer_note,calendar_url,notes,receipt_sent_at,staff_email,payer_name")
       .eq("id", saleId).single();
     if (saleRes.error || !saleRes.data) return json({ error: "Sale not found" }, 404, cors);
     const s = saleRes.data;
@@ -469,7 +469,20 @@ Deno.serve(async (req) => {
     // notify Race must never turn a delivered receipt into an error.
     if (notifyOwner && paid && EMAIL_RE.test(ownerAddr)) {
       const buyerName = await (async () => {
-        if (!s.buyer_contact_id) return "Walk-in";
+        if (!s.buyer_contact_id) {
+          // The name the payer TYPED, verbatim, marked as such. "Walk-in"
+          // was a guess label printed while the real name sat in the sale;
+          // it survives only for a sale where nobody typed anything at all
+          // (owner, 2026-08-25: "just put the name they typed in on the
+          // email for me, worst case").
+          const typedName = String((s as Record<string, unknown>).payer_name ?? "").trim();
+          const typedAddr = String(s.receipt_email ?? s.stripe_email ?? "").trim();
+          if (typedName) {
+            return esc(typedName) + (typedAddr ? "<br>" + esc(typedAddr) : "")
+              + '<br><span style="color:#c8102e;font-size:12px">typed at checkout, not matched to a profile</span>';
+          }
+          return "Walk-in";
+        }
         const c = await admin.from("contacts")
           .select("first_name,last_name,email,phone").eq("id", s.buyer_contact_id).maybeSingle();
         if (!c.data) return "Unknown";
