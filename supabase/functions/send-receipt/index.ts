@@ -193,7 +193,7 @@ Deno.serve(async (req) => {
     // ── load the sale; make sure it has a view token ────────────────────────
     const admin = createClient(url, serviceKey);
     const saleRes = await admin.from("pos_sales")
-      .select("id,status,brand,total_cents,sale_date,view_token,buyer_contact_id,stripe_email,receipt_email,customer_note,calendar_url,notes,receipt_sent_at")
+      .select("id,status,brand,total_cents,sale_date,view_token,buyer_contact_id,stripe_email,receipt_email,customer_note,calendar_url,notes,receipt_sent_at,staff_email")
       .eq("id", saleId).single();
     if (saleRes.error || !saleRes.data) return json({ error: "Sale not found" }, 404, cors);
     const s = saleRes.data;
@@ -501,10 +501,16 @@ Deno.serve(async (req) => {
       // What was actually bought, and when. customer_note is the line written
       // FOR a human ("Private lesson for Hunter, Wednesday, August 26 at 3:30
       // PM"); notes is the terse internal one ("Private lesson from the
-      // website, 2026-08-26"). The owner was getting the terse one, so his
-      // notification carried no lesson time at all.
-      const internal = String(s.customer_note ?? "").trim()
-        || String(s.notes ?? "").trim();
+      // website, 2026-08-26"). The owner gets customer_note because for a
+      // lesson it carries the time he needs - EXCEPT testing sales, where
+      // customer_note is the parent spiel (arrive early, full uniform) and
+      // the terse note is the useful one: "paid by <parent>" plus any parent
+      // comments. Owner, 2026-08-25: "i dont need a testing event description
+      // in my confirmation sign up emails."
+      const isTestingSale = String(s.staff_email ?? "").startsWith("testing-checkout");
+      const ownerDetail = isTestingSale
+        ? String(s.notes ?? "").trim()
+        : (String(s.customer_note ?? "").trim() || String(s.notes ?? "").trim());
       const ownerHtml =
         `<div style="font-family:Arial,Helvetica,sans-serif;color:#111;max-width:460px;margin:0 auto;padding:18px 14px">
           <p style="font-size:12px;letter-spacing:.08em;color:#777;margin:0 0 4px">PAYMENT RECEIVED</p>
@@ -515,7 +521,7 @@ Deno.serve(async (req) => {
               ? `<tr><td style="color:#777;padding-right:12px;vertical-align:top">Receipt to</td><td>${esc(to.join(", "))}</td></tr>`
               : ""}
             ${itemsHtml ? `<tr><td style="color:#777;padding-right:12px;vertical-align:top">Items</td><td>${itemsHtml}</td></tr>` : ""}
-            ${internal ? `<tr><td style="color:#777;padding-right:12px;vertical-align:top">Details</td><td style="white-space:pre-wrap">${esc(internal)}</td></tr>` : ""}
+            ${ownerDetail ? `<tr><td style="color:#777;padding-right:12px;vertical-align:top">Details</td><td style="white-space:pre-wrap">${esc(ownerDetail)}</td></tr>` : ""}
             <tr><td style="color:#777;padding-right:12px;vertical-align:top">Invoice</td><td>${shortId} · ${fmtDate(s.sale_date)}</td></tr>
           </table>
           <p style="margin:18px 0 0"><a href="${viewUrl}" style="font-size:14px;font-weight:bold;color:#15171C">Open the invoice &rarr;</a></p>
