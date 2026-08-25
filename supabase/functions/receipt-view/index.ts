@@ -211,7 +211,7 @@ Deno.serve(async (req) => {
         '<div class="inv-scroll"><table class="inv-tbl"><thead><tr><th>Date</th><th>Type</th><th class="r">Amount</th></tr></thead><tbody>' +
         pays.map((p) =>
           "<tr><td>" + esc(fmtDate(String(p.occurred_at).slice(0, 10))) + "</td>" +
-          '<td style="text-transform:capitalize">' + esc(p.kind) + (p.note ? '<div style="font-size:11px;color:#6A727E">' + esc(p.note) + "</div>" : "") + "</td>" +
+          '<td style="text-transform:capitalize">' + esc(p.kind === "charge" ? "Payment" : p.kind === "ach_return" ? "Returned payment" : p.kind) + (p.note ? '<div style="font-size:11px;color:#6A727E">' + esc(p.note) + "</div>" : "") + "</td>" +
           '<td class="r"' + (p.amount_cents < 0 ? ' style="color:#c8102e"' : "") + ">" + (p.amount_cents < 0 ? "−" : "") + money(Math.abs(p.amount_cents)) + "</td></tr>").join("") +
         "</tbody></table></div>" +
         '<div class="iv-total paid"><span class="lbl">Total paid</span><span class="amt">' + money(paidNet) + "</span></div>" +
