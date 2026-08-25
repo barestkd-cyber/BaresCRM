@@ -234,5 +234,27 @@ test('the sections that were deleted stay deleted', () => {
   assert.ok(out.includes('Rank &amp; testing'), 'but the rank TAB is there');
 });
 
+/* ── the invoice list: family invoices are marked ────────────────────── */
+
+test('an invoice covering two participants renders yellow; one does not', () => {
+  // Owner, 2026-08-25: "highlighted yellow if it's attached to more than one
+  // participant in that family." famN is the count of DISTINCT kids named on
+  // the sale's lines; the buyer alone is not a family.
+  vm.runInContext(liftFn('profRenderInvoices'), sandbox);
+  sandbox.PROF_INV_F = 'all';
+  sandbox.PROF_MONEY = [
+    { id: 's1', date: '2026-08-24', total: 11359, paid: 11359, balance: 0,
+      st: 'paid', statusRaw: 'paid', labels: 'Belt testing - Victoria + Madison', famN: 2 },
+    { id: 's2', date: '2026-08-24', total: 5180, paid: 5180, balance: 0,
+      st: 'paid', statusRaw: 'paid', labels: 'Belt testing - Elora', famN: 1 },
+  ];
+  els['prof-invoices'] = { id: 'prof-invoices', innerHTML: '', style: {}, classList: { add() {}, remove() {}, toggle() {} } };
+  vm.runInContext('profRenderInvoices()', sandbox);
+  const out = els['prof-invoices'].innerHTML;
+  assert.strictEqual((out.match(/class="fam"/g) || []).length, 1, 'exactly one row should be marked');
+  assert.ok(/fam" title="Family invoice: covers 2 participants"/.test(out), 'the mark does not say why');
+  assert.ok(out.indexOf('fam') < out.indexOf('Elora'), 'the wrong row got marked');
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
 process.exit(failed ? 1 : 0);

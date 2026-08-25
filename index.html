@@ -380,6 +380,11 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .pf-empty{border:none;background:none;padding:0;font:inherit;font-size:14px;color:#C7CCD2;
   cursor:pointer;font-family:inherit;text-align:left}
 .pf-empty:active{color:var(--muted)}
+/* An invoice naming 2+ participants belongs to the FAMILY, and says so at
+   a glance (owner 2026-08-25: "highlighted yellow if attached to more than
+   one participant"). */
+.invx tr.fam td{background:#FFF9E3}
+.invx tr.fam td:first-child{box-shadow:inset 3px 0 0 #F5C518}
 /* Left-aligned inside a column that sits on the right, so the emoji line up
    with each other rather than ragging off their differing widths. */
 /* A FIXED width, with the contents left-aligned inside it. The column is
@@ -6700,22 +6705,32 @@ let PROF_MONEY = [];
 let PROF_INV_F = 'all';
 async function loadProfileMoney(contactId){
   PROF_INV_F = 'all';
+  // Theirs = bought by them OR naming them on a line. Buyer-only hid a
+  // two-kid invoice from the second kid's profile entirely.
+  const mine = await sb.from('pos_sale_lines')
+    .select('sale_id').eq('student_contact_id', contactId);
+  const mineIds = [...new Set((mine.data||[]).map(r=>r.sale_id))];
   const sRes = await sb.from('pos_sales')
     .select('id,sale_date,status,total_cents')
-    .eq('buyer_contact_id', contactId)
+    .or('buyer_contact_id.eq.'+contactId
+      + (mineIds.length ? ',id.in.('+mineIds.join(',')+')' : ''))
     .order('created_at', { ascending:false }).limit(100);
   if(profStale(contactId)) return;   // they opened somebody else
   if(sRes.error){ console.error('profile money', sRes.error); return; }
   const sales = sRes.data||[];
   const ids = sales.map(s=>s.id);
-  let paysBy = {}, linesBy = {};
+  let paysBy = {}, linesBy = {}, kidsBy = {};
   if(ids.length){
     const [pRes, lRes] = await Promise.all([
       sb.from('pos_payments').select('sale_id,amount_cents').in('sale_id', ids),
-      sb.from('pos_sale_lines').select('sale_id,label').in('sale_id', ids)
+      sb.from('pos_sale_lines').select('sale_id,label,student_contact_id').in('sale_id', ids)
     ]);
     (pRes.data||[]).forEach(p=>{ paysBy[p.sale_id]=(paysBy[p.sale_id]||0)+p.amount_cents; });
     (lRes.data||[]).forEach(l=>{ (linesBy[l.sale_id]=linesBy[l.sale_id]||[]).push(l.label); });
+    // How many DIFFERENT participants the sale covers. Two or more makes
+    // it a family invoice, which renders highlighted.
+    (lRes.data||[]).forEach(l=>{ if(l.student_contact_id){
+      (kidsBy[l.sale_id]=kidsBy[l.sale_id]||new Set()).add(l.student_contact_id); } });
   }
   const DEAD = ['voided','closed','abandoned'];
   PROF_MONEY = sales.map(s=>{
@@ -6726,7 +6741,8 @@ async function loadProfileMoney(contactId){
              : dead ? 'other'
              : paid>0 ? 'part' : 'unpaid';
     return { id:s.id, date:s.sale_date, total:s.total_cents, paid, balance:(st==='paid'||dead)?0:balance,
-             st, statusRaw:s.status, labels:(linesBy[s.id]||[]).join(', ') };
+             st, statusRaw:s.status, labels:(linesBy[s.id]||[]).join(', '),
+             famN: (kidsBy[s.id]||new Set()).size };
   });
   const owed = PROF_MONEY.reduce((a,r)=>a+r.balance,0);
   const nOwe = PROF_MONEY.filter(r=>r.balance>0).length;
@@ -6754,7 +6770,7 @@ function profRenderInvoices(){
   box.innerHTML = '<div class="invx-scroll"><table class="invx"><thead><tr>'
     + '<th>Date</th><th>Total</th><th>Paid</th><th>Balance</th><th>Summary</th><th>Status</th><th></th>'
     + '</tr></thead><tbody>'
-    + rows.map(r=>'<tr>'
+    + rows.map(r=>'<tr'+(r.famN>=2?' class="fam" title="Family invoice: covers '+r.famN+' participants"':'')+'>'
       + '<td class="num">'+escHtml(fmtDate(r.date))+'</td>'
       + '<td class="num">'+money(r.total/100)+'</td>'
       + '<td class="num">'+money(r.paid/100)+'</td>'
