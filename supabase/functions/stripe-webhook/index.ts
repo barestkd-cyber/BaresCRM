@@ -242,8 +242,10 @@ Deno.serve(async (req) => {
       // asks staff before adopting it.
       const payerEmail = String(obj.customer_details?.email ?? obj.customer_email ?? "").trim().toLowerCase();
       if (payerEmail && payerEmail.length <= 200) {
-        const se = await admin.from("pos_sales").update({ stripe_email: payerEmail }).eq("id", saleId);
-        if (se.error) console.error("stripe_email stamp failed", se.error); // not fatal to the payment
+        // payer_email is the ONE typed-at-checkout column (2026-08-25);
+        // null-guarded so a checkout that already stamped it wins.
+        const se = await admin.from("pos_sales").update({ payer_email: payerEmail }).eq("id", saleId).is("payer_email", null);
+        if (se.error) console.error("payer_email stamp failed", se.error); // not fatal to the payment
       }
 
       // Idempotency at the money level too: one payment row per session.

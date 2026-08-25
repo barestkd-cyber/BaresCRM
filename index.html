@@ -5211,7 +5211,7 @@ function posAutoReceipt(saleId){
  * "+ Add another" for extra recipients (max 10). An empty input only appears
  * when there is genuinely no email on file (walk-in / missing email). */
 async function posEmailReceiptSheet(saleId){
-  const r = await sb.from('pos_sales').select('buyer_contact_id,receipt_email,stripe_email,status').eq('id', saleId).single();
+  const r = await sb.from('pos_sales').select('buyer_contact_id,payer_email,receipt_email,stripe_email,status').eq('id', saleId).single();
   {
     const s = r.data||{};
     // The same rule the server uses, asked of the database rather than worked
@@ -5229,7 +5229,10 @@ async function posEmailReceiptSheet(saleId){
     // fallback only, so a typed address was silently dropped whenever the
     // family had one on file - Tim Apple typed tim@apples.email while his
     // guardian row carried two others, and only the on-file pair prefilled.
-    [s.receipt_email, s.stripe_email].forEach(t=>{
+    // payer_email is the one true typed-at-checkout column (2026-08-25); the
+    // other two are legacy typed homes and the last-delivered stamp, kept in
+    // the union because a corrected address is worth offering on a resend.
+    [s.payer_email, s.receipt_email, s.stripe_email].forEach(t=>{
       const typed = String(t||'').trim();
       if(typed && !addrs.some(a=>a.toLowerCase()===typed.toLowerCase())) addrs.push(typed);
     });

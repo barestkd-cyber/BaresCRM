@@ -401,7 +401,7 @@ Deno.serve(async (req) => {
           tender_method: null, status: "unpaid",
           subtotal_cents: amount, discount_cents: 0, admin_fee_cents: 0, tax_cents: 0,
           total_cents: amount,
-          receipt_email: person.data?.email,
+          payer_email: person.data?.email,
           customer_note: mem.data.program + " membership, payment due " + r.due_on + ".",
           notes: "Automatic membership payment, installment " + r.seq,
         }).select("id").single();

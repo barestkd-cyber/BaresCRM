@@ -31,6 +31,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { PDFDocument, StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
 import { LOGO_PNG_BASE64 } from "./logo.ts";
+// The recipient rulebook. Pure, no I/O, and the SAME FILE the Node suite
+// (tests/receipt-rules.test.js) imports - the 2026-08-24 silence happened
+// in logic no test could reach, and this is what makes it reachable.
+import { resolveRecipients } from "../_shared/recipients.mjs";
 
 const ALLOWED_ORIGINS = ["https://crm.barestkd.fit"];
 
@@ -193,7 +197,7 @@ Deno.serve(async (req) => {
     // ── load the sale; make sure it has a view token ────────────────────────
     const admin = createClient(url, serviceKey);
     const saleRes = await admin.from("pos_sales")
-      .select("id,status,brand,total_cents,sale_date,view_token,buyer_contact_id,stripe_email,receipt_email,customer_note,calendar_url,notes,receipt_sent_at,staff_email,payer_name")
+      .select("id,status,brand,total_cents,sale_date,view_token,buyer_contact_id,stripe_email,receipt_email,customer_note,calendar_url,notes,receipt_sent_at,staff_email,payer_name,payer_email")
       .eq("id", saleId).single();
     if (saleRes.error || !saleRes.data) return json({ error: "Sale not found" }, 404, cors);
     const s = saleRes.data;
@@ -215,43 +219,21 @@ Deno.serve(async (req) => {
     // asked for this", and only the former is suppressed. Re-sending a
     // receipt by hand must always work, including to a corrected address.
     if (!to.length) {
-      // Resolution order, most-specific first:
-      //   1. the address the payer typed at Stripe checkout - they just chose
-      //      it and are expecting the receipt there, and for a WALK-IN it is
-      //      the only address that exists;
-      //   2. the buyer's address on file.
-      // Before this, a walk-in simply skipped and nobody was emailed at all.
-      // The address typed at checkout still leads: they chose it minutes ago
-      // and are watching for the receipt there, and for a walk-in it is the
-      // only address that exists.
-      // BOTH typed-address columns. stripe_email is stamped by the webhook
-      // checkout-session path; receipt_email is what testing-checkout stores.
-      // On 2026-08-24 three testing families paid $309.88 and no receipt
-      // went out because this only read stripe_email while their addresses
-      // sat in receipt_email. Wherever a typed address lands, look there.
-      for (const cand of [s.stripe_email, (s as Record<string, unknown>).receipt_email]) {
-        const typed = String(cand ?? "").trim().toLowerCase();
-        if (typed && EMAIL_RE.test(typed) && !to.includes(typed)) to.push(typed);
-      }
-
-      // Owner rules, 2026-08-25: the address they JUST TYPED wins outright
-      // ("how confusing to pay with one email and get a receipt at another"),
-      // and always-copy guardians ride on everything regardless ("always
-      // copy can just stay on"). contact_send_list labels each row, so when
-      // something was typed the family list contributes only its always-copy
-      // rows; the own/primary defaults stand in only when nothing was typed,
-      // which is a desk sale. Manual sends from the CRM prefill the union
-      // and the owner chooses.
+      // One rulebook, shared byte-for-byte with the Node test suite
+      // (_shared/recipients.mjs): typed wins outright, always-copy rides,
+      // the on-file list stands in for desk sales, and the skip reasons
+      // feed the alarm below. The owner rulings live in ECOSYSTEM 16.6h.
+      let sendList: { email: string; why?: string }[] = [];
       if (s.buyer_contact_id) {
-        const hadTyped = to.length > 0;
         const list = await admin.rpc("contact_send_list", { p_contact: s.buyer_contact_id });
         if (list.error) console.error("send list", list.error);
-        for (const row of (list.data ?? []) as { email: string; why?: string }[]) {
-          if (hadTyped && String(row.why ?? "") !== "always copy") continue;
-          const addr = String(row.email ?? "").trim().toLowerCase();
-          if (addr && EMAIL_RE.test(addr) && !to.includes(addr)) to.push(addr);
-        }
+        sendList = (list.data ?? []) as { email: string; why?: string }[];
       }
+      const resolved = resolveRecipients({
+        payerEmail: String((s as Record<string, unknown>).payer_email ?? ""),
+        sendList, hasBuyer: !!s.buyer_contact_id,
+      });
+      for (const a of resolved.to) to.push(a);
       if (!to.length) {
         // A PAID sale that nobody can be emailed about is an alarm, not a
         // quiet skip (owner, 2026-08-25). On 2026-08-24 three families paid
@@ -482,7 +464,7 @@ Deno.serve(async (req) => {
           // (owner, 2026-08-25: "just put the name they typed in on the
           // email for me, worst case").
           const typedName = String((s as Record<string, unknown>).payer_name ?? "").trim();
-          const typedAddr = String(s.receipt_email ?? s.stripe_email ?? "").trim();
+          const typedAddr = String((s as Record<string, unknown>).payer_email ?? "").trim();
           if (typedName) {
             return esc(typedName) + (typedAddr ? "<br>" + esc(typedAddr) : "")
               + '<br><span style="color:#c8102e;font-size:12px">typed at checkout, not matched to a profile</span>';
