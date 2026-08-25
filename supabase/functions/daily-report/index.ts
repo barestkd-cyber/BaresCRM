@@ -228,12 +228,9 @@ Deno.serve(async (req) => {
       needRows.push(row(
         `${unpaid.length} unpaid invoice${unpaid.length === 1 ? "" : "s"}`,
         money(owed), "Nobody is chasing these but you."));
-      unpaid.slice(0, 6).forEach((s: Record<string, unknown>) => {
-        const who = s.buyer_contact_id ? nameById[String(s.buyer_contact_id)] : "Walk-in";
-        needRows.push(row(esc(who), money(Number(s.total_cents)),
-          `Invoice from ${esc(String(s.sale_date))}`,
-          `${SITE}/invoice/?t=${esc(String(s.view_token))}`));
-      });
+      // No per-invoice rows. Owner, 2026-08-25: "i dont want the nightly
+      // report to list each open invoice. just how many and for how much."
+      // The CRM\u0027s Transactions view is where the individual ones live.
     }
     const failed = pays.filter((p: Record<string, unknown>) =>
       ["ach_return", "dispute"].includes(String(p.kind)));

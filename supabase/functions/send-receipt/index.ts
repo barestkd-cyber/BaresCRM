@@ -247,6 +247,37 @@ Deno.serve(async (req) => {
         }
       }
       if (!to.length) {
+        // A PAID sale that nobody can be emailed about is an alarm, not a
+        // quiet skip (owner, 2026-08-25). On 2026-08-24 three families paid
+        // 309.88 and this branch swallowed it; the owner found out from
+        // the nightly report and had to dig. Money with no receipt now
+        // emails him the same minute. An UNPAID sale still skips quietly:
+        // a walk-in invoice with no address is normal, not an emergency.
+        if (s.status === "paid") {
+          const ownerAddr = (Deno.env.get("OWNER_NOTIFY_EMAIL") || "race@barestkd.fit").trim().toLowerCase();
+          const why = s.buyer_contact_id
+            ? "The buyer is on file but has no emailable address anywhere."
+            : "Walk-in sale with no checkout email on it.";
+          // Best effort: the alarm must never break the payment path.
+          fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { Authorization: "Bearer " + resendKey, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              from: "Bares Taekwondo <receipts@barestkd.fit>",
+              to: [ownerAddr],
+              subject: "PAID BUT NOBODY EMAILED: " + money(Number(s.total_cents)),
+              html: '<div style="font-family:Arial,Helvetica,sans-serif;color:#111;max-width:460px;margin:0 auto;padding:18px 14px">'
+                + '<p style="font-size:12px;letter-spacing:.08em;color:#c8102e;margin:0 0 4px">PAID, NO RECEIPT SENT</p>'
+                + '<p style="font-size:24px;font-weight:bold;margin:0 0 10px">' + money(Number(s.total_cents)) + "</p>"
+                + '<p style="font-size:14px;margin:0 0 6px">A payment landed on ' + String(s.sale_date ?? "today")
+                + " and the receipt sender found nobody to email. " + why + "</p>"
+                + (s.view_token ? '<p style="font-size:14px;margin:0"><a href="https://www.barestkd.fit/invoice/?t='
+                    + String(s.view_token) + '">Open the invoice</a></p>' : "")
+                + "</div>",
+            }),
+          }).then((r) => { if (!r.ok) console.error("skip alarm failed", r.status); })
+            .catch((e) => console.error("skip alarm threw", e));
+        }
         return json({ ok: false, skipped: s.buyer_contact_id
           ? "nobody on file to email" : "walk-in sale with no checkout email, nobody to email" }, 200, cors);
       }
