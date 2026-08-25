@@ -5211,7 +5211,7 @@ function posAutoReceipt(saleId){
  * "+ Add another" for extra recipients (max 10). An empty input only appears
  * when there is genuinely no email on file (walk-in / missing email). */
 async function posEmailReceiptSheet(saleId){
-  const r = await sb.from('pos_sales').select('buyer_contact_id,receipt_email,status').eq('id', saleId).single();
+  const r = await sb.from('pos_sales').select('buyer_contact_id,receipt_email,stripe_email,status').eq('id', saleId).single();
   {
     const s = r.data||{};
     // The same rule the server uses, asked of the database rather than worked
@@ -5224,7 +5224,15 @@ async function posEmailReceiptSheet(saleId){
       if(l.error) console.error('send list', l.error);
       addrs = (l.data||[]).map(x=>String(x.email||'').trim()).filter(Boolean);
     }
-    if(!addrs.length && s.receipt_email) addrs = [s.receipt_email];
+    // PLUS whatever the payer typed at checkout, when it differs (owner
+    // 2026-08-25: "needs to be both if they're different"). It used to be a
+    // fallback only, so a typed address was silently dropped whenever the
+    // family had one on file - Tim Apple typed tim@apples.email while his
+    // guardian row carried two others, and only the on-file pair prefilled.
+    [s.receipt_email, s.stripe_email].forEach(t=>{
+      const typed = String(t||'').trim();
+      if(typed && !addrs.some(a=>a.toLowerCase()===typed.toLowerCase())) addrs.push(typed);
+    });
     const prefill = addrs[0] || '';
     $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Email '+(s.status==='paid'?'receipt':'invoice')+'</h3><div class="sub">'+escHtml(posBuyerLabel(s.buyer_contact_id))+'</div></div><button class="close" onclick="closeSheet()">×</button></div>'
       +'<div class="sheet-body">'
