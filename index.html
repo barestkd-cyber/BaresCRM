@@ -544,7 +544,11 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
      on pc"). Contents inside the cards stay left-aligned. */
   #view-profile{max-width:1050px;margin:0 auto}
   /* The two stat cards center over the header card (owner 2026-08-24). */
-  .pstats{grid-template-columns:repeat(2,minmax(0,240px));justify-content:center;padding:18px 26px 0}
+  /* Two boxes, one size, no argument: fixed width AND matched height, so
+     neither content nor background can size them apart (owner 2026-08-25:
+     "they are different size, fix that"). */
+  .pstats{grid-template-columns:repeat(2,240px);justify-content:center;padding:18px 26px 0}
+  .pstat{min-height:64px;display:flex;align-items:center;justify-content:space-between}
   .pstat .n{font-size:24px}
   .pstat .l{font-size:12px}
   /* The header is a card with TWO stacked children now (.phead-top and
@@ -670,7 +674,11 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
   /* Owner 2026-08-24: "center the text". The identity block centers as a
      unit (avatar beside name), and the facts pull into two modest columns
      centered under it instead of smearing across the whole card. */
-  .phead-top{justify-content:center}
+  /* The NAME is what centers on the card, not the avatar (owner 2026-08-25).
+     Three grid columns: the name block owns the exact middle, and the avatar
+     with Actions hangs off its left in the first column. */
+  .phead-top{display:grid;grid-template-columns:1fr auto 1fr;column-gap:16px;align-items:center}
+  .pavcol{justify-self:end}
   .phead-body{flex:0 1 auto;text-align:center}
   .phead .pname{justify-content:center}
   /* On a wide screen the avatar column flattens (owner 2026-08-24): Actions
@@ -682,7 +690,9 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
      belt foot and app, you can go back to the left some") - and each column
      is sized to what it holds. Fixed 330px columns left the credits cell
      stretched long around three short lines. */
-  .phead-facts{grid-template-columns:auto auto;justify-content:start}
+  /* Split down the middle (owner 2026-08-25): two equal halves, so the
+     divider between dates and credits lands at the card's exact center. */
+  .phead-facts{grid-template-columns:1fr 1fr}
   /* After profBuildPanel, #psections holds only the overview (the Contact
      card). column-count:2 stranded that one card in the LEFT column with an
      empty right half - owner: "the contact column is still on left of page".
