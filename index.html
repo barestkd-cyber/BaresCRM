@@ -9165,12 +9165,14 @@ async function loadProfileHistory(contactId){
   const full = (m.first+' '+m.last).trim();
   const mine = await sb.from('pos_sale_lines').select('sale_id').eq('student_contact_id', contactId);
   const mineIds = [...new Set((mine.data||[]).map(r=>r.sale_id))];
-  const [sales, att, tests, mems, agrs, notes, enrs] = await Promise.all([
+  // NO attendance. Owner 2026-08-25: "wont look at it to sift through that" -
+  // a kid with three classes a week buries every invoice, test and agreement
+  // under check-in rows. Attendance has its own tab, which is where anyone
+  // actually goes looking for it. Not queried at all, so it costs nothing.
+  const [sales, tests, mems, agrs, notes, enrs] = await Promise.all([
     sb.from('pos_sales').select('id,total_cents,status,receipt_sent_at,receipt_email,created_at')
       .or('buyer_contact_id.eq.'+contactId+(mineIds.length?',id.in.('+mineIds.join(',')+')':''))
       .order('created_at',{ascending:false}).limit(60),
-    sb.from('attendance').select('class_label,program,class_date').eq('student_id',contactId)
-      .order('class_date',{ascending:false}).limit(80),
     sb.from('testing_history').select('tested_date,rank_from,rank_to,result').ilike('student_name',full)
       .order('tested_date',{ascending:false}).limit(30),
     sb.from('memberships').select('program,plan_label,started_on,ended_on').eq('contact_id',contactId).limit(30),
@@ -9198,7 +9200,6 @@ async function loadProfileHistory(contactId){
   });
   // Date-only rows get a synthetic midday time so they sort inside the right
   // day without ever beating a real timestamp to the top of it.
-  (att.data||[]).forEach(a=>push((a.class_date||'')+'T12:00:00','🥋','Attended '+(a.class_label||a.program||'class'),''));
   (tests.data||[]).forEach(t=>push((t.tested_date||'')+'T12:00:00','🎖️',
     'Tested: '+(t.rank_from||'?')+' → '+(t.rank_to||'?'),
     (t.result&&String(t.result).toLowerCase()!=='pass')?String(t.result):''));
@@ -9216,7 +9217,7 @@ async function loadProfileHistory(contactId){
   ev.sort((a,b)=>b.ts.localeCompare(a.ts));
 
   const failed = [];
-  if(sales.error) failed.push('invoices'); if(att.error) failed.push('attendance');
+  if(sales.error) failed.push('invoices');
   if(tests.error) failed.push('testing'); if(mems.error) failed.push('memberships');
   if(agrs.error) failed.push('agreements'); if(notes.error) failed.push('notes');
   if(enrs.error) failed.push('rosters'); if(pays.error) failed.push('payments');
