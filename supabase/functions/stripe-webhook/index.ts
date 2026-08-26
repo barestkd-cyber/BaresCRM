@@ -104,6 +104,13 @@ async function reconcilePaidSale(
     await admin.from("enrollments").update({ status: "active" })
       .eq("sale_id", saleId).eq("status", "pending");
 
+    // Testing registrations: the census paid flag follows the money. It
+    // used to flip only in the browser finalize, so when this backstop won
+    // the race the sale read paid while the census read unpaid (7 of 13
+    // paid signups the week of 2026-08-24). Zero rows for non-testing sales.
+    await admin.from("testing_signups").update({ paid: true })
+      .eq("sale_id", saleId).eq("paid", false);
+
     // A lesson hold becomes a real booking, even if the expiry sweep already
     // canceled it: the money says otherwise.
     const lessons = await admin.from("private_lessons")
