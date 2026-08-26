@@ -433,6 +433,9 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .hist-row .hi{flex:none;width:22px;text-align:center}
 .hist-row .hm{min-width:0;flex:1;overflow-wrap:anywhere}
 .hist-row .hd{flex:none;color:var(--muted);font-size:12px;white-space:nowrap;margin-top:1px}
+.nm-banner{background:#FFF8EC;border:1px solid #F1DCB3;color:#7A5A16;border-radius:10px;
+  padding:10px 12px;font-size:13px;line-height:1.5;margin-bottom:10px}
+.nm-banner a{color:#B27400;font-weight:700}
 .pact{position:relative;display:inline-block;margin-top:12px}
 .pact-btn{background:none;border:1.5px solid var(--accent);color:var(--accent);font-weight:700;font-size:13.5px;border-radius:9px;padding:8px 16px;cursor:pointer;font-family:inherit}
 /* The header is a light card now, so the Actions button keeps the accent
@@ -6552,6 +6555,14 @@ async function loadProfileCards(contactId){
     return;
   }
   PROF_CARDS = { contact:contactId, cards:data.cards||[], usage:data.usage||{}, email:data.email||'' };
+  // Cards that came in through the update link from an address nobody
+  // recognised are filed on the PARTICIPANT and flagged. Surfacing the flag
+  // is what the flag is for - card-setup has been writing it since the link
+  // shipped, and until now nothing read it.
+  const nm = await sb.from('card_invites').select('id,sent_to')
+    .eq('contact_id', contactId).eq('needs_matching', true);
+  if(profStale(contactId)) return;
+  if(!nm.error) PROF_CARDS.needsMatch = nm.data||[];
   profCardsDraw();
 }
 
@@ -6559,11 +6570,18 @@ function profCardsDraw(){
   const box = document.getElementById('prof-cards');
   if(!box) return;
   const cards = PROF_CARDS.cards;
+  const nm = PROF_CARDS.needsMatch||[];
+  const nmHtml = nm.length
+    ? '<div class="nm-banner">⚠ A card came in through the update link from '
+      + nm.map(x=>'<b>'+escHtml(x.sent_to||'an unrecognised address')+'</b>').join(', ')
+      + ' and is filed on this participant until it is matched to a guardian. '
+      + '<a href="javascript:void(0)" onclick="nmHandled()">Mark handled</a></div>'
+    : '';
   if(!cards.length){
-    box.innerHTML = '<div class="ccg-sub">No card on file. One saves automatically at their next card payment, or send them the update link.</div>';
+    box.innerHTML = nmHtml + '<div class="ccg-sub">No card on file. One saves automatically at their next card payment, or send them the update link.</div>';
     return;
   }
-  box.innerHTML = cards.map(c=>{
+  box.innerHTML = nmHtml + cards.map(c=>{
     const uses = PROF_CARDS.usage[c.id]||0;
     return '<div class="pmrow">'
       + '<span class="pm-brand">'+escHtml(c.brand)+'</span>'
@@ -6584,6 +6602,18 @@ function profCardsDraw(){
       + (uses?'<span class="pm-inuse">'+uses+' scheduled payment'+(uses===1?'':'s')+' will be charged to this card</span>':'')
       + '</div>';
   }).join('');
+}
+
+/* The unmatched-card banner's one action: he moved the card where it belongs
+ * (or looked and decided it is fine where it is), so the flag stops shouting.
+ * Clears every flagged invite on this contact, not just the first. */
+async function nmHandled(){
+  const who = PROF_CARDS.contact;
+  const r = await sb.from('card_invites').update({ needs_matching: false })
+    .eq('contact_id', who).eq('needs_matching', true);
+  if(r.error){ console.error('nm clear', r.error); toast('Could not clear the flag'); return; }
+  toast('Marked handled');
+  loadProfileCards(who);
 }
 
 function profCardName(id){
