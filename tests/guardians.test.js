@@ -95,12 +95,16 @@ test('one rule decides who a receipt goes to, and both callers ask it', () => {
   assert.ok(/contact_send_list/.test(html), 'and the CRM prefill must use it too');
 });
 
-test('a typed checkout address still leads, and nobody is mailed twice', () => {
-  const typed = receiptFn.indexOf('const typed');
-  const rule = receiptFn.indexOf('contact_send_list');
-  assert.ok(typed > -1 && typed < rule,
-    'someone who just typed an address at checkout is watching for it there');
-  assert.ok(/!to\.includes\(addr\)/.test(receiptFn), 'the same address must not be added twice');
+test('recipient resolution goes through the shared, tested rulebook', () => {
+  // Typed-leads and nobody-mailed-twice used to be pinned here against the
+  // inline code. Since 2026-08-25 that logic lives in _shared/recipients.mjs,
+  // imported byte-for-byte by BOTH the Deno function and
+  // tests/receipt-rules.test.js, which pins those rules (and the Monday
+  // regressions) directly. This test now holds the seam: the function must
+  // actually route through the rulebook and feed it the shared family rule.
+  assert.ok(/_shared\/recipients\.mjs/.test(receiptFn), 'send-receipt must import the rulebook');
+  assert.ok(/resolveRecipients\(\{/.test(receiptFn), 'and resolve recipients through it');
+  assert.ok(/contact_send_list/.test(receiptFn), 'feeding it the family send list');
 });
 
 test('the primary contact is set by a tap, not a drag', () => {

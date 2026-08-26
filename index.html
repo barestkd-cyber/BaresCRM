@@ -6743,7 +6743,10 @@ async function loadProfileMoney(contactId){
     (lRes.data||[]).forEach(l=>{ if(l.student_contact_id){
       (kidsBy[l.sale_id]=kidsBy[l.sale_id]||new Set()).add(l.student_contact_id); } });
   }
-  const DEAD = ['voided','closed','abandoned'];
+  // pending_payment = a web checkout mid-flight (or abandoned, pre-sweep).
+  // Not a debt: it never counts toward Balance owed and never reads UNPAID
+  // (owner 2026-08-25: nobody generates their own unpaid invoice online).
+  const DEAD = ['voided','closed','abandoned','pending_payment'];
   PROF_MONEY = sales.map(s=>{
     const paid = paysBy[s.id]||0;
     const balance = Math.max(s.total_cents - paid, 0);
@@ -6777,7 +6780,7 @@ function profRenderInvoices(){
   const chip = r => r.st==='paid' ? '<span class="stx paid">PAID</span>'
     : r.st==='part' ? '<span class="stx part">PAYMENT APPLIED</span>'
     : r.st==='unpaid' ? '<span class="stx unpaid">UNPAID</span>'
-    : '<span class="stx other">'+escHtml(String(r.statusRaw||'').toUpperCase())+'</span>';
+    : '<span class="stx other">'+escHtml(String(r.statusRaw||'').replace(/_/g,' ').toUpperCase())+'</span>';
   box.innerHTML = '<div class="invx-scroll"><table class="invx"><thead><tr>'
     + '<th>Date</th><th>Total</th><th>Paid</th><th>Balance</th><th>Summary</th><th>Status</th><th></th>'
     + '</tr></thead><tbody>'
