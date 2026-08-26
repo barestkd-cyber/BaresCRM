@@ -65,7 +65,7 @@ const sandbox = {
   loadProfileCredits() {}, loadProfileAttendance() {}, loadProfileHousehold() {},
   loadProfileMemberships() {}, loadProfileRosters() {}, loadProfileNotes() {},
   loadProfileStats() {}, loadProfilePeople() {}, loadProfileMoney() {},
-  loadProfileCards() {}, loadProfileRank() {}, profDrawGuardians() {},
+  loadProfileCards() {}, loadProfileRank() {}, loadProfileHistory() {}, profDrawGuardians() {},
   profBuildPanel() {}, profApplyTab() {},
   householdOf: () => null,
   money: (n) => '$' + Number(n || 0).toFixed(2),
@@ -232,6 +232,16 @@ test('the sections that were deleted stay deleted', () => {
   assert.ok(!out.includes('>More<'), 'the More section is gone');
   assert.ok(!out.includes('Rank &amp; testing history'), 'the rank accordion is gone');
   assert.ok(out.includes('Rank &amp; testing'), 'but the rank TAB is there');
+});
+
+test('History is a real tab with a real section, not a stub', () => {
+  // It shipped 2026-08-25 as the profile's one feed. A regression to the
+  // COMING SOON stub would be silent without this.
+  const out = render({});
+  assert.ok(out.includes("profSetTab('history')"), 'the History tab is not clickable');
+  assert.ok(!/History <span class="pact-chip">COMING SOON/.test(out), 'History reads as coming soon');
+  assert.ok(out.includes('data-ptab="history"'), 'there is no history section to land on');
+  assert.ok(out.includes('prof-history'), 'the feed has no container to render into');
 });
 
 /* ── the invoice list: family invoices are marked ────────────────────── */

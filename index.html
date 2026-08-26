@@ -427,6 +427,12 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
   cursor:pointer;color:var(--ink);font-family:inherit}
 .stlog.on{border-color:#BFE6D6;background:#F2FBF7;color:var(--go)}
 .stlog .stcheck{border-color:#C7CCD2;color:#fff}
+/* the history feed */
+.hist-row{display:flex;align-items:flex-start;gap:10px;padding:9px 2px;border-bottom:1px solid #F0F2F4;font-size:13.5px;line-height:1.45}
+.hist-row:last-child{border-bottom:none}
+.hist-row .hi{flex:none;width:22px;text-align:center}
+.hist-row .hm{min-width:0;flex:1;overflow-wrap:anywhere}
+.hist-row .hd{flex:none;color:var(--muted);font-size:12px;white-space:nowrap;margin-top:1px}
 .pact{position:relative;display:inline-block;margin-top:12px}
 .pact-btn{background:none;border:1.5px solid var(--accent);color:var(--accent);font-weight:700;font-size:13.5px;border-radius:9px;padding:8px 16px;cursor:pointer;font-family:inherit}
 /* The header is a light card now, so the Actions button keeps the accent
@@ -6352,6 +6358,12 @@ function renderProfile(){
   html += '<div class="sec" data-ptab="rank"><div class="sec-h">Rank and testing</div>'
     + '<div id="prof-rank"><div class="card pad" style="color:var(--muted);font-size:14px">Loading…</div></div></div>';
 
+  // History: one feed, newest first - payments, attendance, tests,
+  // memberships, agreements, notes, receipts. Read-only, from rows other
+  // screens already own; this tab invents nothing.
+  html += '<div class="sec" data-ptab="history"><div class="sec-h">History</div>'
+    + '<div id="prof-history"><div class="card pad" style="color:var(--muted);font-size:14px">Loading…</div></div></div>';
+
   // memberships - live from the memberships table (frozen snapshots), async
   html += '<div class="sec" data-ptab="memberships"><div class="sec-h">Memberships and agreements</div>'
     + '<div id="prof-mems"><div class="card pad" style="color:var(--muted);font-size:14px">Loading…</div></div>'
@@ -6376,7 +6388,7 @@ function renderProfile(){
     + tab('notes','Notes') + tab('memberships','Membership')
     + tab('invoices','Invoices and Payments') + tab('attendance','Attendance')
     + tab('rank','Rank &amp; testing')
-    + tab('docs','Documents',true) + tab('email','History',true)
+    + tab('docs','Documents',true) + tab('history','History')
     + '</div>';
   html += '<div id="ptabpanel"></div>';
   html += '<div class="spacer"></div>';
@@ -6385,6 +6397,7 @@ function renderProfile(){
   profBuildPanel();
   profDrawGuardians(m.id);
   loadProfileRank(m.id);
+  loadProfileHistory(m.id);
   loadProfileCredits(m.id);
   loadProfileAttendance(m.id);
   loadProfileHousehold(m.id);
@@ -9033,6 +9046,92 @@ async function loadProfileRank(contactId){
       + 'No testing history under that name.</div>';
   }
   h += '<div class="ccg-sub" style="margin-top:8px">Matched on name, since testing records carry the name typed on the day rather than a link to this profile.</div>';
+  box.innerHTML = h;
+}
+
+/* ── HISTORY: everything that ever happened to them, one feed ─────────────
+ * Newest first, read-only, built from rows other screens already own. Sales
+ * use the same buyer-or-named-on-a-line union as the money tab, so the two
+ * can never disagree about whose invoice something is. Testing is matched on
+ * NAME (testing_history carries no contact id) and says so nowhere here
+ * because the rank tab already carries that caveat. A source that fails to
+ * read is named in a banner rather than silently missing - a quiet gap in a
+ * history reads as "nothing happened", which is a lie. */
+async function loadProfileHistory(contactId){
+  const box = document.getElementById('prof-history'); if(!box) return;
+  const m = MEMBERS.find(x=>x.id===contactId);
+  if(!m){ box.innerHTML=''; return; }
+  const full = (m.first+' '+m.last).trim();
+  const mine = await sb.from('pos_sale_lines').select('sale_id').eq('student_contact_id', contactId);
+  const mineIds = [...new Set((mine.data||[]).map(r=>r.sale_id))];
+  const [sales, att, tests, mems, agrs, notes, enrs] = await Promise.all([
+    sb.from('pos_sales').select('id,total_cents,status,receipt_sent_at,receipt_email,created_at')
+      .or('buyer_contact_id.eq.'+contactId+(mineIds.length?',id.in.('+mineIds.join(',')+')':''))
+      .order('created_at',{ascending:false}).limit(60),
+    sb.from('attendance').select('class_label,program,class_date').eq('student_id',contactId)
+      .order('class_date',{ascending:false}).limit(80),
+    sb.from('testing_history').select('tested_date,rank_from,rank_to,result').ilike('student_name',full)
+      .order('tested_date',{ascending:false}).limit(30),
+    sb.from('memberships').select('program,plan_label,started_on,ended_on').eq('contact_id',contactId).limit(30),
+    sb.from('membership_agreements').select('signer_name,signed_at').eq('contact_id',contactId).limit(30),
+    sb.from('contact_notes').select('body,created_at').eq('contact_id',contactId).limit(40),
+    sb.from('enrollments').select('program,started_on,ended_on').eq('student_id',contactId).limit(30)
+  ]);
+  if(profStale(contactId)) return;
+  const sids = (sales.data||[]).map(s=>s.id);
+  let pays = { data: [] };
+  if(sids.length) pays = await sb.from('pos_payments')
+    .select('kind,amount_cents,occurred_at,method').in('sale_id',sids).limit(120);
+  if(profStale(contactId)) return;
+
+  const ev = [];
+  const push = (ts,icon,label,sub)=>{ if(ts) ev.push({ ts:String(ts), icon, label, sub:sub||'' }); };
+  (sales.data||[]).forEach(s=>{
+    push(s.created_at,'🧾','Invoice · '+money(s.total_cents/100),
+      s.status==='paid'?'paid':String(s.status||'').replace(/_/g,' '));
+    if(s.receipt_sent_at) push(s.receipt_sent_at,'✉️','Receipt emailed', s.receipt_email||'');
+  });
+  (pays.data||[]).forEach(p=>{
+    const k = p.kind==='charge'?'Payment':p.kind==='refund'?'Refund':String(p.kind||'').replace(/_/g,' ');
+    push(p.occurred_at,'💳',k+' · '+money(Math.abs(p.amount_cents)/100), p.method||'');
+  });
+  // Date-only rows get a synthetic midday time so they sort inside the right
+  // day without ever beating a real timestamp to the top of it.
+  (att.data||[]).forEach(a=>push((a.class_date||'')+'T12:00:00','🥋','Attended '+(a.class_label||a.program||'class'),''));
+  (tests.data||[]).forEach(t=>push((t.tested_date||'')+'T12:00:00','🎖️',
+    'Tested: '+(t.rank_from||'?')+' → '+(t.rank_to||'?'),
+    (t.result&&String(t.result).toLowerCase()!=='pass')?String(t.result):''));
+  (mems.data||[]).forEach(x=>{
+    if(x.started_on) push(x.started_on+'T09:00:00','📋',(x.program||x.plan_label||'Membership')+' membership started','');
+    if(x.ended_on)   push(x.ended_on+'T09:00:00','📋',(x.program||'Membership')+' membership ended','');
+  });
+  (agrs.data||[]).forEach(a=>{ if(a.signed_at) push(a.signed_at,'✍️','Agreement signed', a.signer_name||''); });
+  (notes.data||[]).forEach(n=>push(n.created_at,'📝','Note',
+    (n.body||'').slice(0,90)+((n.body||'').length>90?'…':'')));
+  (enrs.data||[]).forEach(e=>{
+    if(e.started_on) push(e.started_on+'T08:00:00','▦','Added to '+(e.program||'?')+' roster','');
+    if(e.ended_on)   push(e.ended_on+'T08:00:00','▦','Off the '+(e.program||'?')+' roster','');
+  });
+  ev.sort((a,b)=>b.ts.localeCompare(a.ts));
+
+  const failed = [];
+  if(sales.error) failed.push('invoices'); if(att.error) failed.push('attendance');
+  if(tests.error) failed.push('testing'); if(mems.error) failed.push('memberships');
+  if(agrs.error) failed.push('agreements'); if(notes.error) failed.push('notes');
+  if(enrs.error) failed.push('rosters'); if(pays.error) failed.push('payments');
+
+  const CAP = 150;
+  let h = '<div class="card pad">';
+  if(failed.length) h += '<div class="ccg-sub" style="margin-bottom:8px">⚠ Could not read: '
+    + escHtml(failed.join(', '))+'. What follows may be missing those.</div>';
+  h += ev.length
+    ? ev.slice(0,CAP).map(e=>'<div class="hist-row"><span class="hi">'+e.icon+'</span>'
+        + '<div class="hm"><b>'+escHtml(e.label)+'</b>'
+        + (e.sub?'<span class="ccg-sub"> · '+escHtml(e.sub)+'</span>':'')+'</div>'
+        + '<span class="hd">'+escHtml(prettyDate(e.ts.slice(0,10)))+'</span></div>').join('')
+    : '<div style="color:var(--muted);font-size:14px">Nothing recorded yet.</div>';
+  if(ev.length>CAP) h += '<div class="ccg-sub" style="margin-top:8px">Showing the most recent '+CAP+' of '+ev.length+'.</div>';
+  h += '</div>';
   box.innerHTML = h;
 }
 
