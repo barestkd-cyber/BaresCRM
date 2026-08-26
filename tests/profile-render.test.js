@@ -65,7 +65,7 @@ const sandbox = {
   loadProfileCredits() {}, loadProfileAttendance() {}, loadProfileHousehold() {},
   loadProfileMemberships() {}, loadProfileRosters() {}, loadProfileNotes() {},
   loadProfileStats() {}, loadProfilePeople() {}, loadProfileMoney() {},
-  loadProfileCards() {}, loadProfileRank() {}, loadProfileHistory() {}, profDrawGuardians() {},
+  loadProfileCards() {}, loadProfileRank() {}, loadProfileHistory() {}, loadProfileDocs() {}, profDrawGuardians() {},
   profBuildPanel() {}, profApplyTab() {},
   householdOf: () => null,
   money: (n) => '$' + Number(n || 0).toFixed(2),
@@ -232,6 +232,14 @@ test('the sections that were deleted stay deleted', () => {
   assert.ok(!out.includes('>More<'), 'the More section is gone');
   assert.ok(!out.includes('Rank &amp; testing history'), 'the rank accordion is gone');
   assert.ok(out.includes('Rank &amp; testing'), 'but the rank TAB is there');
+});
+
+test('Documents is a real tab with a real section, not a stub', () => {
+  const out = render({});
+  assert.ok(out.includes("profSetTab('docs')"), 'the Documents tab is not clickable');
+  assert.ok(!/Documents <span class="pact-chip">COMING SOON/.test(out), 'Documents reads as coming soon');
+  assert.ok(out.includes('data-ptab="docs"'), 'there is no docs section to land on');
+  assert.ok(out.includes('prof-docs'), 'the list has no container to render into');
 });
 
 test('History is a real tab with a real section, not a stub', () => {

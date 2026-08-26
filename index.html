@@ -6358,6 +6358,12 @@ function renderProfile(){
   html += '<div class="sec" data-ptab="rank"><div class="sec-h">Rank and testing</div>'
     + '<div id="prof-rank"><div class="card pad" style="color:var(--muted);font-size:14px">Loading…</div></div></div>';
 
+  // Documents: their signed paper, one place. Agreements land here the
+  // moment they are signed; the files table waits for real uploads before
+  // this tab claims more than it holds.
+  html += '<div class="sec" data-ptab="docs"><div class="sec-h">Documents</div>'
+    + '<div id="prof-docs"><div class="card pad" style="color:var(--muted);font-size:14px">Loading…</div></div></div>';
+
   // History: one feed, newest first - payments, attendance, tests,
   // memberships, agreements, notes, receipts. Read-only, from rows other
   // screens already own; this tab invents nothing.
@@ -6388,7 +6394,7 @@ function renderProfile(){
     + tab('notes','Notes') + tab('memberships','Membership')
     + tab('invoices','Invoices and Payments') + tab('attendance','Attendance')
     + tab('rank','Rank &amp; testing')
-    + tab('docs','Documents',true) + tab('history','History')
+    + tab('docs','Documents') + tab('history','History')
     + '</div>';
   html += '<div id="ptabpanel"></div>';
   html += '<div class="spacer"></div>';
@@ -6398,6 +6404,7 @@ function renderProfile(){
   profDrawGuardians(m.id);
   loadProfileRank(m.id);
   loadProfileHistory(m.id);
+  loadProfileDocs(m.id);
   loadProfileCredits(m.id);
   loadProfileAttendance(m.id);
   loadProfileHousehold(m.id);
@@ -9047,6 +9054,43 @@ async function loadProfileRank(contactId){
   }
   h += '<div class="ccg-sub" style="margin-top:8px">Matched on name, since testing records carry the name typed on the day rather than a link to this profile.</div>';
   box.innerHTML = h;
+}
+
+/* ── DOCUMENTS: their signed paper ────────────────────────────────────────
+ * Membership agreements, tap to open the frozen as-signed document in the
+ * viewer that already exists (agrView, print included). Pending and voided
+ * ones show with their status rather than hiding - a document that exists
+ * but is unsigned is a fact worth seeing. */
+async function loadProfileDocs(contactId){
+  const box = document.getElementById('prof-docs'); if(!box) return;
+  const { data, error } = await sb.from('membership_agreements')
+    .select('id,document_title,program,signer_name,signed_at,status,created_at')
+    .eq('contact_id', contactId)
+    .order('created_at', { ascending:false }).limit(40);
+  if(profStale(contactId)) return;
+  if(error){
+    console.error('docs load', error);
+    box.innerHTML = '<div class="card pad" style="color:var(--muted);font-size:14px">Could not read their documents.</div>';
+    return;
+  }
+  const rows = data||[];
+  if(!rows.length){
+    box.innerHTML = '<div class="card pad" style="color:var(--muted);font-size:14px">'
+      + 'No documents yet. Agreements land here the moment they are signed.</div>';
+    return;
+  }
+  box.innerHTML = '<div class="card pad">'+rows.map(d=>{
+    const signed = d.status==='signed' || !!d.signed_at;
+    const sub = signed
+      ? 'Signed '+(d.signed_at?prettyDate(String(d.signed_at).slice(0,10)):'')+(d.signer_name?' by '+d.signer_name:'')
+      : String(d.status||'pending');
+    return '<div class="hist-row" style="cursor:pointer" onclick="agrView(\''+escJs(d.id)+'\')">'
+      + '<span class="hi">'+(signed?'✍️':'📄')+'</span>'
+      + '<div class="hm"><b>'+escHtml(d.document_title||'Membership agreement')+'</b>'
+      + (d.program?'<span class="ccg-sub"> · '+escHtml(d.program)+'</span>':'')
+      + '<div class="ccg-sub">'+escHtml(sub)+'</div></div>'
+      + '<span class="hd">›</span></div>';
+  }).join('')+'</div>';
 }
 
 /* ── HISTORY: everything that ever happened to them, one feed ─────────────
