@@ -393,6 +393,12 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .pf-empty{border:none;background:none;padding:0;font:inherit;font-size:14px;color:#C7CCD2;
   cursor:pointer;font-family:inherit;text-align:left}
 .pf-empty:active{color:var(--muted)}
+/* medical, on the top card and only when there is one */
+.pmed{display:flex;gap:10px;align-items:flex-start;margin-top:14px;padding:11px 13px;
+  border-radius:11px;background:#FFF6F6;border:1px solid #F3D2D2;font-size:13.5px;line-height:1.5}
+.pmed-i{flex:none;font-size:16px;color:var(--accent)}
+.pmed b{display:block;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;
+  color:var(--accent);margin-bottom:2px}
 /* An invoice naming 2+ participants belongs to the FAMILY, and says so at
    a glance (owner 2026-08-25: "highlighted yellow if attached to more than
    one participant"). */
@@ -1350,6 +1356,7 @@ async function loadMembers(){
     source: c.source || '',
     beltSize: c.belt_size || '',
     kickSize: c.kick_size || '',
+    medical: c.medical_concerns || '',
     tags: [],
     attended: 0,
     daysSince: null,
@@ -6154,13 +6161,16 @@ function renderProfile(){
   // The two sizes are always shown, empty or not. An empty one is the prompt:
   // he reads the profile with the student in front of him, sees a blank, and
   // measures them on the spot. Tapping edits it without leaving the page.
+  // Display only. Owner 2026-08-26, choosing consistency over the quick edit:
+  // "let's put it all on edit sheet so I can't fat finger anything." Nothing on
+  // the profile changes data; the one editor does, deliberately opened.
   const appMark = '<div class="markcol">'
-    + '<button class="gearmark'+(m.beltSize?'':' empty')+'" title="Belt size" '
-      + 'onclick="gearEdit(\'belt\')"><span class="ph">🥋</span>'
-      + (m.beltSize?escHtml(m.beltSize):':')+'</button>'
-    + '<button class="gearmark'+(m.kickSize?'':' empty')+'" title="Kick size" '
-      + 'onclick="gearEdit(\'kick\')"><span class="ph">👟</span>'
-      + (m.kickSize?escHtml(m.kickSize):':')+'</button>'
+    + '<span class="gearmark'+(m.beltSize?'':' empty')+'" title="Belt size">'
+      + '<span class="ph">🥋</span>'
+      + (m.beltSize?escHtml(m.beltSize):':')+'</span>'
+    + '<span class="gearmark'+(m.kickSize?'':' empty')+'" title="Kick size">'
+      + '<span class="ph">👟</span>'
+      + (m.kickSize?escHtml(m.kickSize):':')+'</span>'
     // On the app or not, as a mark rather than a row of prose. Owner: "a phone
     // emoji with a circle next to it, and if they're on the app there's a
     // checkbox on that circle."
@@ -6218,7 +6228,7 @@ function renderProfile(){
     + '<div class="pact-menu" id="pactMenu">'
     + '<button class="pact-it" onclick="posRingUpFor(\''+escJs(m.id)+'\')">＄ Ring Up <span class="pact-chip">POS</span></button>'
     + '<button class="pact-it" onclick="posOpenMembershipFor(\''+escJs(m.id)+'\')">＋ Add Membership</button>'
-    + '<button class="pact-it" onclick="openEditContact()">✎ Edit Contact</button>'
+    + '<button class="pact-it" onclick="openEditContact()">✎ Edit Profile</button>'
     + '<button class="pact-it" onclick="profAddAttendance()">▦ Add Attendance</button>'
     + '<button class="pact-it" onclick="launchApp(\'testing\')">▲ Promote Rank <span class="pact-chip">TESTING APP</span></button>'
     + '<button class="pact-it dis">✉ Message <span class="pact-chip">COMING SOON</span></button>'
@@ -6275,6 +6285,14 @@ function renderProfile(){
     + '<div class="pf-v">Money credits: <span id="pc-money">$0.00</span></div>'
     + '</div>'
     + '</div>'
+    // Medical concerns: on the top card, ONLY when there is one (owner
+    // 2026-08-26). Silent for everybody else, so it never becomes furniture
+    // to scroll past - which is exactly what would make it missed on the one
+    // profile where it matters.
+    + (m.medical
+        ? '<div class="pmed"><span class="pmed-i">⚕</span><div>'
+          + '<b>Medical</b><div>'+escHtml(m.medical)+'</div></div></div>'
+        : '')
     + '</div>';
 
   // tabs (desktop only; phone shows everything stacked below)
@@ -6934,6 +6952,12 @@ function openEditContact(){
     + '</select>'
     + f('Address','ecAddr',m.address)
     + '<div class="pm-row"><div>'+f('Belt size','ecBelt',m.beltSize,'text','e.g. 2')+'</div><div>'+f('Kick size','ecKick',m.kickSize,'text','e.g. child S')+'</div></div>'
+    // Safety information, so it is a textarea rather than a one-line input:
+    // "peanut allergy, carries an epi-pen" does not fit on a line, and a
+    // truncated medical note is worse than none.
+    + '<label class="ed-lbl">Medical concerns</label>'
+    + '<textarea id="ecMedical" class="ed-in" rows="2" placeholder="Allergies, conditions, medication - anything an instructor should know">'
+      + escHtml(m.medical||'')+'</textarea>'
     // Household membership is a fact about THIS person, so it is edited where
     // their other facts are. On a sibling's profile those buttons read as
     // though they were about the sibling.
@@ -6980,17 +7004,19 @@ async function saveEditContact(){
   if(!first){ toast('First name is required'); return; }
   const email = v('ecEmail').toLowerCase(), phone = v('ecPhone'), dob = v('ecDob');
   const addr = v('ecAddr'), belt = v('ecBelt'), kick = v('ecKick'), gender = v('ecGender');
+  const medical = v('ecMedical');
   const upd = {
     first_name: first, last_name: last,
     email: email || null, phone: phone || null, dob: dob || null,
     address: addr || null, belt_size: belt || null, kick_size: kick || null,
-    gender: gender || null
+    gender: gender || null, medical_concerns: medical || null
   };
   const r = await sb.from('contacts').update(upd).eq('id', m.id);
   if(r.error){ toast('Could not save: '+(r.error.message||r.error)); return; }
   // Patch the in-memory row the same way loadMembers maps it.
   m.first = first; m.last = last; m.email = email; m.address = addr;
   m.beltSize = belt; m.kickSize = kick; m.dob = dob; m.gender = gender;
+  m.medical = medical;
   m.phones = phone ? [["Mobile", phone]] : [];
   m.emails = email ? [email] : [];
   m.age = dob ? Math.floor((Date.now() - new Date(dob)) / 3.15576e10) : 0;
@@ -8708,42 +8734,6 @@ function relSet(key, val){
   const box = document.getElementById('rel-'+key);
   if(!box) return;
   [...box.children].forEach(b=>b.classList.toggle('on', b.textContent === REL_PICK[key]));
-}
-
-/* Measure them and type it in, without leaving the profile. Two fields
- * rather than one, because he will usually be measuring both at once and a
- * second sheet for the second number is a second interruption. */
-function gearEdit(which){
-  const m = currentMember; if(!m) return;
-  $("#sheet").classList.remove("sheet-lg");
-  $("#sheet").innerHTML = '<div class="grab"></div>'
-    + '<div class="sheet-head spk-head"><div><h3>Gear sizes</h3>'
-    + '<div class="sub">'+escHtml(m.first+' '+m.last)+'</div></div>'
-    + '<button class="close" onclick="closeSheet()">&times;</button></div>'
-    + '<div class="sheet-body spk-body"><div class="spk-form">'
-    + '<label class="spk-label">🥋 Belt size</label>'
-    + '<input id="gs-belt" class="ed-in" value="'+escAttr(m.beltSize||'')+'" placeholder="e.g. 2" autocomplete="off">'
-    + '<label class="spk-label">👟 Kick size</label>'
-    + '<input id="gs-kick" class="ed-in" value="'+escAttr(m.kickSize||'')+'" placeholder="e.g. child S" autocomplete="off">'
-    + '</div></div>'
-    + '<div class="spk-foot"><button class="spk-cancel" onclick="closeSheet()">Cancel</button>'
-    + '<button class="spk-add" onclick="gearSave()">Save</button></div>';
-  openSheet();
-  const f = document.getElementById(which==='kick'?'gs-kick':'gs-belt');
-  if(f) f.focus();
-}
-
-async function gearSave(){
-  const m = currentMember; if(!m) return;
-  const belt = ($("#gs-belt").value||'').trim();
-  const kick = ($("#gs-kick").value||'').trim();
-  const r = await sb.from('contacts')
-    .update({ belt_size: belt || null, kick_size: kick || null }).eq('id', m.id);
-  if(r.error){ console.error('gear save', r.error); toast('Could not save that'); return; }
-  m.beltSize = belt; m.kickSize = kick;
-  closeSheet();
-  toast('Sizes saved');
-  renderProfile();
 }
 
 /* Initials for a guardian, or a person icon when they have no name yet. */

@@ -120,6 +120,9 @@ test('a member with no belt renders - the case that still worked', () => {
 test('gear marks render whether the sizes are there or not', () => {
   const empty = render({ beltSize: '', kickSize: '' });
   assert.ok(/gearmark[^"]*empty/.test(empty), 'an empty size must still show, as the prompt to measure');
+  // Display only since 2026-08-26: one editor, deliberately opened, so a
+  // pocket tap can never change a size. Nothing on the card writes data.
+  assert.ok(!/gearEdit/.test(html), 'the gear marks are editable again');
   const full = render({ beltSize: '2', kickSize: 'child S' });
   assert.ok(full.includes('child S'), 'a size that exists must show');
   assert.ok(!/gearmark empty/.test(full), 'a filled size must not read as empty');
@@ -240,6 +243,23 @@ test('Documents is a real tab with a real section, not a stub', () => {
   assert.ok(!/Documents <span class="pact-chip">COMING SOON/.test(out), 'Documents reads as coming soon');
   assert.ok(out.includes('data-ptab="docs"'), 'there is no docs section to land on');
   assert.ok(out.includes('prof-docs'), 'the list has no container to render into');
+});
+
+test('medical concerns show on the top card only when there is one', () => {
+  // Owner 2026-08-26. Silent for everybody else, so it never becomes furniture
+  // to scroll past - which is what would make it missed on the one profile
+  // where it matters.
+  const none = render({ medical: '' });
+  assert.ok(!none.includes('pmed'), 'an empty medical note still drew a block');
+  const some = render({ medical: 'Peanut allergy, carries an epi-pen' });
+  assert.ok(some.includes('pmed'), 'a real medical note did not show');
+  assert.ok(some.includes('epi-pen'), 'the note itself is missing');
+  assert.ok(some.indexOf('pmed') > some.indexOf('phead-facts'), 'it must sit inside the top card');
+});
+
+test('medical is escaped like every other field', () => {
+  const out = render({ medical: '<script>x</script>' });
+  assert.ok(!out.includes('<script>x'), 'a medical note broke out of its markup');
 });
 
 test('History is a real tab with a real section, not a stub', () => {
