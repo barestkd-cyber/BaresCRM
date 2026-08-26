@@ -107,6 +107,28 @@ test('recipient resolution goes through the shared, tested rulebook', () => {
   assert.ok(/contact_send_list/.test(receiptFn), 'feeding it the family send list');
 });
 
+test('a relationship is saved on the LINK, not on the person', () => {
+  // Lindsay Tarry is Lee's Spouse AND Radford's Mom. One field on her own
+  // record could only say one of those, and it was saying Spouse on both of
+  // her children's profiles (owner, 2026-08-26). The relationship belongs to
+  // the pair, so it lives on student_guardians.label.
+  const save = body('gEditSave');
+  assert.ok(/from\('student_guardians'\)[\s\S]*?label:\s*REL_PICK/.test(save),
+    'the relationship is not written to the link');
+  assert.ok(/\.eq\('student_id',\s*g\.backTo\)/.test(save),
+    'the link write is not scoped to the profile it was opened from');
+  // The person-level update must no longer carry relation, or tagging one
+  // profile would rename her on every other.
+  const personUpdate = save.slice(save.indexOf("from('guardians')"), save.indexOf('guardian save'));
+  assert.ok(!/relation:/.test(personUpdate), 'the person record still takes the relationship');
+});
+
+test('the guardian list reads the relationship from the link first', () => {
+  const map = html.slice(html.indexOf('const guardiansById'), html.indexOf('const guardiansById') + 900);
+  assert.ok(/relation:\s*r\.label\s*\|\|\s*g\.relation/.test(map),
+    'the per-link relationship does not win over the person-level one');
+});
+
 test('the primary contact is set by a tap, not a drag', () => {
   assert.ok(/gMakePrimary\(\)/.test(body('gEditRender')), 'there must be a button');
   assert.ok(!/draggable|dragstart|ondrop/i.test(html), 'no drag targets to miss on a phone');

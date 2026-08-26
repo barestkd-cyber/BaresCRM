@@ -1318,7 +1318,13 @@ async function loadMembers(){
     const g = r.guardians;
     if(!g) return;   // a link with no person behind it yet
     (guardiansById[r.student_id] = guardiansById[r.student_id] || []).push({
-      id: g.id, name: g.name || '', relation: g.relation || '', label: r.label || 'Guardian',
+      // The relationship comes from the LINK first. A relationship is between
+      // two people: Lindsay is Lee's Spouse and Radford's Mom, and one field on
+      // her own record could only ever say one of those. guardians.relation
+      // remains the fallback for a house-level guardian, who is attached to a
+      // roof rather than to any one child.
+      id: g.id, name: g.name || '', relation: r.label || g.relation || '',
+      label: r.label || 'Guardian',
       emails: (g.guardian_emails||[]).map(e=>({ id:e.id, email:e.email, alwaysCopy:!!e.always_copy })),
       phones: g.phones || [], address: g.address || '', contactId: g.contact_id || null
     });
@@ -8551,10 +8557,19 @@ async function gEditOpen(guardianId, backToContactId){
   // one only through their children, so it comes from the profile we opened
   // from rather than from the guardian.
   const hh = (typeof householdOf==='function' && backToContactId) ? householdOf(backToContactId) : null;
-  REL_PICK['ge'] = data.relation || '';
+  // Seed the picker from the LINK to the profile we came from, so it shows
+  // what this person is TO THIS STUDENT. The person-level relation is only the
+  // fallback, for a house-level guardian or the directory with no profile
+  // behind it.
+  const linkRel = (kids.data||[]).length && backToContactId
+    ? ((await sb.from('student_guardians').select('label')
+          .eq('guardian_id', guardianId).eq('student_id', backToContactId)
+          .maybeSingle()).data || {}).label
+    : null;
+  REL_PICK['ge'] = linkRel || data.relation || '';
   GEDIT = {
     id: data.id, backTo: backToContactId,
-    relation: data.relation || '',
+    relation: linkRel || data.relation || '',
     household: hh ? hh.household : null,
     isPrimary: !!(hh && hh.household && hh.household.primary_guardian_id === data.id),
     name: data.name || '',
@@ -8679,10 +8694,23 @@ async function gEditSave(){
   }
 
   const up = await sb.from('guardians')
-    .update({ name: name || null, relation: REL_PICK['ge'] || null,
-              address: address || null, phones: phones })
+    .update({ name: name || null, address: address || null, phones: phones })
     .eq('id', g.id);
   if(up.error){ console.error('guardian save', up.error); toast('Could not save that'); return; }
+
+  // The relationship is saved on the LINK to the profile this sheet was opened
+  // from, not on the person - otherwise tagging Lindsay "Spouse" on Lee's page
+  // also renamed her on both of her children's. With no profile context (the
+  // guardian directory), fall back to the person so the field still works.
+  if(g.backTo){
+    const rl = await sb.from('student_guardians')
+      .update({ label: REL_PICK['ge'] || null })
+      .eq('guardian_id', g.id).eq('student_id', g.backTo);
+    if(rl.error){ console.error('relation save', rl.error); toast('Saved, but the relationship would not stick'); }
+  } else {
+    const rp = await sb.from('guardians').update({ relation: REL_PICK['ge'] || null }).eq('id', g.id);
+    if(rp.error) console.error('relation fallback save', rp.error);
+  }
 
   // Addresses that were removed from the sheet go from the table too.
   const keep = emails.filter(e=>e.id).map(e=>e.id);
