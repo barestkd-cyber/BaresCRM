@@ -354,9 +354,14 @@ details.acc .ab{padding:0 16px 16px;color:var(--muted);font-size:13.5px;line-hei
 .pstat .l{font-size:11px;color:var(--muted);font-weight:700;line-height:1.2;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pstat .narrow{display:none}
-.pstat.owe{background:#FFF6F6;border-color:#F3D2D2}
-.pstat.owe .n{color:#18A974}
-.pstat.owe.due .n{color:#c8102e}
+/* pstat-owe, NOT plain "owe": the generic .owe up at line 88 belongs to the
+   members-list amount cell and carries margin-top:5px, which was silently
+   pushing this whole box 5px lower than the attendance box beside it (owner
+   2026-08-25: "one is higher than the other"). Its font-size and colour were
+   leaking in too. A modifier scoped to this component cannot collide again. */
+.pstat.pstat-owe{background:#FFF6F6;border-color:#F3D2D2}
+.pstat.pstat-owe .n{color:#18A974}
+.pstat.pstat-owe.due .n{color:#c8102e}
 @media (max-width:560px){
   .pstat .wide{display:none}
   .pstat .narrow{display:inline}
@@ -6184,7 +6189,7 @@ function renderProfile(){
   html += '<div class="pstats">'
     + '<div class="pstat"><div class="l"><span class="wide">Attendance, last 30 days</span>'
     + '<span class="narrow">Attendance 30d</span></div><div class="n" id="ps30">–</div></div>'
-    + '<div class="pstat owe" id="psOweBox"><div class="l" id="psOweL">Balance</div>'
+    + '<div class="pstat pstat-owe" id="psOweBox"><div class="l" id="psOweL">Balance</div>'
     + '<div class="n" id="psOwe">–</div></div>'
     + '</div>';
 
