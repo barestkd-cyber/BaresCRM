@@ -36,13 +36,24 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const code = String(body?.code ?? "").slice(0, 80);
     const message = String(body?.message ?? "").slice(0, 300);
+    // WHO could not pay. Nothing is written when a card is refused - that is
+    // the point of checking first - so the form is the only place their
+    // details exist, and the page sends what they typed. Never card data:
+    // Stripe.js does not give the page a number.
+    const w = (body?.who ?? {}) as Record<string, unknown>;
+    const payer = String(w.parent ?? "").slice(0, 120);
+    const student = String(w.student ?? "").slice(0, 120);
+    const email = String(w.email ?? "").slice(0, 200);
+    const phone = String(w.phone ?? "").slice(0, 40);
     if (!message && !code) return ok();
 
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
-    await admin.from("card_rejections").insert({ page: src, code, message });
+    await admin.from("card_rejections").insert({ page: src, code, message,
+      payer_name: payer || null, student_name: student || null,
+      email: email || null, phone: phone || null });
 
     const resendKey = Deno.env.get("RESEND_API_KEY");
     const to = (Deno.env.get("OWNER_NOTIFY_EMAIL") || "race@barestkd.fit").trim().toLowerCase();
@@ -53,9 +64,18 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           from: "Bares Taekwondo <receipts@barestkd.fit>",
           to: [to],
-          subject: "Card refused at checkout: " + (src || "a checkout page"),
+          subject: (payer || email || "Somebody") + " could not pay" + (student ? " for " + student : ""),
           html: '<div style="font-family:Arial,Helvetica,sans-serif;color:#111;max-width:460px;margin:0 auto;padding:18px 14px">'
-            + '<p style="font-size:12px;letter-spacing:.08em;color:#c8102e;margin:0 0 4px">SOMEBODY COULD NOT PAY</p>'
+            + '<p style="font-size:12px;letter-spacing:.08em;color:#c8102e;margin:0 0 4px">A CARD WAS REFUSED</p>'
+            + (payer || student || email || phone
+                ? '<p style="font-size:17px;font-weight:bold;margin:0 0 4px">' + esc(payer || "Name not filled in") + "</p>"
+                  + (student ? '<p style="font-size:14px;margin:0 0 10px;color:#555">for ' + esc(student) + "</p>" : "")
+                  + '<p style="font-size:14px;margin:0 0 12px">'
+                  + (email ? '<a href="mailto:' + esc(email) + '">' + esc(email) + "</a>" : "")
+                  + (email && phone ? " &middot; " : "")
+                  + (phone ? '<a href="tel:' + esc(phone.replace(/[^0-9+]/g, "")) + '">' + esc(phone) + "</a>" : "")
+                  + "</p>"
+                : '<p style="font-size:14px;margin:0 0 10px;color:#c8102e">They had not filled in their details yet.</p>')
             + '<p style="font-size:15px;margin:0 0 12px">A card was refused on <b>' + esc(src || "a checkout page") + "</b>"
             + " before any charge was attempted, so nothing was taken and nothing was created.</p>"
             + '<p style="font-size:14px;margin:0 0 6px"><b>They were told:</b><br>' + esc(message || code) + "</p>"
