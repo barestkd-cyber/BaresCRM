@@ -5538,10 +5538,24 @@ async function posDeleteInvoiceSheet(saleId){
   ]);
   const nm=(mRes.data||[]).length, ne=(eRes.data||[]).length, nr=(rRes.data||[]).length;
   const parts=[nm?nm+' membership'+(nm>1?'s':''):'', ne?ne+' enrollment'+(ne>1?'s':''):'', nr?nr+' event registration'+(nr>1?'s':''):''].filter(Boolean);
-  const unwind = parts.length ? '<div class="ck-hint" style="margin-bottom:11px;color:var(--warn)">Also removes what this sale created: '+parts.join(', ')+'.</div>' : '';
+  // Enrollments and event registrations go with the invoice. A MEMBERSHIP does
+  // not, automatically: the invoice can be wrong while the membership is real
+  // (owner 2026-08-26: "could be a reason i wouldnt want to"). So it is a
+  // choice, and the safer option leads.
+  const otherParts=[ne?ne+' enrollment'+(ne>1?'s':''):'', nr?nr+' event registration'+(nr>1?'s':''):''].filter(Boolean);
+  const unwind = otherParts.length ? '<div class="ck-hint" style="margin-bottom:11px;color:var(--warn)">Also removes what this sale created: '+otherParts.join(', ')+'.</div>' : '';
+  const memChoice = nm
+    ? '<div class="ck-hint" style="margin-bottom:7px">This invoice created '+nm+' membership'+(nm>1?'s':'')+'. What happens to '+(nm>1?'them':'it')+'?</div>'
+      + '<div class="relpick" id="rel-delmem" style="margin-bottom:12px">'
+      + '<button class="on" onclick="relSet(\'delmem\',\'Keep\')">Keep '+(nm>1?'them':'it')+'</button>'
+      + '<button onclick="relSet(\'delmem\',\'Delete\')">Delete too</button>'
+      + '</div>'
+    : '';
+  if(nm) REL_PICK['delmem'] = 'Keep';
   $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Delete invoice</h3><div class="sub">As if it never happened</div></div><button class="close" onclick="closeSheet()">×</button></div>'
     +'<div class="sheet-body"><div class="ck-hint" style="margin-bottom:11px">Only unpaid invoices with no payments can be deleted. This cannot be undone.</div>'
     +unwind
+    +memChoice
     +'<button class="tbtn" style="width:100%;background:#c8102e" onclick="posDeleteInvoice(\''+saleId+'\')">Delete this invoice</button></div>';
   openSheet();
 }
@@ -5563,8 +5577,26 @@ async function posDeleteInvoice(saleId){
   if(ri.error){ toast('Could not release the scheduled payment: '+(ri.error.message||ri.error)); return; }
   const rg = await sb.from('event_registrations').delete().eq('sale_id', saleId).select('id');
   if(rg.error){ toast('Could not remove event registrations: '+(rg.error.message||rg.error)); return; }
-  const mm = await sb.from('memberships').delete().eq('sale_id', saleId).select('id');
-  if(mm.error){ toast('Could not remove memberships: '+(mm.error.message||mm.error)); return; }
+  // The invoice's own LINE points at the membership (pos_sale_lines.
+  // membership_id, NO ACTION), and the membership points back at the sale.
+  // So the membership cannot go while the line holds it, and the sale - whose
+  // delete would cascade the lines away - cannot go while the membership
+  // holds it. A deadlock that made every membership invoice undeletable.
+  // Releasing the line first breaks it; the line dies with the sale moments
+  // later anyway.
+  const ml = await sb.from('pos_sale_lines')
+    .update({ membership_id: null }).eq('sale_id', saleId).select('id');
+  if(ml.error){ toast('Could not release the membership line: '+(ml.error.message||ml.error)); return; }
+  // Keeping is the default: the membership simply stops pointing at an invoice
+  // that no longer exists, and survives with everything else intact.
+  if(REL_PICK['delmem'] === 'Delete'){
+    const mm = await sb.from('memberships').delete().eq('sale_id', saleId).select('id');
+    if(mm.error){ toast('Could not remove memberships: '+(mm.error.message||mm.error)); return; }
+  } else {
+    const mk = await sb.from('memberships')
+      .update({ sale_id: null }).eq('sale_id', saleId).select('id');
+    if(mk.error){ toast('Could not release the membership: '+(mk.error.message||mk.error)); return; }
+  }
   const ds = await sb.from('pos_sales').delete().eq('id', saleId).select('id');
   if(ds.error){ toast('Could not delete: '+(ds.error.message||ds.error)); return; }
   // RLS can filter a delete to zero rows silently - surface it.
