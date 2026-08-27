@@ -174,6 +174,28 @@ function methodFromSession(session: Record<string, any>): string {
  * and won the race against create-checkout which had it right. Every
  * PaymentIntent we create carries metadata.source; read it instead of
  * guessing, and stay vague rather than wrong when it is missing. */
+/* Brand and last four of the card that paid, wherever Stripe put them on
+ * this object. A charge carries payment_method_details.card; an expanded
+ * payment intent carries latest_charge; a checkout session carries
+ * payment_intent. Missing is normal - ACH and cash have no card - and
+ * returns nulls rather than guessing. */
+function cardBits(obj: Record<string, unknown>): { card_brand: string | null; card_last4: string | null } {
+  const seen = new Set<unknown>();
+  const walk = (o: unknown, depth: number): Record<string, unknown> | null => {
+    if (!o || typeof o !== "object" || depth > 4 || seen.has(o)) return null;
+    seen.add(o);
+    const rec = o as Record<string, unknown>;
+    if (typeof rec.last4 === "string" && typeof rec.brand === "string") return rec;
+    for (const v of Object.values(rec)) { const hit = walk(v, depth + 1); if (hit) return hit; }
+    return null;
+  };
+  const c = walk(obj, 0);
+  return {
+    card_brand: c && typeof c.brand === "string" ? String(c.brand).slice(0, 32) : null,
+    card_last4: c && /^[0-9]{4}$/.test(String(c.last4)) ? String(c.last4) : null,
+  };
+}
+
 function paymentNote(source: string): string {
   switch (source) {
     case "pos-manual":        return "Card payment (keyed at the desk)";
@@ -262,6 +284,7 @@ Deno.serve(async (req) => {
         const ins = await admin.from("pos_payments").insert({
           sale_id: saleId, kind: "charge", amount_cents: amount, method,
           stripe_object_id: obj.id, stripe_event_id: event.id,
+          ...cardBits(obj),
           note: method === "ach" ? "Bank payment (Stripe)" : "Card payment (Stripe)",
         });
         if (ins.error) throw ins.error;
@@ -310,6 +333,7 @@ Deno.serve(async (req) => {
           await admin.from("pos_payments").insert({
             sale_id: saleId, kind: "charge", amount_cents: amount,
             method: "card", stripe_object_id: obj.id, stripe_event_id: event.id,
+            ...cardBits(obj),
             note: paymentNote(String(obj.metadata?.source ?? "")),
           });
         }
