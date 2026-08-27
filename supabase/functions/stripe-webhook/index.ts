@@ -358,6 +358,73 @@ Deno.serve(async (req) => {
       const cust = typeof obj.customer === "string" ? obj.customer : obj.customer?.id;
       const brand = String(obj.card?.brand ?? "card");
       const last4 = String(obj.card?.last4 ?? "????");
+
+      // ── the same card, typed again, is not a second card ────────────────
+      // The public checkouts have no login, so they cannot safely OFFER a
+      // saved card - anyone knowing a family's email could charge it. So a
+      // returning parent re-types their card every time and Stripe attaches
+      // another payment method, and a family ends up with five copies of one
+      // card (Race, 2026-08-26: "i dont want a million repeat cards on file").
+      //
+      // Stripe's fingerprint is stable for a card number across entries, so
+      // the duplicate is detectable without ever seeing the number. Keep the
+      // one that just arrived - its expiry is freshest - and detach the older
+      // twins. If one of them was the customer's default, the new one takes
+      // that role first, so a family is never left with no default.
+      //
+      // Best effort throughout: a failure here must never disturb the payment
+      // that triggered it.
+      const fp = String(obj.card?.fingerprint ?? "");
+      const skDedupe = Deno.env.get("STRIPE_SECRET_KEY");
+      if (cust && fp && skDedupe && obj.id) {
+        try {
+          const auth = { Authorization: "Bearer " + skDedupe };
+          const listRes = await fetch(
+            "https://api.stripe.com/v1/payment_methods?limit=100&type=card&customer=" + encodeURIComponent(cust),
+            { headers: auth });
+          if (listRes.ok) {
+            const all = (await listRes.json()).data ?? [];
+            const twins = all.filter((m: Record<string, any>) =>
+              m.id !== obj.id && String(m.card?.fingerprint ?? "") === fp);
+            if (twins.length) {
+              const cRes = await fetch("https://api.stripe.com/v1/customers/" + encodeURIComponent(cust),
+                { headers: auth });
+              const defaultPm = cRes.ok
+                ? String((await cRes.json()).invoice_settings?.default_payment_method ?? "") : "";
+              if (defaultPm && twins.some((m: Record<string, any>) => m.id === defaultPm)) {
+                await fetch("https://api.stripe.com/v1/customers/" + encodeURIComponent(cust), {
+                  method: "POST",
+                  headers: { ...auth, "Content-Type": "application/x-www-form-urlencoded" },
+                  body: "invoice_settings[default_payment_method]=" + encodeURIComponent(String(obj.id)),
+                });
+              }
+              // The CRM stores card ids too - a household's default, and the
+              // card a membership or installment is set to bill. Detaching a
+              // card those point at would aim recurring billing at a card that
+              // no longer exists, and it would fail at 6am with nobody
+              // watching. Repoint them to the survivor FIRST, then detach.
+              for (const m of twins) {
+                const dead = String(m.id);
+                for (const [tbl, col] of [
+                  ["households", "default_payment_method"],
+                  ["memberships", "payment_method_id"],
+                  ["membership_installments", "payment_method_id"],
+                ] as [string, string][]) {
+                  const r = await admin.from(tbl).update({ [col]: obj.id }).eq(col, dead);
+                  if (r.error) console.error("dedupe repoint failed", tbl, r.error);
+                }
+              }
+              for (const m of twins) {
+                await fetch("https://api.stripe.com/v1/payment_methods/"
+                  + encodeURIComponent(String(m.id)) + "/detach", { method: "POST", headers: auth });
+              }
+              console.log("[dedupe] detached " + twins.length + " duplicate card(s) for " + cust);
+            }
+          }
+        } catch (e) {
+          console.error("card dedupe failed (payment unaffected)", e);
+        }
+      }
       const exp = String(obj.card?.exp_month ?? "?").padStart(2, "0")
         + "/" + String(obj.card?.exp_year ?? "????").slice(-2);
 
