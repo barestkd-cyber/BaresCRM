@@ -5530,6 +5530,18 @@ async function posCloseInvoice(saleId){
   toast('Invoice closed - balance waived');
   closeSheet(); showInvoice(saleId, INV_CUR.from);
 }
+/* What happens to a membership when its invoice is deleted. Deliberately NOT
+ * relSet: that one matches on a button's TEXT, so "Keep it" never matched the
+ * value "Keep" and nothing ever highlighted, and it deselects when you tap the
+ * active choice - fine for an optional tag, wrong for a decision that must be
+ * made. This one keys on the value and always leaves exactly one chosen. */
+let DEL_MEM = 'Keep';
+function delMemSet(v){
+  DEL_MEM = v;
+  const box = document.getElementById('delmem-pick');
+  if(box) [...box.children].forEach(b=>b.classList.toggle('on', b.dataset.v === v));
+}
+
 async function posDeleteInvoiceSheet(saleId){
   const [mRes, eRes, rRes] = await Promise.all([
     sb.from('memberships').select('id').eq('sale_id', saleId),
@@ -5546,12 +5558,12 @@ async function posDeleteInvoiceSheet(saleId){
   const unwind = otherParts.length ? '<div class="ck-hint" style="margin-bottom:11px;color:var(--warn)">Also removes what this sale created: '+otherParts.join(', ')+'.</div>' : '';
   const memChoice = nm
     ? '<div class="ck-hint" style="margin-bottom:7px">This invoice created '+nm+' membership'+(nm>1?'s':'')+'. What happens to '+(nm>1?'them':'it')+'?</div>'
-      + '<div class="relpick" id="rel-delmem" style="margin-bottom:12px">'
-      + '<button class="on" onclick="relSet(\'delmem\',\'Keep\')">Keep '+(nm>1?'them':'it')+'</button>'
-      + '<button onclick="relSet(\'delmem\',\'Delete\')">Delete too</button>'
+      + '<div class="relpick" id="delmem-pick" style="margin-bottom:12px">'
+      + '<button class="on" data-v="Keep" onclick="delMemSet(\'Keep\')">Keep '+(nm>1?'them':'it')+'</button>'
+      + '<button data-v="Delete" onclick="delMemSet(\'Delete\')">Delete too</button>'
       + '</div>'
     : '';
-  if(nm) REL_PICK['delmem'] = 'Keep';
+  DEL_MEM = 'Keep';
   $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Delete invoice</h3><div class="sub">As if it never happened</div></div><button class="close" onclick="closeSheet()">×</button></div>'
     +'<div class="sheet-body"><div class="ck-hint" style="margin-bottom:11px">Only unpaid invoices with no payments can be deleted. This cannot be undone.</div>'
     +unwind
@@ -5589,7 +5601,7 @@ async function posDeleteInvoice(saleId){
   if(ml.error){ toast('Could not release the membership line: '+(ml.error.message||ml.error)); return; }
   // Keeping is the default: the membership simply stops pointing at an invoice
   // that no longer exists, and survives with everything else intact.
-  if(REL_PICK['delmem'] === 'Delete'){
+  if(DEL_MEM === 'Delete'){
     const mm = await sb.from('memberships').delete().eq('sale_id', saleId).select('id');
     if(mm.error){ toast('Could not remove memberships: '+(mm.error.message||mm.error)); return; }
   } else {
