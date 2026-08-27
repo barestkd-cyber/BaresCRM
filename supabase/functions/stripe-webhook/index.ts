@@ -104,6 +104,17 @@ async function reconcilePaidSale(
     await admin.from("enrollments").update({ status: "active" })
       .eq("sale_id", saleId).eq("status", "pending");
 
+    // ...and the PERSON. Web checkouts create the contact as a lead so an
+    // abandoned form never lands a stranger on the active roll; paying is
+    // what makes somebody a student. Scoped to lead so this can never
+    // reopen a former member or overwrite a trial.
+    const buyer = await admin.from("pos_sales").select("buyer_contact_id")
+      .eq("id", saleId).maybeSingle();
+    if (buyer.data?.buyer_contact_id) {
+      await admin.from("contacts").update({ segment: "active" })
+        .eq("id", buyer.data.buyer_contact_id).eq("segment", "lead");
+    }
+
     // Testing registrations: the census paid flag follows the money. It
     // used to flip only in the browser finalize, so when this backstop won
     // the race the sale read paid while the census read unpaid (7 of 13
