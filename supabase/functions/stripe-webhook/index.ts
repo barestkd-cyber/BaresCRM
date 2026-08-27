@@ -387,38 +387,58 @@ Deno.serve(async (req) => {
             const twins = all.filter((m: Record<string, any>) =>
               m.id !== obj.id && String(m.card?.fingerprint ?? "") === fp);
             if (twins.length) {
-              const cRes = await fetch("https://api.stripe.com/v1/customers/" + encodeURIComponent(cust),
+              // Owner's call, 2026-08-26: keep the card ALREADY on file and
+              // drop the one just typed. The survivor is what memberships are
+              // billed to, so nothing downstream ever has to be rewired -
+              // "less to fuck up".
+              //
+              // The cost of keeping the older row is its older EXPIRY: a
+              // reissued card keeps its number, so it has the same fingerprint
+              // but a later expiry, and the stale one would decline months
+              // from now. So copy the fresh expiry onto the survivor before
+              // dropping the new one. Stripe allows updating expiry on a
+              // payment method; the number itself is never touched.
+              const keep = twins.sort((a: Record<string, any>, b: Record<string, any>) =>
+                (a.created ?? 0) - (b.created ?? 0))[0];
+              const em = obj.card?.exp_month, ey = obj.card?.exp_year;
+              if (em && ey && (keep.card?.exp_month !== em || keep.card?.exp_year !== ey)) {
+                await fetch("https://api.stripe.com/v1/payment_methods/" + encodeURIComponent(String(keep.id)), {
+                  method: "POST",
+                  headers: { ...auth, "Content-Type": "application/x-www-form-urlencoded" },
+                  body: "card[exp_month]=" + encodeURIComponent(String(em))
+                      + "&card[exp_year]=" + encodeURIComponent(String(ey)),
+                }).catch((e) => console.error("expiry refresh failed", e));
+              }
+              // Everything that is not the survivor goes, including the card
+              // that just arrived.
+              const drop = all.filter((m: Record<string, any>) =>
+                String(m.card?.fingerprint ?? "") === fp && m.id !== keep.id);
+              const cRes2 = await fetch("https://api.stripe.com/v1/customers/" + encodeURIComponent(cust),
                 { headers: auth });
-              const defaultPm = cRes.ok
-                ? String((await cRes.json()).invoice_settings?.default_payment_method ?? "") : "";
-              if (defaultPm && twins.some((m: Record<string, any>) => m.id === defaultPm)) {
+              const defNow = cRes2.ok
+                ? String((await cRes2.json()).invoice_settings?.default_payment_method ?? "") : "";
+              if (defNow && drop.some((m: Record<string, any>) => m.id === defNow)) {
                 await fetch("https://api.stripe.com/v1/customers/" + encodeURIComponent(cust), {
                   method: "POST",
                   headers: { ...auth, "Content-Type": "application/x-www-form-urlencoded" },
-                  body: "invoice_settings[default_payment_method]=" + encodeURIComponent(String(obj.id)),
+                  body: "invoice_settings[default_payment_method]=" + encodeURIComponent(String(keep.id)),
                 });
               }
-              // The CRM stores card ids too - a household's default, and the
-              // card a membership or installment is set to bill. Detaching a
-              // card those point at would aim recurring billing at a card that
-              // no longer exists, and it would fail at 6am with nobody
-              // watching. Repoint them to the survivor FIRST, then detach.
-              for (const m of twins) {
-                const dead = String(m.id);
+              for (const m of drop) {
+                // Defensive: the CRM should never be pointing at a card that
+                // arrived seconds ago, but repoint before detaching anyway.
                 for (const [tbl, col] of [
                   ["households", "default_payment_method"],
                   ["memberships", "payment_method_id"],
                   ["membership_installments", "payment_method_id"],
                 ] as [string, string][]) {
-                  const r = await admin.from(tbl).update({ [col]: obj.id }).eq(col, dead);
+                  const r = await admin.from(tbl).update({ [col]: keep.id }).eq(col, String(m.id));
                   if (r.error) console.error("dedupe repoint failed", tbl, r.error);
                 }
-              }
-              for (const m of twins) {
                 await fetch("https://api.stripe.com/v1/payment_methods/"
                   + encodeURIComponent(String(m.id)) + "/detach", { method: "POST", headers: auth });
               }
-              console.log("[dedupe] detached " + twins.length + " duplicate card(s) for " + cust);
+              console.log("[dedupe] kept " + keep.id + ", detached " + drop.length + " for " + cust);
             }
           }
         } catch (e) {
