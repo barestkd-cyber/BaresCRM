@@ -1,0 +1,1 @@
+select left(s.id::text,8) as invoice, coalesce(s.payer_name,'-') as payer, p.kind, coalesce(p.card_brand,'(none)') as brand, coalesce(p.card_last4,'(none)') as last4, (p.occurred_at at time zone 'America/Chicago')::timestamp(0)::text as paid_at from pos_payments p join pos_sales s on s.id=p.sale_id where p.occurred_at >= '2026-08-27 05:00:00+00' order by p.occurred_at;
