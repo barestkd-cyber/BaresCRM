@@ -496,7 +496,13 @@ Deno.serve(async (req) => {
         const qty = Number(l.qty ?? 1);
         const who = l.student_contact_id && studentNames[l.student_contact_id]
           ? ` <span style="color:#777">for ${esc(studentNames[l.student_contact_id])}</span>` : "";
-        return `${qty > 1 ? qty + "&times; " : ""}${esc(String(l.label ?? ""))}${who}` +
+        // A testing seat that matched nobody is said in RED, days before
+        // the event, instead of being discovered at the bracket table
+        // (owner, 2026-08-27). Belt-testing lines only: an unlinked line
+        // is perfectly normal for products and fees.
+        const needsMatch = (!l.student_contact_id && String(l.label ?? "").startsWith("Belt testing - "))
+          ? ' <span style="color:#c8102e;font-weight:bold">&middot; NEEDS MATCHING</span>' : "";
+        return `${qty > 1 ? qty + "&times; " : ""}${esc(String(l.label ?? ""))}${who}${needsMatch}` +
           ` <span style="color:#777">&middot; ${money(Number(l.line_total_cents ?? 0))}</span>`;
       }).join("<br>");
       // What was actually bought, and when. customer_note is the line written
