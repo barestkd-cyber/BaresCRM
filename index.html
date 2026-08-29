@@ -2374,7 +2374,7 @@ async function loadTesting(){
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
   const [d, st] = await Promise.all([
     sb.from('testing_dates')
-      .select('id,label,test_date,start_time,fee_cents,signup_by,sort_order')
+      .select('id,label,test_date,start_time,fee_cents,signup_by,sort_order,program')
       .gte('test_date', today).order('sort_order'),
     sb.from('settings').select('testing_page_live,private_page_live,private_rate_cents').limit(1).maybeSingle()
   ]);
@@ -2887,7 +2887,7 @@ function renderPOS(){
   html+='<div>';
   html+='<div class="pos-search-wrap"><span class="search-ico">⌕</span><input class="search pos-search" placeholder="Search contacts, products or \'*\' for top 40..." oninput="posSearch(this.value)"></div>';
   html+='<div id="posResults" class="pos-results"></div>';
-  html+='<div class="inv-add" style="margin-top:10px"><button onclick="posAddMembership()">＋ Membership</button><button onclick="posAddEvent()">＋ Event</button></div>';
+  html+='<div class="inv-add" style="margin-top:10px"><button onclick="posAddMembership()">＋ Membership</button><button onclick="posAddEvent()">＋ Event</button><button onclick="posAddTesting()">＋ Belt testing</button></div>';
   // Both forms render; the stylesheet picks one - dropdown on phones, big tap
   // targets on desktop (owner call 2026-08-15).
   html+='<div class="pos-sec-lbl">Quick List Products</div>';
@@ -3270,6 +3270,37 @@ function posAddEventLine(eid){
   const e=EVENTS.find(x=>x.id===eid);
   if(!e || !e.dbId){ toast('That event is not in the catalog'); return; }
   posSale.lines.push({kind:"event", eventId:eid, eventDbId:e.dbId, label:e.title, amount:e.price, qty:1, studentId: posSale.memberId||null});
+  renderPOS(); posEditLine(posSale.lines.length-1, true);
+}
+/* Belt testing at the desk (owner, 2026-08-28: "if they pay by cash, I just
+   register them through my end on the point of sale and they end up on the
+   list that way"). Same one-seat-per-line shape as events, but the seat
+   hangs off a testing SESSION (testing_dates), and tender writes
+   testing_signups - the registration list the website checkout and the
+   testing app share. Untaxed, like every testing fee. */
+function posAddTesting(){
+  const draw = ()=>{
+    let body='';
+    if(!TESTING_ROWS.length) body='<div class="ag-empty">No upcoming testing dates. Set the event up under Checkout pages first.</div>';
+    else body=TESTING_ROWS.map(r=>'<button class="opt-btn" onclick="posAddTestingLine(\''+escAttr(r.id)+'\')"><div style="flex:1"><div style="font-weight:700">'+escHtml(r.label)+'</div><div style="font-size:12.5px;color:var(--muted)">'+escHtml([r.test_date?fmtDate(r.test_date):'', r.start_time].filter(Boolean).join(' · '))+'</div></div><div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700">'+money(posTestingSeatCents(r)/100)+'</div></button>').join('');
+    $("#sheet").innerHTML='<div class="grab"></div><div class="sheet-head"><div><h3>Belt testing</h3><div class="sub">One seat per line</div></div><button class="close" onclick="closeSheet()">×</button></div><div class="sheet-body">'+body+'</div>';
+    openSheet();
+  };
+  if(!TESTING_ROWS.length){ loadTesting().then(draw); } else draw();
+}
+/* The session's own override first (Late Testing is a flat $70), else the
+   standard first seat: Cubs $50, everyone else $60. The family ladder stays
+   a website concept - at the desk he prices later seats by hand on the line. */
+function posTestingSeatCents(r){
+  if(r.fee_cents != null) return r.fee_cents;
+  return r.program==='Cubs' ? 5000 : 6000;
+}
+function posAddTestingLine(dateId){
+  const r=TESTING_ROWS.find(x=>x.id===dateId);
+  if(!r){ toast('That testing date is not loaded'); return; }
+  posSale.lines.push({kind:"event", testingDateId:r.id, testingLabel:r.label,
+    label:'Belt testing - '+r.label, amount:posTestingSeatCents(r)/100, qty:1,
+    taxable:false, studentId: posSale.memberId||null});
   renderPOS(); posEditLine(posSale.lines.length-1, true);
 }
 function posRemoveLine(i){ posSale.lines.splice(i,1); closeSheet(); renderPOS(); }
@@ -3866,7 +3897,9 @@ function posBuildSaleIntent(saleId, method){
         disc_type: l.discVal ? (l.discType==='amt'?'amt':'pct') : null, disc_val: l.discVal||0 };
       // Events send the event id and the participant; the server prices from
       // the events table and registers the participant (never the buyer).
-      return { kind:'event', event_id: l.eventDbId||null, participant_id: l.studentId||null };
+      // Testing seats ride the same kind with testing_date_id instead - the
+      // pos-sale function must write testing_signups for them when A2 lands.
+      return { kind:'event', event_id: l.eventDbId||null, testing_date_id: l.testingDateId||null, participant_id: l.studentId||null };
     })
   };
 }
@@ -4531,6 +4564,12 @@ async function posPaySubmit(){
       .update({ status:'paid', tender_method:method.toLowerCase(), confirmed_at:new Date().toISOString() })
       .eq('id', saleId).eq('status','unpaid').select('id');
     if(upd.error) console.error('auto-paid update', upd.error);
+    else {
+      // A settled invoice settles its testing seats too - the same flip the
+      // webhook does for card payments. No-op for every other sale.
+      const tf = await sb.from('testing_signups').update({ paid:true }).eq('sale_id', saleId);
+      if(tf.error) console.error('testing paid flip', tf.error);
+    }
     toast('Paid in full - '+money(amt/100)+' by '+method.toLowerCase()+(changeCents?' · change '+money(changeCents/100):''));
   } else {
     toast('Payment recorded - '+money((bal-amt)/100)+' still owed');
@@ -4550,7 +4589,10 @@ async function posTender(method, opts){
   if(method==='Card') method='Unpaid';
   const t=posTotals(), total=t.total;
   const memLines=posSale.lines.filter(l=>l.kind==="mem");
-  const eventLines=posSale.lines.filter(l=>l.kind==="event");
+  // A testing seat shares the event line shape but hangs off a testing
+  // SESSION, so it registers into testing_signups, not event_registrations.
+  const eventLines=posSale.lines.filter(l=>l.kind==="event" && !l.testingDateId);
+  const testingLines=posSale.lines.filter(l=>l.kind==="event" && l.testingDateId);
   const m = posSale.memberId ? MEMBERS.find(x=>x.id===posSale.memberId) : null;
 
   // A membership can be browsed and added with no student attached, but it
@@ -4561,9 +4603,9 @@ async function posTender(method, opts){
     posEditMemLine(posSale.lines.indexOf(unattached[0]), false);
     return null;
   }
-  // An event seat is for someone. The participant is who gets registered,
-  // and that is never assumed to be the buyer.
-  const unattachedEv = eventLines.filter(l=>!l.studentId);
+  // An event or testing seat is for someone. The participant is who gets
+  // registered, and that is never assumed to be the buyer.
+  const unattachedEv = eventLines.concat(testingLines).filter(l=>!l.studentId);
   if(unattachedEv.length){
     toast('Attach the participant to every event line before completing the sale.');
     posEditLine(posSale.lines.indexOf(unattachedEv[0]), false);
@@ -4715,6 +4757,35 @@ async function posTender(method, opts){
       const er = await sb.from('event_registrations').insert({ event_id: l.eventDbId, contact_id: l.studentId, buyer_contact_id: posSale.memberId||null, sale_id: saleRecorded?saleId:null, source:'pos' });
       if(er.error && String(er.error.code)!=='23505'){ console.error('event registration', er.error); problems.push('Event registration for '+who+' did NOT save: '+(er.error.message||er.error)); }
       else badges.push('Registered · '+who+' · '+l.label);
+    }
+  }
+  if(testingLines.length){
+    // A desk-sold testing seat registers exactly like the website checkout:
+    // one testing_signups row per seat, source 'staff', linked to this sale.
+    // Paid follows the sale; an unpaid invoice's signup flips to paid when
+    // the money lands (the webhook for card, posPayApply for cash/check).
+    // Same person + same session is a no-op, so a retender can never
+    // register anyone twice. testing_signups has no unique index, so the
+    // guard is a read here rather than an error code.
+    let seatNo=0;
+    for(const l of testingLines){
+      seatNo++;
+      if(!l.studentId){ problems.push('A testing line had no participant and was not registered.'); continue; }
+      const who = posStudentName(l.studentId) || 'participant';
+      const dup = await sb.from('testing_signups').select('id')
+        .eq('contact_id', l.studentId).eq('testing_date_id', l.testingDateId).limit(1);
+      if(!dup.error && (dup.data||[]).length){ badges.push('Already registered · '+who); continue; }
+      const tm = MEMBERS.find(x=>x.id===l.studentId);
+      const ts = await sb.from('testing_signups').insert({
+        testing_date_id: l.testingDateId, contact_id: l.studentId,
+        student_name: who, rank: (tm&&tm.rank)||null,
+        source: 'staff', paid: !isUnpaid && !isPartial,
+        sale_id: saleRecorded ? saleId : null,
+        program: ((tm&&tm.rank)||'').indexOf('Cub')===0 ? 'Cubs' : 'TKD',
+        family_position: seatNo, fee_cents: Math.round(posLineNet(l)*100)
+      });
+      if(ts.error){ console.error('testing signup', ts.error); problems.push('Testing registration for '+who+' did NOT save: '+(ts.error.message||ts.error)+' - add them in the testing app.'); }
+      else badges.push('Registered · '+who+' · '+(l.testingLabel||'Belt testing'));
     }
   }
   // ── LEDGER: line detail + the money row. After memberships, so mem lines
@@ -5589,6 +5660,11 @@ async function posDeleteInvoice(saleId){
   if(ri.error){ toast('Could not release the scheduled payment: '+(ri.error.message||ri.error)); return; }
   const rg = await sb.from('event_registrations').delete().eq('sale_id', saleId).select('id');
   if(rg.error){ toast('Could not remove event registrations: '+(rg.error.message||rg.error)); return; }
+  // Testing seats bought on this invoice go with it - and their FK on
+  // sale_id would block the sale delete anyway. This also unblocks deleting
+  // WEBSITE testing invoices, which always carried linked signups.
+  const tg = await sb.from('testing_signups').delete().eq('sale_id', saleId).select('id');
+  if(tg.error){ toast('Could not remove testing signups: '+(tg.error.message||tg.error)); return; }
   // The invoice's own LINE points at the membership (pos_sale_lines.
   // membership_id, NO ACTION), and the membership points back at the sale.
   // So the membership cannot go while the line holds it, and the sale - whose

@@ -123,6 +123,9 @@ const FNS = [
   'householdSiblings', 'loadHouseholds', 'householdOf',
   'pmNowParts', 'pmOccurredAt',
   'posAddMembership', 'posPickProgram', 'posAddMemLine',
+  // belt testing at the desk: seats hang off testing_dates, tender writes
+  // testing_signups (2026-08-28)
+  'posAddTesting', 'posTestingSeatCents', 'posAddTestingLine',
   'posAttachSheet', 'posAttachSearch', 'posPickStudentForLine', 'posRequoteLine', 'posSetBuyer',
   'posTkdTrackFor', 'posMemRosterPrograms',
   // agreement capture — renderPOS/posPayOpen/posTender all reach into these
