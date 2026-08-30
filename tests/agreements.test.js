@@ -99,10 +99,10 @@ vm.createContext(sandbox);
 vm.runInContext(
   [liftVar('money'), liftVar('escHtml'), liftVar('escAttr'), liftVar('escJs'),
    liftFn('agrResolve'), liftFn('agrApplyAddOns'), liftFn('agrBuildDoc'), liftFn('agrDocText'),
-   liftFn('agrDocHtml'), liftFn('agrUnsignedLines')].join('\n'),
+   liftFn('agrDocHtml'), liftFn('agrDocRender'), liftFn('agrUnsignedLines')].join('\n'),
   sandbox
 );
-const { agrResolve, agrBuildDoc, agrDocText, agrDocHtml, agrUnsignedLines } = sandbox;
+const { agrResolve, agrBuildDoc, agrDocText, agrDocHtml, agrDocRender, agrUnsignedLines } = sandbox;
 
 /* ── 1. the templates as data ──────────────────────────────────────────────*/
 console.log('\nagreements.js — the documents');
@@ -318,6 +318,27 @@ test('a signed agreement renders from its frozen copy, not the live template', (
   assert.ok(/ORIGINAL TERM AS SIGNED\./.test(out), 'viewer re-rendered from the template instead of the stored copy');
   assert.ok(/John Doe/.test(out) && /Parent/.test(out), 'signer block missing');
   assert.ok(/<img class="agr-sig"/.test(out), 'signature image missing');
+});
+
+test('a website-signed agreement (flat body_json) still opens, via body_text', () => {
+  // The public checkouts freeze a summary json plus the full body_text, not
+  // the CRM's structured document. agrDocHtml threw on doc.fields and the
+  // viewer never opened (2026-08-30, first website-signed agreement viewed).
+  const row = {
+    body_text: 'CUBS MEMBERSHIP AGREEMENT\nParticipant: Cody M.\nORIGINAL TERM AS SIGNED.',
+    signer_name: 'Michelle M.', signer_relationship: 'Parent',
+    signed_at: '2026-08-29T01:00:00Z', signature_png: 'data:image/png;base64,AAA',
+    signed_with_staff: 'website checkout'
+  };
+  const flat = { title: 'Cubs Membership Agreement', plan: { code: 'cubs_12mo' }, participant: 'Cody M.' };
+  const out = agrDocRender(flat, row);
+  assert.ok(/ORIGINAL TERM AS SIGNED\./.test(out), 'body_text fallback did not render');
+  assert.ok(/Michelle M\./.test(out) && /<img class="agr-sig"/.test(out), 'signer block missing in fallback');
+  // And a CRM-structured document still routes through the full renderer.
+  const frozen = agrBuildDoc(A.byKey('kickboxing'), {
+    program: 'Kickboxing', planName: 'Kickboxing', recurringCents: 9900, downCents: 0, catalogRows: []
+  });
+  assert.ok(/agr-fields/.test(agrDocRender(frozen, null)), 'structured document lost its full rendering');
 });
 
 test('html output escapes what a person typed', () => {

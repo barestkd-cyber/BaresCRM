@@ -3469,6 +3469,27 @@ function agrDocHtml(doc, signed){
   return h+'</div>';
 }
 
+/* Render whatever was actually frozen. CRM-signed agreements freeze the full
+ * structured document (fields/fees/sections) that agrDocHtml draws. WEBSITE-
+ * signed ones freeze a flat summary json plus the complete body_text - feeding
+ * that to agrDocHtml threw on doc.fields and the viewer never opened
+ * (2026-08-30, Cody Mogle's agreement). The frozen body_text IS the document
+ * as signed, so it renders verbatim with the signature under it. */
+function agrDocRender(doc, row){
+  if(doc && Array.isArray(doc.fields) && Array.isArray(doc.sections)) return agrDocHtml(doc, row);
+  let h = '<div class="agr-doc"><pre style="white-space:pre-wrap;font-family:inherit;margin:0">'
+    + escHtml((row && row.body_text) || '(document text was not stored)')+'</pre>';
+  if(row && (row.signature_png || row.signer_name)){
+    h += '<div class="agr-signed">'
+      + (row.signature_png ? '<img class="agr-sig" src="'+escAttr(row.signature_png)+'" alt="Signature">' : '<div class="agr-sigline"></div>')
+      + '<div class="agr-sigmeta"><b>'+escHtml(row.signer_name||'')+'</b>'
+      + (row.signer_relationship?' · '+escHtml(row.signer_relationship):'')
+      + (row.signed_at?'<br>Signed '+escHtml(new Date(row.signed_at).toLocaleString('en-US')):'')
+      + (row.signed_with_staff?' · witnessed by '+escHtml(row.signed_with_staff):'')+'</div></div>';
+  }
+  return h+'</div>';
+}
+
 /* ── signing ───────────────────────────────────────────────────────────────*/
 let AGR = null;   // { lineIdx, doc, tpl, strokes }
 
@@ -8463,10 +8484,10 @@ async function agrView(agreementId){
   AGR_VIEW = data;
   $("#sheet").innerHTML = '<div class="grab"></div>'
     + '<div class="sheet-head"><div><h3>'+escHtml(data.document_title||'Membership agreement')+'</h3>'
-    + '<div class="sub">Signed '+escHtml(fmtDate(String(data.signed_at).slice(0,10)))+' by '+escHtml(data.signer_name||'')+'</div></div>'
+    + '<div class="sub">'+(data.signed_at?'Signed '+escHtml(fmtDate(String(data.signed_at).slice(0,10))):'Signed')+(data.signer_name?' by '+escHtml(data.signer_name):'')+'</div></div>'
     + '<button class="close" onclick="closeSheet()">×</button></div>'
     + '<div class="sheet-body"><div class="agr-scroll" style="max-height:60vh">'
-    + agrDocHtml(data.body_json, data)
+    + agrDocRender(data.body_json, data)
     + '</div><div class="agr-actions"><button class="tbtn" style="background:var(--ink)" onclick="closeSheet()">Close</button>'
     + '<button class="tbtn" onclick="agrPrint()">Print / PDF</button></div>'
     + '<div class="proto-note">Template '+escHtml(data.template_key||'')+' v'+escHtml(data.template_version||'')+'. This is the document as signed - later template revisions do not change it.</div>'
@@ -8494,7 +8515,7 @@ function agrPrint(){
     + '.agr-signed{margin-top:16px;padding-top:10px;border-top:1px solid #111}.agr-sig{display:block;max-width:280px;max-height:90px}'
     + '.agr-sigmeta{font-size:11.5px;color:#333;margin-top:4px}.agr-blank{display:inline-block;min-height:1em}'
     + '@media print{body{padding:0}}'
-    + '</style></head><body>'+agrDocHtml(AGR_VIEW.body_json, AGR_VIEW)+'</body></html>');
+    + '</style></head><body>'+agrDocRender(AGR_VIEW.body_json, AGR_VIEW)+'</body></html>');
   w.document.close();
   setTimeout(()=>{ try{ w.focus(); w.print(); }catch(e){} }, 250);
 }
