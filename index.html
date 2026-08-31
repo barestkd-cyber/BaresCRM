@@ -1839,23 +1839,27 @@ function renderDashboard(){
   // the old "Overdue" tile computed from a mock balance that was always zero.
   const cards = [
     {k:"unpaidinv", ico:"⚠", label:"Unpaid invoices", desc:"…", alert:true},
+    // A regular tile, not a banner: it used to render as a full-width block
+    // with the rows inline, which read as an alarm ("giant and prominent" -
+    // owner, 2026-08-31). Same information, same actions, now behind a tap.
+    {k:"unsigned", ico:"✍", label:"No agreement", desc:"…"},
     {k:"expiring", ico:"⧖", label:"Expiring", desc:"next 30 days"},
     {k:"leads",   ico:"★", label:"Leads",   desc:"in the pipeline"},
     {k:"risk",    ico:"◷", label:"At risk",  desc:"14+ days no visit"}
   ];
   let html = '<div class="dash">'
     + '<div class="dash-hd"><h2>Dashboard</h2><div class="ds">'+active+' active members · '+leads+' leads in the pipeline</div></div>'
-    + '<div id="dash-unsigned"></div>'
     + '<div id="dash-unpaid"></div>'
     + '<div class="dash-sub">Needs you today</div><div class="dcards">';
   cards.forEach(cd=>{
-    const isInv = cd.k==='unpaidinv', isExp = cd.k==='expiring';
-    const live = isInv || isExp; // async ledger-fed tiles, filled after render
+    const isInv = cd.k==='unpaidinv', isExp = cd.k==='expiring', isUnsg = cd.k==='unsigned';
+    const live = isInv || isExp || isUnsg; // async ledger-fed tiles, filled after render
     const click = isInv ? "showSection('pos');TX_FILTER='unpaid';posTransactions()"
                 : isExp ? "posExpiringSheet()"
+                : isUnsg ? "unsgSheet()"
                 : "goToFilter('"+cd.k+"')";
-    const nid = isInv?'dash-unpaid-n':isExp?'dash-exp-n':'';
-    const did = isInv?'dash-unpaid-d':isExp?'dash-exp-d':'';
+    const nid = isInv?'dash-unpaid-n':isExp?'dash-exp-n':isUnsg?'dash-unsg-n':'';
+    const did = isInv?'dash-unpaid-d':isExp?'dash-exp-d':isUnsg?'dash-unsg-d':'';
     html += '<button class="dcard'+(cd.alert?' alert':'')+'" onclick="'+click+'">'
       + '<div class="dc-top"><span class="dc-count num"'+(live?' id="'+nid+'"':'')+'>'+(live?'…':c[cd.k])+'</span><span class="dc-ico">'+cd.ico+'</span></div>'
       + '<div class="dc-label">'+cd.label+'</div><div class="dc-desc"'+(live?' id="'+did+'"':'')+'>'+cd.desc+'</div>'
@@ -1875,50 +1879,57 @@ function renderDashboard(){
  *
  * The count is of memberships, not people, because two unpapered memberships
  * on one student are two documents to chase. */
+let UNSG_LIST = [];
 async function dashLoadUnsigned(){
-  const box = document.getElementById('dash-unsigned'); if(!box) return;
   const { data:mems, error } = await sb.from('memberships')
     .select('id,contact_id,program,plan_code,started_on,created_at')
     .eq('status','active').order('created_at', { ascending:true });
   if(error){ console.error('dash unsigned', error); return; }
   const rows = mems||[];
-  if(!rows.length){ box.innerHTML=''; return; }
+  const nEl = document.getElementById('dash-unsg-n');
+  const dEl = document.getElementById('dash-unsg-d');
+  if(!rows.length){ UNSG_LIST=[]; if(nEl) nEl.textContent='0'; if(dEl) dEl.textContent='all papered'; return; }
   const { data:ags, error:aErr } = await sb.from('membership_agreements')
     .select('membership_id').eq('status','signed').in('membership_id', rows.map(r=>r.id));
   // Without the agreement list every membership would look unsigned, which
-  // would put a false alarm at the top of the dashboard. Say nothing instead.
-  if(aErr){ console.error('dash agreements', aErr); box.innerHTML=''; return; }
+  // would put a false alarm on the tile. Say nothing instead.
+  if(aErr){ console.error('dash agreements', aErr); return; }
   const papered = {};
   (ags||[]).forEach(a=>{ if(a.membership_id) papered[a.membership_id]=true; });
-  const miss = rows.filter(r=>!papered[r.id]);
-  if(!miss.length){ box.innerHTML=''; return; }
+  UNSG_LIST = rows.filter(r=>!papered[r.id]);
+  if(nEl) nEl.textContent = UNSG_LIST.length;
+  if(dEl) dEl.textContent = UNSG_LIST.length ? 'tap to sign or send' : 'all papered';
+}
 
+/* The unsigned list, oldest first, in a sheet. The same three actions each
+ * row always had; the dashboard just stopped shouting them. */
+function unsgSheet(){
   const today = attYMD();
-  const shown = miss.slice(0, 8);
-  let h = '<div class="unsg"><div class="unsg-top">'
-    + '<span class="unsg-n">'+miss.length+'</span>'
-    + '<span class="unsg-l">membership'+(miss.length===1?'':'s')+' with no signed agreement</span>'
-    + '</div><div class="unsg-list">';
-  shown.forEach(r=>{
-    const who = MEMBERS.find(x=>x.id===r.contact_id);
-    const name = who ? (who.first+' '+who.last).trim() : 'Unknown member';
-    const since = r.started_on ? daysBetweenYMD(r.started_on, today) : null;
-    const age = since==null ? '' : (since<=0 ? 'started today'
-      : since===1 ? '1 day' : since+' days');
-    h += '<div class="unsg-row"><b>'+escHtml(name)+'</b> '+escHtml(r.program||'')
-      + (age?' · '+escHtml(age):'')
-      + '<span class="go">'
-      + '<button onclick="agrSignMembership(\''+escJs(r.id)+'\')">Sign now</button>'
-      + '<button onclick="agrSendMembership(\''+escJs(r.id)+'\')">Send it</button>'
-      + '<button onclick="openProfile(\''+escJs(r.contact_id)+'\')">Profile</button>'
-      + '</span></div>';
-  });
-  h += '</div>';
-  // Never let a cap read as "that is all of them".
-  if(miss.length > shown.length){
-    h += '<div class="unsg-more">and '+(miss.length-shown.length)+' more, oldest first</div>';
+  let body = '';
+  if(!UNSG_LIST.length){
+    body = '<div class="ag-empty">Every active membership has a signed agreement.</div>';
+  } else {
+    body = UNSG_LIST.map(r=>{
+      const who = MEMBERS.find(x=>x.id===r.contact_id);
+      const name = who ? (who.first+' '+who.last).trim() : 'Unknown member';
+      const since = r.started_on ? daysBetweenYMD(r.started_on, today) : null;
+      const age = since==null ? '' : (since<=0 ? 'started today'
+        : since===1 ? '1 day' : since+' days');
+      return '<div class="unsg-row"><b>'+escHtml(name)+'</b> '+escHtml(r.program||'')
+        + (age?' · '+escHtml(age):'')
+        + '<span class="go">'
+        + '<button onclick="closeSheet();agrSignMembership(\''+escJs(r.id)+'\')">Sign now</button>'
+        + '<button onclick="closeSheet();agrSendMembership(\''+escJs(r.id)+'\')">Send it</button>'
+        + '<button onclick="closeSheet();openProfile(\''+escJs(r.contact_id)+'\')">Profile</button>'
+        + '</span></div>';
+    }).join('');
   }
-  box.innerHTML = h + '</div>';
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head"><div><h3>No signed agreement</h3>'
+    + '<div class="sub">'+UNSG_LIST.length+' active membership'+(UNSG_LIST.length===1?'':'s')+' · oldest first</div></div>'
+    + '<button class="close" onclick="closeSheet()">×</button></div>'
+    + '<div class="sheet-body">'+body+'</div>';
+  openSheet();
 }
 
 /* Whole days between two studio-local dates. Both are plain YYYY-MM-DD, so
