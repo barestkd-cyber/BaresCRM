@@ -224,6 +224,12 @@ function qb(table, opts) {
     single() {
       return Promise.resolve(opts.err ? { data: null, error: opts.err } : { data: opts.resultRow, error: null });
     },
+    maybeSingle() {
+      // First scripted row for the table, or the insert result, or nothing -
+      // and "nothing" is data:null with no error, exactly like the real one.
+      const row = (SB_SELECT[table] && SB_SELECT[table][0]) || opts.resultRow || null;
+      return Promise.resolve(opts.err ? { data: null, error: opts.err } : { data: row, error: null });
+    },
     then(resolve) {
       if (opts.lastOp === 'insert') resolve(opts.err ? { error: opts.err } : { error: null, data: opts.resultRow ? [opts.resultRow] : [] });
       else resolve({ data: SB_SELECT[table] || [], error: null });
@@ -334,6 +340,9 @@ const sandbox = {
   document: documentShim,
   console,
   sb: sbShim,
+  // Native confirm(), scripted: CONFIRM_OK decides the answer, CONFIRMS
+  // records every question so tests can assert what was asked.
+  confirm: msg => { CONFIRMS.push(msg); return CONFIRM_OK.value; },
   toast: msg => TOASTS.push(msg),
   currentStaffEmail: async () => 'staff@test',
   setInterval: () => 0, // unused no-op safety net
@@ -354,6 +363,8 @@ const sandbox = {
   navigator: { userAgent: 'test-agent/1.0' },   // stamped onto signed agreements
 };
 const REFRESHED = [];
+const CONFIRMS = [];
+const CONFIRM_OK = { value: false };
 const sandboxNav = [];
 sandbox.sandboxNav = sandboxNav;
 vm.createContext(sandbox);
@@ -1274,6 +1285,38 @@ await test('40 each paperwork choice goes where it says, and a lost membership r
   await call('memAddNext()');
   assert.ok(!REFRESHED.some(r => /^send:/.test(r)), 'nothing is sent without a membership to attach it to');
   assert.ok(TOASTS.some(t => /No membership row/.test(t)), 'and it says why');
+});
+
+await test('41 an unpaid invoice from the add flow offers its own email - and only sends on yes', async () => {
+  // Born 2026-08-31: an agreement went out, the invoice silently did not,
+  // and a member had a bill she had never seen (Christian Brown).
+  SB_SELECT['pos_sales'] = [{ status: 'unpaid' }];
+
+  // Declined: asked, but nothing sends.
+  CONFIRM_OK.value = false; CONFIRMS.length = 0; RECEIPTS.length = 0;
+  await addOpen();
+  await call('memAddNext()');
+  run("memAddPay('invoice')");
+  await call('memAddNext()');
+  run("memAddSign('skip')");
+  await call('memAddNext()');
+  assert.ok(CONFIRMS.some(q => /Email it to .*pay link/.test(q)), 'the flow offers the invoice email');
+  assert.strictEqual(RECEIPTS.length, 0, 'declining sends nothing');
+
+  // Accepted: the send-receipt call goes out for THIS sale.
+  CONFIRM_OK.value = true; CONFIRMS.length = 0; RECEIPTS.length = 0;
+  await addOpen();
+  await call('memAddNext()');
+  run("memAddPay('invoice')");
+  await call('memAddNext()');
+  const sale = run('MADD.saleId');
+  run("memAddSign('skip')");
+  await call('memAddNext()');
+  assert.ok(CONFIRMS.length === 1, 'asked exactly once');
+  assert.ok(RECEIPTS.some(r => r.sale_id === sale), 'accepting emails the invoice for this sale');
+
+  CONFIRM_OK.value = false;
+  delete SB_SELECT['pos_sales'];
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');

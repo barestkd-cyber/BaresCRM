@@ -3819,7 +3819,7 @@ async function agrAccept(){
     AGR = null; closeSheet();
     toast('Agreement signed');
     if(selectedId === who) loadProfileMemberships(who);
-    if(document.getElementById('dash-unsigned')) dashLoadUnsigned();
+    if(document.getElementById('dash-unsg-n')) dashLoadUnsigned();
     return;
   }
   line.__agreement = signed;
@@ -7952,7 +7952,22 @@ async function memAddFinish(){
   const mid = MADD.membershipId, who = MADD.contactId, want = MADD.sign, sale = MADD.saleId;
   memAddClose();
   if(selectedId === who) loadProfileMemberships(who);
-  if(document.getElementById('dash-unsigned')) dashLoadUnsigned();
+  if(document.getElementById('dash-unsg-n')) dashLoadUnsigned();
+  // An UNPAID invoice saved here is silent by design - only money triggers
+  // the automatic email. So offer the send before this screen disappears:
+  // the owner sent an agreement believing the invoice rode along, and the
+  // customer had a bill they had never seen (Christian Brown, 2026-08-31).
+  if(sale){
+    const st = await sb.from('pos_sales').select('status').eq('id', sale).maybeSingle();
+    if(st.data && st.data.status==='unpaid'){
+      const m = MEMBERS.find(x=>x.id===who);
+      const to = (m && m.email) ? m.email : 'their email on file';
+      if(confirm('This invoice is unpaid. Email it to '+to+' with the pay link?')){
+        posAutoReceipt(sale);
+        toast('Sending the invoice email');
+      }
+    }
+  }
   if(!mid){
     // The sale saved but the membership row did not, which posTender already
     // reported. There is nothing to sign, so do not pretend otherwise.
