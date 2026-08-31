@@ -109,7 +109,7 @@ const CSS = [
   ".iv-total.paid{background:#18A974}",
   ".iv-total.paid .lbl{color:#D8F3E6}",
   ".iv-stamp{display:inline-block;border:2.5px solid #18A974;color:#18A974;border-radius:7px;padding:2px 13px;font-weight:700;font-size:16px;letter-spacing:3px;transform:rotate(-6deg)}",
-  ".iv-stamp.due{border-color:#c8102e;color:#c8102e}",
+  ".iv-stamp.due{border-color:#EA0000;color:#EA0000}",
   ".iv-stamp.closed{border-color:#6A727E;color:#6A727E}",
   ".iv-stamp.part{border-color:#C98A1A;color:#C98A1A;font-size:12px;letter-spacing:1.5px}",
   ".iv-stampwrap{display:inline-flex;flex-direction:column;align-items:flex-end;gap:5px}",
@@ -212,10 +212,10 @@ Deno.serve(async (req) => {
         pays.map((p) =>
           "<tr><td>" + esc(fmtDate(String(p.occurred_at).slice(0, 10))) + "</td>" +
           '<td style="text-transform:capitalize">' + esc(p.kind === "charge" ? "Payment" : p.kind === "ach_return" ? "Returned payment" : p.kind) + (p.card_last4 ? '<div style="font-size:11px;color:#6A727E">' + esc(String(p.card_brand || "card").replace(/^./, (m) => m.toUpperCase())) + " ending " + esc(String(p.card_last4)) + "</div>" : "") + (p.note ? '<div style="font-size:11px;color:#6A727E">' + esc(p.note) + "</div>" : "") + "</td>" +
-          '<td class="r"' + (p.amount_cents < 0 ? ' style="color:#c8102e"' : "") + ">" + (p.amount_cents < 0 ? "−" : "") + money(Math.abs(p.amount_cents)) + "</td></tr>").join("") +
+          '<td class="r"' + (p.amount_cents < 0 ? ' style="color:#EA0000"' : "") + ">" + (p.amount_cents < 0 ? "−" : "") + money(Math.abs(p.amount_cents)) + "</td></tr>").join("") +
         "</tbody></table></div>" +
         '<div class="iv-total paid"><span class="lbl">Total paid</span><span class="amt">' + money(paidNet) + "</span></div>" +
-        (balance > 0 && !closed ? '<div style="padding:0 16px 12px;font-size:12.5px;font-weight:700;color:#c8102e">Still owed: ' + money(balance) + "</div>" : "")
+        (balance > 0 && !closed ? '<div style="padding:0 16px 12px;font-size:12.5px;font-weight:700;color:#EA0000">Still owed: ' + money(balance) + "</div>" : "")
       : "";
 
     const body = '<div class="iv-wrap"><div class="iv-card">' +

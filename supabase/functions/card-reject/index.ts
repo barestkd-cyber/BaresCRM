@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
           to: [to],
           subject: (payer || email || "Somebody") + " could not pay" + (student ? " for " + student : ""),
           html: '<div style="font-family:Arial,Helvetica,sans-serif;color:#111;max-width:460px;margin:0 auto;padding:18px 14px">'
-            + '<p style="font-size:12px;letter-spacing:.08em;color:#c8102e;margin:0 0 4px">A CARD WAS REFUSED</p>'
+            + '<p style="font-size:12px;letter-spacing:.08em;color:#EA0000;margin:0 0 4px">A CARD WAS REFUSED</p>'
             + (payer || student || email || phone
                 ? '<p style="font-size:17px;font-weight:bold;margin:0 0 4px">' + esc(payer || "Name not filled in") + "</p>"
                   + (student ? '<p style="font-size:14px;margin:0 0 10px;color:#555">for ' + esc(student) + "</p>" : "")
@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
                   + (email && phone ? " &middot; " : "")
                   + (phone ? '<a href="tel:' + esc(phone.replace(/[^0-9+]/g, "")) + '">' + esc(phone) + "</a>" : "")
                   + "</p>"
-                : '<p style="font-size:14px;margin:0 0 10px;color:#c8102e">They had not filled in their details yet.</p>')
+                : '<p style="font-size:14px;margin:0 0 10px;color:#EA0000">They had not filled in their details yet.</p>')
             + '<p style="font-size:15px;margin:0 0 12px">A card was refused on <b>' + esc(src || "a checkout page") + "</b>"
             + " before any charge was attempted, so nothing was taken and nothing was created.</p>"
             + '<p style="font-size:14px;margin:0 0 6px"><b>They were told:</b><br>' + esc(message || code) + "</p>"

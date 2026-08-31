@@ -505,7 +505,7 @@ Deno.serve(async (req) => {
           + '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="font-size:14px;line-height:1.6">'
           + '<tr><td style="color:#777;padding-right:12px;vertical-align:top">Whose</td><td>' + esc(whose) + '</td></tr>'
           + (where ? '<tr><td style="color:#777;padding-right:12px;vertical-align:top">Where</td><td'
-              + (flagged ? ' style="color:#c8102e;font-weight:bold"' : '') + '>' + esc(where) + '</td></tr>' : '')
+              + (flagged ? ' style="color:#EA0000;font-weight:bold"' : '') + '>' + esc(where) + '</td></tr>' : '')
           + '<tr><td style="color:#777;padding-right:12px;vertical-align:top">Expires</td><td>' + esc(exp) + '</td></tr>'
           + '</table>'
           + '<p style="margin:16px 0 0;font-size:12.5px;color:#777">Nothing was charged. '
@@ -581,7 +581,7 @@ Deno.serve(async (req) => {
           : (event.type === "payout.paid" ? "Sent to the bank, should land " : "Expected to arrive ") + arrives;
         const html = '<div style="font-family:Arial,Helvetica,sans-serif;color:#111;max-width:460px;margin:0 auto;padding:18px 14px">'
           + '<p style="font-size:12px;letter-spacing:.08em;color:#777;margin:0 0 4px">' + head + "</p>"
-          + '<p style="font-size:26px;font-weight:bold;margin:0 0 8px' + (failed ? ';color:#c8102e' : '') + '">' + amount + "</p>"
+          + '<p style="font-size:26px;font-weight:bold;margin:0 0 8px' + (failed ? ';color:#EA0000' : '') + '">' + amount + "</p>"
           + '<p style="font-size:14px;margin:0">' + line + "</p>"
           + breakdown + "</div>";
         // Best effort, same rule as the card email: a notification that

@@ -255,7 +255,7 @@ Deno.serve(async (req) => {
               to: [ownerAddr],
               subject: "PAID BUT NOBODY EMAILED: " + money(Number(s.total_cents)),
               html: '<div style="font-family:Arial,Helvetica,sans-serif;color:#111;max-width:460px;margin:0 auto;padding:18px 14px">'
-                + '<p style="font-size:12px;letter-spacing:.08em;color:#c8102e;margin:0 0 4px">PAID, NO RECEIPT SENT</p>'
+                + '<p style="font-size:12px;letter-spacing:.08em;color:#EA0000;margin:0 0 4px">PAID, NO RECEIPT SENT</p>'
                 + '<p style="font-size:24px;font-weight:bold;margin:0 0 10px">' + money(Number(s.total_cents)) + "</p>"
                 + '<p style="font-size:14px;margin:0 0 6px">A payment landed on ' + String(s.sale_date ?? "today")
                 + " and the receipt sender found nobody to email. " + why + "</p>"
@@ -372,7 +372,7 @@ Deno.serve(async (req) => {
                </td></tr></table>`
           : ""}
         <p style="font-size:22px;font-weight:bold;margin:10px 0 2px">${money(s.total_cents)}</p>
-        <p style="font-size:13px;margin:0 0 16px;${paid ? "color:#1e9e54" : closed ? "color:#6A727E" : "color:#c8102e"};font-weight:bold">
+        <p style="font-size:13px;margin:0 0 16px;${paid ? "color:#1e9e54" : closed ? "color:#6A727E" : "color:#EA0000"};font-weight:bold">
           ${paid ? "PAID - thank you!" : closed ? "Closed - no balance due" : `Balance due: ${money(balance)}`}</p>
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:4px auto 0">
           <tr><td bgcolor="#15171C" style="border-radius:8px">
@@ -467,7 +467,7 @@ Deno.serve(async (req) => {
           const typedAddr = String((s as Record<string, unknown>).payer_email ?? "").trim();
           if (typedName) {
             return esc(typedName) + (typedAddr ? "<br>" + esc(typedAddr) : "")
-              + '<br><span style="color:#c8102e;font-size:12px">typed at checkout, not matched to a profile</span>';
+              + '<br><span style="color:#EA0000;font-size:12px">typed at checkout, not matched to a profile</span>';
           }
           return "Walk-in";
         }
@@ -501,7 +501,7 @@ Deno.serve(async (req) => {
         // (owner, 2026-08-27). Belt-testing lines only: an unlinked line
         // is perfectly normal for products and fees.
         const needsMatch = (!l.student_contact_id && String(l.label ?? "").startsWith("Belt testing - "))
-          ? ' <span style="color:#c8102e;font-weight:bold">&middot; NEEDS MATCHING</span>' : "";
+          ? ' <span style="color:#EA0000;font-weight:bold">&middot; NEEDS MATCHING</span>' : "";
         return `${qty > 1 ? qty + "&times; " : ""}${esc(String(l.label ?? ""))}${who}${needsMatch}` +
           ` <span style="color:#777">&middot; ${money(Number(l.line_total_cents ?? 0))}</span>`;
       }).join("<br>");

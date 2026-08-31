@@ -78,7 +78,7 @@ function section(title: string, rows: string[], accent = false): string {
     <tr><td style="padding:22px 0 0">
       <p style="margin:0 0 10px;font:700 11px/1.2 Arial,Helvetica,sans-serif;
                 letter-spacing:.12em;text-transform:uppercase;color:#8a939c">${esc(title)}</p>
-      <div style="${accent ? "border-left:3px solid #D8232A;padding-left:13px" : ""}">
+      <div style="${accent ? "border-left:3px solid #EA0000;padding-left:13px" : ""}">
         ${rows.join("")}
       </div>
     </td></tr>`;
@@ -277,7 +277,7 @@ Deno.serve(async (req) => {
          style="max-width:460px;margin:0 auto;background:#fff;border-radius:14px;padding:24px 22px">
     <tr><td style="padding:0 0 4px">
       <p style="margin:0;font:700 11px/1.2 Arial,Helvetica,sans-serif;letter-spacing:.14em;
-                text-transform:uppercase;color:#D8232A">Bares Taekwondo Fitness</p>
+                text-transform:uppercase;color:#EA0000">Bares Taekwondo Fitness</p>
       <p style="margin:4px 0 0;font:700 19px/1.3 Arial,Helvetica,sans-serif;color:#15171C">
         ${esc(prettyDate(today))}</p>
     </td></tr>
