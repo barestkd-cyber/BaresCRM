@@ -49,12 +49,17 @@ vm.runInContext([
   liftFn('stripesForRank'), liftFn('stripesHtml'),
 ].join('\n'), sandbox);
 
-/* `earned` is a Map of stripe key -> source since 2026-09-02: a bare Set
- * could not tell an instructor's own stripe from one a family logged at home
- * and is still waiting to be verified. Callers may pass plain ids (treated as
- * staff-logged) or [id, source] pairs. */
+/* `earned` is a Map of stripe key -> { source, by, origin } since 2026-09-03.
+ * A bare Set could not tell an instructor's own stripe from one a family
+ * logged at home; `by` names the instructor the family says gave it, and
+ * `origin` records which app the row was created in and survives verifying.
+ * Callers may pass a plain id (staff-logged), or [id, source], or
+ * [id, source, by, origin]. */
 function draw(rank, earnedIds) {
-  const asMap = (list) => new Map((list || []).map(x => Array.isArray(x) ? x : [x, 'staff']));
+  const rec = (x) => Array.isArray(x)
+    ? [x[0], { source: x[1] || 'staff', by: x[2] || '', origin: x[3] || '' }]
+    : [x, { source: 'staff', by: '', origin: '' }];
+  const asMap = (list) => new Map((list || []).map(rec));
   sandbox.STRIPES = { contactId: 'c1', rank: rank, earned: earnedIds === null ? null : asMap(earnedIds) };
   return vm.runInContext('stripesHtml()', sandbox);
 }
@@ -171,9 +176,11 @@ test('a stripe a family logged shows as pending, with a way to verify it', () =>
   // glance which stripes are somebody's claim and which are his own record.
   const b = BELTS.find((x) => x.name === 'Orange Belt');
   const first = b.stripes.black[0].id;
-  const out = draw('Orange Belt', [[first, 'family']]);
+  const out = draw('Orange Belt', [[first, 'family', 'Mr. Wilson', 'profile']]);
   assert.ok(out.includes('Verify this stripe'), 'no way to confirm a family log');
-  assert.ok(out.includes('Logged at home'), 'the panel does not say where it came from');
+  assert.ok(out.includes('Logged in the student profile'), 'the panel does not say where it came from');
+  // The claim is only checkable if it names who they say gave it.
+  assert.ok(out.includes('Mr. Wilson'), 'the panel does not name the instructor claimed');
   assert.ok(out.includes('#B88A00'), 'a pending stripe is not marked amber');
   assert.ok(out.includes('Remove it'), 'no way to reject a wrong claim');
 });
@@ -187,6 +194,22 @@ test('a staff stripe offers no Verify button, because there is nothing to confir
   const verified = draw('Orange Belt', [[first, 'verified']]);
   assert.ok(!verified.includes('Verify this stripe'), 'offered to verify an already verified stripe');
   assert.ok(verified.includes('stcheck on'), 'a verified stripe does not read as earned');
+});
+
+test('a settled stripe still says which app it was logged in', () => {
+  // origin is separate from source on purpose: verifying a family log flips
+  // source to 'verified' but must NOT erase the fact it came from the
+  // profile. Owner asked to be able to see that (2026-09-03).
+  const b = BELTS.find((x) => x.name === 'Orange Belt');
+  const first = b.stripes.black[0].id;
+  const fromProfile = draw('Orange Belt', [[first, 'verified', 'Mr. Du Toit', 'profile']]);
+  assert.ok(fromProfile.includes('Logged in the student profile'), 'a verified profile log lost its origin');
+  assert.ok(fromProfile.includes('Mr. Du Toit'), 'a verified log lost the instructor named');
+  assert.ok(!fromProfile.includes('Verify this stripe'), 'still offering to verify an already verified stripe');
+  const fromPlan = draw('Orange Belt', [[first, 'staff', 'Mr. Smith', 'classplan']]);
+  assert.ok(fromPlan.includes('Logged in class plan'), 'a class plan stripe does not say so');
+  const unknown = draw('Orange Belt', [[first, 'staff']]);
+  assert.ok(!unknown.includes('Logged in'), 'a row with no origin invented one');
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
