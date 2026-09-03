@@ -2486,9 +2486,12 @@ const cpEsc = s => String(s == null ? "" : s).replace(/[&<>"']/g,
 async function loadTesting(){
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
   const [d, st] = await Promise.all([
+    // Everything upcoming, plus anything still open for late payment - a
+    // past testing can stay open, so a date filter alone would hide the one
+    // he most needs to see (owner, 2026-09-03).
     sb.from('testing_dates')
-      .select('id,label,test_date,start_time,fee_cents,signup_by,sort_order,program')
-      .gte('test_date', today).order('sort_order'),
+      .select('id,label,test_date,start_time,fee_cents,signup_by,sort_order,program,signups_open')
+      .or('test_date.gte.' + today + ',signups_open.is.true').order('test_date').order('sort_order'),
     sb.from('settings').select('testing_page_live,private_page_live,private_rate_cents').limit(1).maybeSingle()
   ]);
   if(d.error){ console.error('testing dates load', d.error); } else { TESTING_ROWS = d.data || []; }
