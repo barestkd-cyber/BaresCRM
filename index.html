@@ -5449,7 +5449,11 @@ async function showInvoice(saleId, from){
  * file and quietly skips walk-ins and contacts with no email. */
 function posAutoReceipt(saleId){
   if(!saleId) return;
-  sb.functions.invoke('send-receipt', { body: { sale_id: saleId } })
+  // notify_owner, same as every website checkout sends. Without it a desk
+  // sale emailed the customer and told Race nothing, so a card charge he
+  // rang up himself produced only the saved-card alert and no record of the
+  // payment (MK Eagleton, 2026-09-03).
+  sb.functions.invoke('send-receipt', { body: { sale_id: saleId, notify_owner: true } })
     .then(function(r){
       const d = r && r.data;
       if(d && d.ok && d.to && d.to.length) toast('Receipt emailed to '+d.to[0]);
