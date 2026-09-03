@@ -9354,6 +9354,18 @@ async function stripeVerify(id){
   const box = document.getElementById('prof-stripes'); if(box) box.innerHTML = stripesHtml();
 }
 
+/* The 10-week cycle a stripe is being earned in, so rotating curriculum can
+   be reported on later (spec sections 7 and 10). Cached per page load. A
+   read failure returns null: the stripe still saves. */
+let _activeCycleId;
+async function activeCycleId(){
+  if(_activeCycleId !== undefined) return _activeCycleId;
+  try{
+    const r = await sb.from('cycle_data').select('id').eq('is_active', true).limit(1).maybeSingle();
+    _activeCycleId = (!r.error && r.data) ? r.data.id : null;
+  }catch(e){ _activeCycleId = null; }
+  return _activeCycleId;
+}
 async function stripeToggle(id){
   const c = STRIPES;
   if(!c || c.earned === null) return;
@@ -9366,7 +9378,8 @@ async function stripeToggle(id){
     const awardedBy = await stripeAwarder();
     const { error } = await sb.from('student_stripes').insert({ id: crypto.randomUUID(),
       student_id: c.contactId, belt: c.rank, stripe_key: id,
-      earned_at: new Date().toISOString(), awarded_by: awardedBy, source: 'staff', origin: 'crm' });
+      earned_at: new Date().toISOString(), awarded_by: awardedBy, source: 'staff', origin: 'crm',
+      cycle_id: await activeCycleId() });
     // The policy on this table accepts admin and instructor. A stripe that
     // silently failed to save is worse than one that refused out loud, since
     // he would walk away believing the student has it.
