@@ -254,7 +254,10 @@ async function save(){
   // additions = present now and not already saved
   const adds=[...present].filter(id=>!savedNow.has(id)).map(id=>({
     student_id:id, class_label:cls.label, program:cls.program, class_date:date,
-    status:'confirmed', source:'staff', recorded_by:me }));
+    // 'kiosk', not 'staff': the lobby kiosk is a DIFFERENT door from an
+    // instructor marking the roster, and Race needs to see which one caught
+    // each student so nothing falls through (owner, 2026-09-02).
+    status:'confirmed', source:'kiosk', recorded_by:me }));
   // removals = was saved, now unchecked
   const removes=[...savedNow].filter(id=>!present.has(id));
   try{
