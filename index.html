@@ -9133,9 +9133,10 @@ let STRIPES = null;
 async function stripesEarned(contactId, rank){
   if(!rank) return new Set();
   const { data, error } = await sb.from('student_stripes')
-    .select('stripe_key').eq('student_id', contactId).eq('belt', rank);
+    .select('stripe_key,source').eq('student_id', contactId).eq('belt', rank);
   if(error){ console.error('stripes read', error); return null; }   // null = could not read
-  return new Set((data||[]).map(r=>r.stripe_key));
+  // Map, not Set: source is what distinguishes a family log from ours.
+  return new Map((data||[]).map(r=>[r.stripe_key, r.source || 'staff']));
 }
 
 /* Straight out of class plan's progStripesFor, stripe ids included, so a
@@ -9181,9 +9182,11 @@ function stripesHtml(){
   const bg = isSr
     ? 'linear-gradient(to bottom,'+set.color+' 30%,#111 30%,#111 70%,'+set.color+' 70%)'
     : set.color;
-  const slot = st => '<div class="stbelt-stripe" style="background:'+st.color+'" title="'+escAttr(st.label)+'"'
+  const slot = st => { const src = c.earned.get(st.id); const pending = src === 'family';
+    return '<div class="stbelt-stripe" style="background:'+st.color+'" title="'+escAttr(st.label + (pending?' (family logged — needs verifying)':''))+'"'
     + ' onclick="stripePanel(\''+escJs(st.id)+'\')">'
-    + '<span class="stcheck'+(c.earned.has(st.id)?' on':'')+'">'+(c.earned.has(st.id)?'✓':'')+'</span></div>';
+    + '<span class="stcheck'+(src?' on':'')+'"'+(pending?' style="background:#fff;color:#B88A00;border-color:#B88A00;"':'')+'>'
+    + (pending?'◐':(src?'✓':''))+'</span></div>'; };
   const cluster = arr => arr.map((st,i)=>
     (i>0?'<div style="width:3px;flex:none;background:'+bg+'"></div>':'')+slot(st)).join('');
   const wide = n => (n*18 + Math.max(0,n-1)*3 + 8);
@@ -9195,13 +9198,16 @@ function stripesHtml(){
       + '</div>'
     : '<div class="ccg-sub">No stripes on this belt.</div>';
   const panels = all.map(st=>{
-    const on = c.earned.has(st.id);
+    const src = c.earned.get(st.id); const on = !!src; const pending = src === 'family';
     return '<div class="stpanel" id="stp-'+escAttr(st.id)+'">'
       + '<div class="stpanel-t">'+escHtml(st.label)+'</div>'
       + (st.desc?'<div class="stpanel-d">'+escHtml(st.desc)+'</div>':'')
+      + (pending ? '<div class="ccg-sub" style="color:#B88A00;margin-bottom:6px">Logged at home — confirm it if it is right.</div>'
+          + '<button class="stlog" style="border-color:#2ecc71;color:#2ecc71" onclick="stripeVerify(\''+escJs(st.id)+'\')">'
+          + '<span class="stcheck"></span>Verify this stripe</button>' : '')
       + '<button class="stlog'+(on?' on':'')+'" onclick="stripeToggle(\''+escJs(st.id)+'\')">'
-      + '<span class="stcheck'+(on?' on':'')+'">'+(on?'✓':'')+'</span>'
-      + (on?'Earned, tap to remove':'Log this stripe')+'</button></div>';
+      + '<span class="stcheck'+(on?' on':'')+'">'+(pending?'◐':(on?'✓':''))+'</span>'
+      + (pending?'Remove it':(on?'Earned, tap to remove':'Log this stripe'))+'</button></div>';
   }).join('');
   return '<div class="ccg-sub" style="margin:16px 0 8px">Stripes · '+c.earned.size+' of '+all.length
     + ' <span style="font-weight:400">- tap one to read it or log it</span></div>'
@@ -9228,6 +9234,22 @@ async function stripeAwarder(){
   return _stripeAwarder;
 }
 
+/* Confirm a stripe a family logged. Scoped to source='family' so it can
+   only promote a pending row, never re-stamp an instructor's own. */
+async function stripeVerify(id){
+  const c = STRIPES;
+  if(!c || c.earned === null) return;
+  const awardedBy = await stripeAwarder();
+  const { data, error } = await sb.from('student_stripes')
+    .update({ source: 'verified', awarded_by: awardedBy })
+    .eq('student_id', c.contactId).eq('belt', c.rank).eq('stripe_key', id)
+    .eq('source', 'family').select('id');
+  if(error){ console.error('stripe verify', error); toast('Could not verify that stripe'); return; }
+  if(!data || !data.length){ toast('That one is no longer waiting to be verified'); return; }
+  c.earned.set(id, 'verified');
+  const box = document.getElementById('prof-stripes'); if(box) box.innerHTML = stripesHtml();
+}
+
 async function stripeToggle(id){
   const c = STRIPES;
   if(!c || c.earned === null) return;
@@ -9245,7 +9267,7 @@ async function stripeToggle(id){
     // silently failed to save is worse than one that refused out loud, since
     // he would walk away believing the student has it.
     if(error){ console.error('stripe log', error); toast('Could not log that stripe'); return; }
-    c.earned.add(id);
+    c.earned.set(id, 'staff');
   }
   const box = document.getElementById('prof-stripes');
   if(box){ box.innerHTML = stripesHtml(); stripePanel(id); }

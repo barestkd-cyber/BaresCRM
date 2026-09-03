@@ -49,8 +49,13 @@ vm.runInContext([
   liftFn('stripesForRank'), liftFn('stripesHtml'),
 ].join('\n'), sandbox);
 
+/* `earned` is a Map of stripe key -> source since 2026-09-02: a bare Set
+ * could not tell an instructor's own stripe from one a family logged at home
+ * and is still waiting to be verified. Callers may pass plain ids (treated as
+ * staff-logged) or [id, source] pairs. */
 function draw(rank, earnedIds) {
-  sandbox.STRIPES = { contactId: 'c1', rank: rank, earned: earnedIds === null ? null : new Set(earnedIds || []) };
+  const asMap = (list) => new Map((list || []).map(x => Array.isArray(x) ? x : [x, 'staff']));
+  sandbox.STRIPES = { contactId: 'c1', rank: rank, earned: earnedIds === null ? null : asMap(earnedIds) };
   return vm.runInContext('stripesHtml()', sandbox);
 }
 
@@ -159,6 +164,29 @@ test('labels and ids are escaped on the way into the markup', () => {
   sandbox.window.BELTS = BELTS;
   assert.ok(!out.includes('<img src=x'), 'a label reached the page as markup');
   assert.ok(!/onclick="stripePanel\('x'/.test(out), 'an id broke out of its handler');
+});
+
+test('a stripe a family logged shows as pending, with a way to verify it', () => {
+  // The whole point of the source column: Race must be able to see at a
+  // glance which stripes are somebody's claim and which are his own record.
+  const b = BELTS.find((x) => x.name === 'Orange Belt');
+  const first = b.stripes.black[0].id;
+  const out = draw('Orange Belt', [[first, 'family']]);
+  assert.ok(out.includes('Verify this stripe'), 'no way to confirm a family log');
+  assert.ok(out.includes('Logged at home'), 'the panel does not say where it came from');
+  assert.ok(out.includes('#B88A00'), 'a pending stripe is not marked amber');
+  assert.ok(out.includes('Remove it'), 'no way to reject a wrong claim');
+});
+
+test('a staff stripe offers no Verify button, because there is nothing to confirm', () => {
+  const b = BELTS.find((x) => x.name === 'Orange Belt');
+  const first = b.stripes.black[0].id;
+  const staff = draw('Orange Belt', [[first, 'staff']]);
+  assert.ok(!staff.includes('Verify this stripe'), 'offered to verify its own record');
+  assert.ok(staff.includes('Earned, tap to remove'), 'a staff stripe lost its remove action');
+  const verified = draw('Orange Belt', [[first, 'verified']]);
+  assert.ok(!verified.includes('Verify this stripe'), 'offered to verify an already verified stripe');
+  assert.ok(verified.includes('stcheck on'), 'a verified stripe does not read as earned');
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
