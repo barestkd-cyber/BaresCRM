@@ -1843,6 +1843,10 @@ function renderDashboard(){
     // with the rows inline, which read as an alarm ("giant and prominent" -
     // owner, 2026-08-31). Same information, same actions, now behind a tap.
     {k:"unsigned", ico:"✍", label:"No agreement", desc:"…"},
+    // Stripes a family logged that nobody has confirmed. Ignorable on
+    // purpose: no email, no nightly report line, just a number he can
+    // clear when he feels like it (owner, 2026-09-03).
+    {k:"stripes", ico:"◐", label:"Stripes to verify", desc:"…"},
     {k:"expiring", ico:"⧖", label:"Expiring", desc:"next 30 days"},
     {k:"leads",   ico:"★", label:"Leads",   desc:"in the pipeline"},
     {k:"risk",    ico:"◷", label:"At risk",  desc:"14+ days no visit"}
@@ -1852,14 +1856,15 @@ function renderDashboard(){
     + '<div id="dash-unpaid"></div>'
     + '<div class="dash-sub">Needs you today</div><div class="dcards">';
   cards.forEach(cd=>{
-    const isInv = cd.k==='unpaidinv', isExp = cd.k==='expiring', isUnsg = cd.k==='unsigned';
-    const live = isInv || isExp || isUnsg; // async ledger-fed tiles, filled after render
+    const isInv = cd.k==='unpaidinv', isExp = cd.k==='expiring', isUnsg = cd.k==='unsigned', isStr = cd.k==='stripes';
+    const live = isInv || isExp || isUnsg || isStr; // async ledger-fed tiles, filled after render
     const click = isInv ? "showSection('pos');TX_FILTER='unpaid';posTransactions()"
                 : isExp ? "posExpiringSheet()"
                 : isUnsg ? "unsgSheet()"
+                : isStr ? "stripeVerifySheet()"
                 : "goToFilter('"+cd.k+"')";
-    const nid = isInv?'dash-unpaid-n':isExp?'dash-exp-n':isUnsg?'dash-unsg-n':'';
-    const did = isInv?'dash-unpaid-d':isExp?'dash-exp-d':isUnsg?'dash-unsg-d':'';
+    const nid = isInv?'dash-unpaid-n':isExp?'dash-exp-n':isUnsg?'dash-unsg-n':isStr?'dash-str-n':'';
+    const did = isInv?'dash-unpaid-d':isExp?'dash-exp-d':isUnsg?'dash-unsg-d':isStr?'dash-str-d':'';
     html += '<button class="dcard'+(cd.alert?' alert':'')+'" onclick="'+click+'">'
       + '<div class="dc-top"><span class="dc-count num"'+(live?' id="'+nid+'"':'')+'>'+(live?'…':c[cd.k])+'</span><span class="dc-ico">'+cd.ico+'</span></div>'
       + '<div class="dc-label">'+cd.label+'</div><div class="dc-desc"'+(live?' id="'+did+'"':'')+'>'+cd.desc+'</div>'
@@ -1870,6 +1875,100 @@ function renderDashboard(){
   dashLoadUnpaid();
   dashLoadExpiring();
   dashLoadUnsigned();
+  dashLoadStripes();
+}
+
+/* Stripes a family logged from the student profile that no instructor has
+ * confirmed. The whole verification workflow lives here: which student,
+ * which stripe, which instructor they say gave it, and one button.
+ *
+ * Nothing about this nags. No email, no line in the nightly report - he
+ * asked to be able to leave it alone for a while without being chased. */
+let STRVER_LIST = [];
+
+/* The human label for a stripe key, from the shared catalogue. A key with
+   no catalogue entry (a belt renamed since, say) still lists, showing the
+   raw key - a claim we cannot name is still a claim he should see. */
+function stripeLabelFor(beltName, key){
+  const belt = (window.BELTS||[]).find(b=>b.name === beltName);
+  if(!belt || !belt.stripes) return key;
+  const all = (belt.stripes.black||[]).concat(belt.stripes.colored||[]);
+  const hit = all.find(function(s){
+    const id = window.getStripeId ? window.getStripeId(s, beltName) : s.id;
+    return id === key;
+  });
+  return hit ? hit.label : key;
+}
+
+async function dashLoadStripes(){
+  const { data, error } = await sb.from('student_stripes')
+    .select('id,student_id,belt,stripe_key,awarded_by,earned_at')
+    .eq('source','family').order('earned_at', { ascending:true });
+  const nEl = document.getElementById('dash-str-n');
+  const dEl = document.getElementById('dash-str-d');
+  if(error){
+    // A failed read must not render as "nothing to verify", which is a
+    // claim about the students rather than about the read.
+    console.error('dash stripes', error);
+    if(nEl) nEl.textContent = '–';
+    if(dEl) dEl.textContent = 'could not read';
+    return;
+  }
+  STRVER_LIST = data||[];
+  if(nEl) nEl.textContent = STRVER_LIST.length;
+  if(dEl) dEl.textContent = STRVER_LIST.length ? 'logged at home' : 'nothing waiting';
+}
+
+function stripeVerifySheet(){
+  let body;
+  if(!STRVER_LIST.length){
+    body = '<div class="ag-empty">No stripes are waiting to be verified.</div>';
+  } else {
+    body = STRVER_LIST.map(function(r){
+      const who = MEMBERS.find(x=>x.id===r.student_id);
+      const name = who ? (who.first+' '+who.last).trim() : 'Unknown student';
+      return '<div class="unsg-row" id="strv-'+escAttr(r.id)+'">'
+        + '<b>'+escHtml(name)+'</b> '+escHtml(stripeLabelFor(r.belt, r.stripe_key))
+        + '<div class="ccg-sub">'+escHtml(r.belt||'')
+        + (r.awarded_by ? ' · they say <b>'+escHtml(r.awarded_by)+'</b> gave it' : ' · no instructor named')+'</div>'
+        + '<span class="go">'
+        + '<button onclick="stripeVerifyOne(\''+escJs(r.id)+'\')">Verify</button>'
+        + '<button onclick="stripeRejectOne(\''+escJs(r.id)+'\')">Reject</button>'
+        + '<button onclick="closeSheet();openProfile(\''+escJs(r.student_id)+'\')">Profile</button>'
+        + '</span></div>';
+    }).join('');
+  }
+  $("#sheet").innerHTML = '<div class="grab"></div>'
+    + '<div class="sheet-head"><div><h3>Stripes to verify</h3>'
+    + '<div class="sub">'+STRVER_LIST.length+' logged at home · oldest first</div></div>'
+    + '<button class="close" onclick="closeSheet()">×</button></div>'
+    + '<div class="sheet-body" id="strv-body">'+body+'</div>';
+  openSheet();
+}
+
+/* Confirm one. Scoped to source='family' so it can only promote a pending
+   row, and awarded_by is left alone - it names the instructor being
+   confirmed, not whoever pressed the button. */
+async function stripeVerifyOne(id){
+  const { data, error } = await sb.from('student_stripes')
+    .update({ source:'verified' }).eq('id', id).eq('source','family').select('id');
+  if(error){ console.error('stripe verify', error); toast('Could not verify that stripe'); return; }
+  if(!data || !data.length){ toast('That one is no longer waiting'); }
+  STRVER_LIST = STRVER_LIST.filter(function(r){ return r.id !== id; });
+  dashLoadStripes();
+  stripeVerifySheet();
+}
+
+/* Reject: the claim was wrong, so the row goes. Same scope - a verified or
+   staff stripe can never be removed through this screen. */
+async function stripeRejectOne(id){
+  if(!confirm('Remove this stripe? The family logged it and it will disappear from their profile.')) return;
+  const { error } = await sb.from('student_stripes')
+    .delete().eq('id', id).eq('source','family');
+  if(error){ console.error('stripe reject', error); toast('Could not remove that stripe'); return; }
+  STRVER_LIST = STRVER_LIST.filter(function(r){ return r.id !== id; });
+  dashLoadStripes();
+  stripeVerifySheet();
 }
 
 /* Memberships with no signed agreement. He takes money before the paperwork
