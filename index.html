@@ -3279,7 +3279,9 @@ function posAddMemLine(code){
 function posAttachSheet(i, isNew){
   const l=posSale.lines[i]; if(!l) return;
   const back = isNew?'true':'false';
-  const sub = l.kind==='event' ? 'Who is attending?' : 'Who receives this membership?';
+  const sub = l.kind==='event' ? 'Who is attending?'
+    : l.kind==='prod' ? 'Who is this for? It will show on their profile.'
+    : 'Who receives this membership?';
   $("#sheet").innerHTML='<div class="grab"></div>'
     +'<div class="sheet-head"><div><h3>Attach a member</h3><div class="sub">'+sub+'</div></div><button class="close" onclick="posEditLine('+i+','+back+')">×</button></div>'
     +'<div class="sheet-body">'
@@ -4742,6 +4744,7 @@ async function posTender(method, opts){
   }
   // An event or testing seat is for someone. The participant is who gets
   // registered, and that is never assumed to be the buyer.
+  // Products are deliberately absent here: attaching one is optional.
   const unattachedEv = eventLines.concat(testingLines).filter(l=>!l.studentId);
   if(unattachedEv.length){
     toast('Attach the participant to every event line before completing the sale.');
@@ -4934,7 +4937,10 @@ async function posTender(method, opts){
       discount_cents: Math.round(posLineDisc(l)*100),
       taxable: posLineTaxable(l),
       line_total_cents: Math.round(posLineNet(l)*100),
-      student_contact_id: (l.kind==='mem'||l.kind==='event') ? (l.studentId||null) : null,
+      // Products carry a participant too, when one was attached. That is
+      // what puts gear bought for a child on THAT child's profile rather
+      // than only on the payer's invoice (owner, 2026-09-03).
+      student_contact_id: l.studentId || null,
       event_id: l.kind==='event' ? (l.eventDbId||null) : null,
       product_id: l.productDbId||null,
       membership_row: l.kind==='mem' ? (l.__snap||null) : null,
@@ -6042,12 +6048,17 @@ async function posSaveMemLine(i){
 function posEditLine(i,isNew){
   const l=posSale.lines[i];
   if(l && l.kind==="mem"){ posEditMemLine(i,isNew); return; }
-  const isEvent = l.kind==="event", backB = isNew?'true':'false';
-  const pname = isEvent ? posStudentName(l.studentId) : null;
-  // Who attends. Defaults to "Sold to"; a parent buying for a child changes it.
-  const participantRow = !isEvent ? '' : (pname
+  const isEvent = l.kind==="event", isProd = l.kind==="prod", backB = isNew?'true':'false';
+  const pname = (isEvent||isProd) ? posStudentName(l.studentId) : null;
+  // Who it is FOR. On an event that is who attends and it is required. On a
+  // product it is optional - a walk-in buying a shirt is not buying it for
+  // a member - but attaching puts the line on that person's profile.
+  const participantRow = !(isEvent||isProd) ? '' : (pname
     ? '<div class="im-row" style="margin-bottom:12px"><span>Participant</span><span class="im-buyer">'+escHtml(pname)+' <button class="pb-change" style="font-size:11px;padding:1px 7px" onclick="posAttachSheet('+i+','+backB+')">change</button></span></div>'
-    : '<div class="ck-hint" style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px"><span>⚠ No participant - who is attending?</span><button class="pb-change" style="font-size:11px;padding:1px 7px;flex-shrink:0;white-space:nowrap" onclick="posAttachSheet('+i+','+backB+')">Attach participant</button></div>');
+    : '<div class="ck-hint" style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px"><span>'
+      + (isProd ? 'Who is this for? (optional)' : '⚠ No participant - who is attending?')
+      + '</span><button class="pb-change" style="font-size:11px;padding:1px 7px;flex-shrink:0;white-space:nowrap" onclick="posAttachSheet('+i+','+backB+')">'
+      + (isProd ? 'Attach' : 'Attach participant') + '</button></div>');
   const taxable=posLineTaxable(l);
   const cat=l.category||posDefaultCat(l);
   posEditDiscType=l.discType||"pct";

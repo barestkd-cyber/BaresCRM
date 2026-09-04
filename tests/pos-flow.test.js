@@ -1319,6 +1319,50 @@ await test('41 an unpaid invoice from the add flow offers its own email - and on
   delete SB_SELECT['pos_sales'];
 });
 
+await test('42 gear can be bought for someone, and several someones share one invoice', async () => {
+  // Owner's case (2026-09-03): Tim pays for three sets of gear, one per kid.
+  // A profile finds its invoices through pos_sale_lines.student_contact_id,
+  // so a product line that cannot carry a participant lands on nobody.
+  run('posSale = posBlank()');
+  run("posSale.memberId = 'parentP'");   // Tim pays
+  sandbox.posSale.lines = [
+    { kind: 'prod', label: 'Gloves 12oz', amount: 48, qty: 1, taxable: true, studentId: 'kidA' },
+    { kind: 'prod', label: 'Gloves 12oz', amount: 48, qty: 1, taxable: true, studentId: 'kidB' },
+    { kind: 'prod', label: 'Water bottle', amount: 10, qty: 1, taxable: true }  // nobody in particular
+  ];
+  SB_CALLS.length = 0;
+  await call("posTender('Cash')");
+
+  const sale = SB_CALLS.find(c => c.table === 'pos_sales' && c.op === 'insert');
+  assert.ok(sale, 'the sale was not recorded');
+  assert.strictEqual(sale.rows.buyer_contact_id, 'parentP', 'the payer is the buyer');
+
+  const rows = SB_CALLS.filter(c => c.table === 'pos_sale_lines' && c.op === 'insert')
+    .flatMap(c => (Array.isArray(c.rows) ? c.rows : [c.rows]));
+  assert.strictEqual(rows.length, 3, 'wrong number of lines');
+  const by = {};
+  rows.forEach(r => { by[r.label + '|' + (r.student_contact_id || 'none')] = true; });
+  assert.ok(by['Gloves 12oz|kidA'], 'the first pair is not attributed to the child it was bought for');
+  assert.ok(by['Gloves 12oz|kidB'], 'the second pair is not attributed');
+  assert.ok(by['Water bottle|none'], 'an unattached product should stay unattached, not inherit the buyer');
+
+  // Two different children on one invoice is the whole point.
+  const people = [...new Set(rows.map(r => r.student_contact_id).filter(Boolean))];
+  assert.strictEqual(people.length, 2, 'one invoice should carry both participants');
+});
+
+await test('43 gear never demands a participant the way a membership does', async () => {
+  // A walk-in buying a t-shirt is not buying it for a member. Requiring a
+  // name here would block an ordinary counter sale.
+  run('posSale = posBlank()');
+  sandbox.posSale.lines = [{ kind: 'prod', label: 'T-shirt', amount: 20, qty: 1, taxable: true }];
+  SB_CALLS.length = 0; TOASTS.length = 0;
+  await call("posTender('Cash')");
+  assert.ok(SB_CALLS.some(c => c.table === 'pos_sales' && c.op === 'insert'),
+    'an unattached product sale was refused');
+  assert.ok(!TOASTS.some(t => /Attach/i.test(t)), 'it asked for a participant on a plain product sale');
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
 process.exit(failed ? 1 : 0);
 })();
