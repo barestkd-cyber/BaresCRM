@@ -1511,7 +1511,7 @@ function attRowHtml(m, extraStyle){
         : '<span class="seg active">Here</span>');
   return '<button class="mrow" onclick="attToggle(\''+m.id+'\')" style="'+(on?'background:#E4F5EE;border-color:var(--go);':'')+(extraStyle||'')+'">'
     +'<div class="c-name"><div class="av" style="background:'+beltC+'"><span style="color:'+txt+'">'+escHtml(initials(m))+'</span></div>'
-    +'<div class="minfo"><div class="mname">'+escHtml(m.first+' '+m.last)+'</div><div class="msub">'+escHtml(m.rank||'')+'</div></div></div>'
+    +'<div class="minfo"><div class="mname">'+escHtml(m.first+' '+m.last)+'</div><div class="msub">'+escHtml(rankShort(m.rank)||'')+'</div></div></div>'
     +'<div class="mright">'+chip+'</div>'
     +'</button>';
 }
@@ -1552,7 +1552,7 @@ function attAddSearch(){
   const box=document.getElementById('att-add-results');
   if(q.length<2){ box.innerHTML=''; return; }
   const hits=MEMBERS.filter(m=>((m.first+' '+m.last).toLowerCase().includes(q))).slice(0,6);
-  box.innerHTML=hits.map(m=>'<button class="mrow" onclick="attAdd(\''+m.id+'\')"><div class="c-name"><div class="av" style="background:'+(BELT[m.belt]||'#C7CCD2')+'"><span style="color:'+((m.belt==='White'||m.belt==='Yellow')?'#15171C':'#fff')+'">'+escHtml(initials(m))+'</span></div><div class="minfo"><div class="mname">'+escHtml(m.first+' '+m.last)+'</div><div class="msub">'+escHtml(m.rank||'')+'</div></div></div><div class="mright"><span class="seg trial">Add</span></div></button>').join('');
+  box.innerHTML=hits.map(m=>'<button class="mrow" onclick="attAdd(\''+m.id+'\')"><div class="c-name"><div class="av" style="background:'+(BELT[m.belt]||'#C7CCD2')+'"><span style="color:'+((m.belt==='White'||m.belt==='Yellow')?'#15171C':'#fff')+'">'+escHtml(initials(m))+'</span></div><div class="minfo"><div class="mname">'+escHtml(m.first+' '+m.last)+'</div><div class="msub">'+escHtml(rankShort(m.rank)||'')+'</div></div></div><div class="mright"><span class="seg trial">Add</span></div></button>').join('');
 }
 function attAdd(id){
   ATT_PRESENT.add(id); ATT_EXTRA.add(id);
@@ -1769,7 +1769,7 @@ function renderList(){
       ? '<span class="seg '+segClass+'">'+escHtml(m.segment)+'</span><div class="owe num">'+money(owed/100)+'</div>'
       : '<span class="seg '+segClass+'">'+escHtml(m.segment)+'</span>';
     const beltCell = m.belt
-      ? '<span class="belt-bar" style="background:'+beltC+'"></span>'+escHtml(m.rank)
+      ? '<span class="belt-bar" style="background:'+beltC+'"></span>'+escHtml(rankShort(m.rank))
       : '<span class="c-dash">'+escHtml(m.phase||'-')+'</span>';
     const planCell = memberPlanLabel(m) || '<span class="c-dash">-</span>';
     const visitRisk = m.segment==="Active" && m.daysSince!=null && m.daysSince>=RISK_DAYS;
@@ -2478,6 +2478,12 @@ let EVENTS = [], EVENTS_ALL = [];
    Owner, 2026-08-19: "just a toggle for a page live/not live. ill set it open
    when i want" - nothing here is scheduled, computed, or auto-opened. */
 let TESTING_ROWS = [], TESTING_PAGE_LIVE = false, PRIVATE_PAGE_LIVE = false, PRIVATE_RATE_CENTS = 3500;
+/* Ranks are STORED formally ("Senior Brown Belt") and shown to Race
+   abbreviated ("Sr. Brown Belt") - his screens, his preference. Never used
+   on a value that will be written back or matched against the database.
+   (owner, 2026-09-04) */
+const rankShort = r => (typeof window !== "undefined" && window.shortRank ? window.shortRank(r) : String(r == null ? "" : r).replace(/Senior/g, "Sr."));
+
 const cpEsc = s => String(s == null ? "" : s).replace(/[&<>"']/g,
   c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -3087,7 +3093,7 @@ function posPickBuyerFilter(){
   const hits=(q ? MEMBERS.filter(m=>(m.first+' '+m.last).toLowerCase().includes(q)) : MEMBERS);
   box.innerHTML =
     '<button class="opt-btn" onclick="posSetBuyer(null)"><span class="oi">＋</span>Walk-in / new buyer</button>'
-    + hits.map(m=>'<button class="opt-btn" onclick="posSetBuyer(\''+m.id+'\')"><span class="oi">'+escHtml(m.first.charAt(0))+'</span><div style="flex:1">'+escHtml(m.first+' '+m.last)+'<div style="font-size:12px;color:var(--muted)">'+escHtml(m.rank||m.segment||'')+'</div></div></button>').join('')
+    + hits.map(m=>'<button class="opt-btn" onclick="posSetBuyer(\''+m.id+'\')"><span class="oi">'+escHtml(m.first.charAt(0))+'</span><div style="flex:1">'+escHtml(m.first+' '+m.last)+'<div style="font-size:12px;color:var(--muted)">'+escHtml(rankShort(m.rank)||m.segment||'')+'</div></div></button>').join('')
     + (q && !hits.length ? '<div class="ag-empty">No matches.</div>' : '');
 }
 function posSetBuyer(id){ posSale.memberId=id; closeSheet(); renderPOS(); }
@@ -3297,7 +3303,7 @@ function posAttachSearch(i, isNew){
   const box=document.getElementById('pos-att-results'); if(!box) return;
   if(q.length<2){ box.innerHTML=''; return; }
   box.innerHTML = MEMBERS.filter(m=>(m.first+' '+m.last).toLowerCase().includes(q)).slice(0,8).map(m=>
-    '<button class="opt-btn" onclick="posPickStudentForLine('+i+',\''+m.id+'\','+(isNew?"true":"false")+')"><span class="oi">'+escHtml(m.first.charAt(0))+'</span><div style="flex:1">'+escHtml(m.first+' '+m.last)+'<div style="font-size:12px;color:var(--muted)">'+escHtml(m.rank||m.segment||'')+'</div></div></button>'
+    '<button class="opt-btn" onclick="posPickStudentForLine('+i+',\''+m.id+'\','+(isNew?"true":"false")+')"><span class="oi">'+escHtml(m.first.charAt(0))+'</span><div style="flex:1">'+escHtml(m.first+' '+m.last)+'<div style="font-size:12px;color:var(--muted)">'+escHtml(rankShort(m.rank)||m.segment||'')+'</div></div></button>'
   ).join('') || '<div class="ag-empty">No matches.</div>';
 }
 async function posPickStudentForLine(i, id, isNew){
@@ -6489,7 +6495,7 @@ function renderProfile(){
   const rankChip = m.rank
     ? '<button class="rankchip" onclick="profShowRank()" title="Rank and testing">'
       + (m.belt?'<span class="beltdot" style="background:'+beltC+'"></span>':'')
-      + escHtml(m.rank)+'<span class="rankchev">›</span></button>'
+      + escHtml(rankShort(m.rank))+'<span class="rankchev">›</span></button>'
     : '';
   // The avatar carries the belt colour so rank reads from across the room,
   // and Actions sits under it, beside the thing it acts on.
@@ -9290,7 +9296,7 @@ function stripesHtml(){
     // landing here is a rank nobody has spelled the same way twice.
     const cub = /^cub\b/i.test(c.rank);
     return '<div class="ccg-sub" style="margin-top:14px">No stripe list for '
-      + escHtml(c.rank)+'. '
+      + escHtml(rankShort(c.rank))+'. '
       + (cub ? 'The Cub grades are not in the shared belt catalogue yet.'
              : 'That rank is not in the shared belt catalogue.')+'</div>';
   }
@@ -9434,7 +9440,7 @@ async function loadProfileRank(contactId){
   STRIPES = { contactId: contactId, rank: m.rank, earned: earned };
 
   let h = '<div class="card pad">'
-    + '<div class="kv"><span class="k">Belt now</span><span class="v">'+escHtml(m.rank||'-')+'</span></div>'
+    + '<div class="kv"><span class="k">Belt now</span><span class="v">'+escHtml(rankShort(m.rank)||'-')+'</span></div>'
     + (m.rankDate ? '<div class="kv"><span class="k">Earned</span><span class="v">'+escHtml(m.rankDate)+'</span></div>' : '')
     + '<div id="prof-stripes">'+stripesHtml()+'</div>'
     + '<button class="addopt" style="margin:12px 0 0" onclick="launchApp(\'testing\')">Edit rank in the testing app</button>'

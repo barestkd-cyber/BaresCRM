@@ -45,7 +45,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 vm.runInContext([
-  liftConst('escHtml'), liftConst('escAttr'), liftConst('escJs'),
+  liftConst('escHtml'), liftConst('escAttr'), liftConst('escJs'), liftConst('rankShort'),
   liftFn('stripesForRank'), liftFn('stripesHtml'),
 ].join('\n'), sandbox);
 

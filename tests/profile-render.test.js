@@ -76,7 +76,7 @@ const sandbox = {
 sandbox.$ = (sel) => el(String(sel).replace('#', ''));
 vm.createContext(sandbox);
 vm.runInContext([
-  liftConst('escHtml'), liftConst('escAttr'), liftConst('escJs'), liftConst('initials'),
+  liftConst('escHtml'), liftConst('escAttr'), liftConst('escJs'), liftConst('initials'), liftConst('rankShort'),
   // acc() is deliberately not lifted: it is a one-liner, so the lifter runs
   // on to the next line closing at column 0 and drags half the file with it.
   // Nothing calls it any more anyway - the More section it drew is gone.

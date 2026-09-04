@@ -30,7 +30,7 @@ function liftConst(name) {
 
 const sandbox = { BELT: { White: '#fff' }, ATT_PRESENT: new Set(), ATT_SRC: {}, console };
 vm.createContext(sandbox);
-vm.runInContext([liftConst('escHtml'), liftConst('escAttr'), liftConst('initials'), liftFn('attRowHtml')].join('\n'), sandbox);
+vm.runInContext([liftConst('escHtml'), liftConst('escAttr'), liftConst('initials'), liftConst('rankShort'), liftFn('attRowHtml')].join('\n'), sandbox);
 
 let passed = 0, failed = 0;
 function test(name, fn) {
