@@ -91,6 +91,7 @@ const CSS = [
   ".inv-tbl th{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:#6A727E;text-align:left;padding:6px 8px;border-bottom:1px solid #E2E6EB}",
   ".inv-tbl th,.inv-tbl td{padding:9px 7px;border-bottom:none;vertical-align:top;white-space:nowrap}",
   ".inv-tbl th.c-item,.inv-tbl td.c-item{white-space:normal;min-width:8em}",
+  ".c-for{font-size:11.5px;color:#6A727E;margin-top:2px}",
   "table.inv-tbl{table-layout:auto}",
   ".inv-tbl th.c-qty,.inv-tbl th.c-price,.inv-tbl th.c-disc,.inv-tbl th.c-tax{width:1%;white-space:nowrap}",
   ".inv-tbl th.c-item{width:auto}",
@@ -167,6 +168,17 @@ Deno.serve(async (req) => {
     ]);
     const lines = linesRes.data ?? [];
     const pays = paysRes.data ?? [];
+    // Who each line is for. One query for the whole invoice, and only when
+    // some line actually names somebody.
+    const forIds = [...new Set(lines.map((l) => l.student_contact_id).filter(Boolean))];
+    const forName: Record<string, string> = {};
+    if (forIds.length) {
+      const who = await admin.from("contacts").select("id,first_name,last_name").in("id", forIds);
+      (who.data ?? []).forEach((c: Record<string, unknown>) => {
+        forName[String(c.id)] = String(c.first_name ?? "").trim() + " " + String(c.last_name ?? "").trim();
+      });
+    }
+
     const discAlloc = allocateCents(s.discount_cents, lines.map((l) => l.line_total_cents));
     const taxAlloc = allocateCents(s.tax_cents, lines.map((l, i) => l.taxable ? (l.line_total_cents - discAlloc[i]) : 0));
     const paidNet = pays.reduce((a, p) => a + p.amount_cents, 0);
@@ -195,7 +207,9 @@ Deno.serve(async (req) => {
     // otherwise it is a column of dashes eating width on a phone.
     const anyDisc = lines.some((l, i) => (l.discount_cents || 0) + discAlloc[i] > 0);
     const rows = lines.map((l, i) =>
-      '<tr><td class="qty">' + (l.qty ?? 1) + '</td><td class="c-item">' + esc(l.label) + "</td>" +
+      '<tr><td class="qty">' + (l.qty ?? 1) + '</td><td class="c-item">' + esc(l.label) +
+      (l.student_contact_id && forName[String(l.student_contact_id)]
+        ? '<div class="c-for">For ' + esc(forName[String(l.student_contact_id)]) + '</div>' : '') + "</td>" +
       '<td class="r">' + money(l.unit_cents) + "</td>" +
       (anyDisc ? '<td class="r">' + ((l.discount_cents || discAlloc[i]) ? "−" + money((l.discount_cents || 0) + discAlloc[i]) : "—") + "</td>" : "") +
       '<td class="r">' + (taxAlloc[i] ? money(taxAlloc[i]) : "—") + "</td>" +
