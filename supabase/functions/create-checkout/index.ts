@@ -46,6 +46,26 @@ function json(body: unknown, status: number, h: Record<string, string>) {
   });
 }
 
+/* Brand and last four of the card that paid, wherever Stripe hung them on
+ * this object. Missing is normal for non-card money and returns nulls
+ * rather than guessing. Same walk as stripe-webhook and the checkouts. */
+function cardBits(obj: Record<string, unknown>): { card_brand: string | null; card_last4: string | null } {
+  const seen = new Set<unknown>();
+  const walk = (o: unknown, depth: number): Record<string, unknown> | null => {
+    if (!o || typeof o !== "object" || depth > 5 || seen.has(o)) return null;
+    seen.add(o);
+    const rec = o as Record<string, unknown>;
+    if (typeof rec.last4 === "string" && typeof rec.brand === "string") return rec;
+    for (const v of Object.values(rec)) { const hit = walk(v, depth + 1); if (hit) return hit; }
+    return null;
+  };
+  const c = walk(obj, 0);
+  return {
+    card_brand: c && typeof c.brand === "string" ? String(c.brand).slice(0, 32) : null,
+    card_last4: c && /^[0-9]{4}$/.test(String(c.last4)) ? String(c.last4) : null,
+  };
+}
+
 Deno.serve(async (req) => {
   const h = cors(req.headers.get("Origin"));
   if (req.method === "OPTIONS") return new Response("ok", { headers: h });
@@ -187,12 +207,15 @@ Deno.serve(async (req) => {
 
       const seen = await admin.from("pos_payments")
         .select("id").eq("sale_id", s.id).eq("stripe_object_id", pi.id).maybeSingle();
+      let recorded = false;
       if (!seen.data) {
         const ins = await admin.from("pos_payments").insert({
           sale_id: s.id, kind: "charge", amount_cents: amt, method: "card",
+          ...cardBits(pi),
           stripe_object_id: pi.id, note: "Card payment (invoice page)",
         });
         if (ins.error) throw ins.error;
+        recorded = true;
       }
       const pays2 = await admin.from("pos_payments").select("amount_cents").eq("sale_id", s.id);
       const net = (pays2.data ?? []).reduce((a: number, p: { amount_cents: number }) => a + p.amount_cents, 0);
@@ -202,21 +225,27 @@ Deno.serve(async (req) => {
           status: "paid", tender_method: "card",
           confirmed_at: new Date().toISOString(), stripe_payment_intent: pi.id,
         }).eq("id", s.id);
-        if (!upd.error) {
-          nowPaid = true;
-          // Receipt, exactly as the webhook would have sent it.
-          try {
-            await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-receipt`, {
-              method: "POST",
-              headers: {
-                "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-                "Content-Type": "application/json",
-                "Origin": "https://crm.barestkd.fit",
-              },
-              body: JSON.stringify({ sale_id: s.id, notify_owner: true }),
-            });
-          } catch (e) { console.error("receipt after inline pay", e); }
-        }
+        if (!upd.error) nowPaid = true;
+      }
+
+      // EVERY payment gets an email, not just the one that clears the
+      // balance. This used to sit inside the branch above, so somebody who
+      // paid part of an invoice received nothing at all - no confirmation,
+      // no remaining balance, no way back (found on the first real split
+      // payment, 2026-09-04). send-receipt itself decides whether the mail
+      // reads as a receipt or as an invoice with a balance still on it.
+      if (recorded) {
+        try {
+          await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-receipt`, {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              "Content-Type": "application/json",
+              "Origin": "https://crm.barestkd.fit",
+            },
+            body: JSON.stringify({ sale_id: s.id, notify_owner: true }),
+          });
+        } catch (e) { console.error("receipt after inline pay", e); }
       }
       return json({ ok: true, paid: nowPaid, amount_cents: amt }, 200, h);
     }
