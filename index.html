@@ -5437,6 +5437,13 @@ async function showInvoice(saleId, from){
   h += '<button class="iv-abtn" onclick="invBack()">'+IV_ICO.pos+'<span>'+backLbl+'</span></button>';
   h += '<button class="iv-abtn" onclick="posPrintSaleFromDb(\''+s.id+'\')">'+IV_ICO.print+'<span>Print</span></button>';
   h += '<button class="iv-abtn" onclick="posEmailReceiptSheet(\''+s.id+'\')">'+IV_ICO.mail+'<span>Email</span></button>';
+  // Let them pay it in parts. Off by default; pointless once nothing is owed.
+  if(s.status !== 'paid' && s.status !== 'closed' && balance > 0){
+    const sp = !!s.allow_partial;
+    h += '<button class="iv-abtn"'+(sp?' style="color:#18A974"':'')
+      + ' onclick="posTogglePartial(\''+s.id+'\','+(sp?'false':'true')+')">'
+      + (sp?'◑':'◔')+'<span>'+(sp?'Split: on':'Split: off')+'</span></button>';
+  }
   h += '<button class="iv-abtn" onclick="posCopyInvoiceLink(\''+s.id+'\')">'+IV_ICO.link+'<span>Copy link</span></button>';
   if(s.status==='unpaid' && balance>0) h += '<button class="iv-abtn" onclick="posAddPaymentSheet(\''+s.id+'\','+balance+',\''+escJs(posBuyerLabel(s.buyer_contact_id))+'\',\'inv\')">'+IV_ICO.payadd+'<span>Add payment</span></button>';
   if(paidNet>0 && s.status!=='closed') h += '<button class="iv-abtn" onclick="posRefundSheet(\''+s.id+'\','+paidNet+')">'+IV_ICO.refund+'<span>Refund</span></button>';
@@ -5845,6 +5852,16 @@ async function posDeleteInvoice(saleId){
   toast('Invoice deleted');
   closeSheet(); INV_CUR={id:null,from:null};
   showSection('pos'); posTransactions();
+}
+
+/* Allow (or stop allowing) part payment of this invoice. The pay page reads
+   the flag when it loads, so this can be flipped after the invoice has been
+   sent and the link in their inbox changes behaviour with it. */
+async function posTogglePartial(saleId, on){
+  const { error } = await sb.from('pos_sales').update({ allow_partial: on }).eq('id', saleId);
+  if(error){ console.error('allow_partial', error); toast('Could not change that'); return; }
+  toast(on ? 'They can now pay this in parts' : 'Back to pay in full');
+  showInvoice(saleId, INV_CUR.from);
 }
 
 /* Record money handed back (cash refund, terminal refund). Append-only: a

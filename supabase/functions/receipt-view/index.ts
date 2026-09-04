@@ -260,7 +260,7 @@ Deno.serve(async (req) => {
     if ((new URL(req.url).searchParams.get("f") ?? "") === "frag") {
       return new Response(
         "<style>" + CSS + "</style>" + body +
-          `<script id="iv-state" type="application/json">${JSON.stringify({ status: s.status, balance_cents: balance, total_cents: s.total_cents, short_id: shortId, brand: brand.name })}</script>`,
+          `<script id="iv-state" type="application/json">${JSON.stringify({ status: s.status, balance_cents: balance, total_cents: s.total_cents, short_id: shortId, brand: brand.name, allow_partial: !!s.allow_partial })}</script>`,
         { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" } },
       );
     }

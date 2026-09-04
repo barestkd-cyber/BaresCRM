@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
     );
 
     const saleRes = await admin.from("pos_sales")
-      .select("id,status,brand,total_cents,sale_date,buyer_contact_id,stripe_customer_id")
+      .select("id,status,brand,total_cents,sale_date,buyer_contact_id,stripe_customer_id,allow_partial")
       .eq("view_token", token).single();
     if (saleRes.error || !saleRes.data) return json({ error: "Invoice not found" }, 404, h);
     const s = saleRes.data;
@@ -93,6 +93,17 @@ Deno.serve(async (req) => {
     const paysRes = await admin.from("pos_payments").select("amount_cents").eq("sale_id", s.id);
     const paidNet = (paysRes.data ?? []).reduce((a, p) => a + p.amount_cents, 0);
     const balance = s.total_cents - paidNet;
+
+    // What we will actually charge. The browser may ASK for less when the
+    // invoice allows partial payment; it can never ask for more, and it can
+    // never name a price on an invoice that does not allow it. Anything
+    // unparseable or out of range falls back to the full balance.
+    const MIN_PARTIAL = 500;   // $5, so nobody pays a bill off in pennies
+    let charge = balance;
+    if (s.allow_partial) {
+      const asked = Math.round(Number((body as Record<string, unknown>).amount_cents));
+      if (Number.isFinite(asked) && asked >= MIN_PARTIAL && asked < balance) charge = asked;
+    }
     if (balance <= 0) return json({ error: "Nothing is owed on this invoice." }, 409, h);
     if (balance < 50) return json({ error: "This balance is below the minimum card payment." }, 409, h);
 
@@ -150,7 +161,7 @@ Deno.serve(async (req) => {
         }
 
         const f = new URLSearchParams();
-        f.set("amount", String(balance));
+        f.set("amount", String(charge));
         f.set("currency", "usd");
         f.set("payment_method_types[]", "card");
         f.set("description", `${brandName} - Invoice ${shortId}`);
@@ -163,7 +174,7 @@ Deno.serve(async (req) => {
         }
         const pi = await stripeApi("payment_intents", f);
         await admin.from("pos_sales").update({ stripe_payment_intent: pi.id }).eq("id", s.id);
-        return json({ client_secret: pi.client_secret, payment_intent_id: pi.id, amount_cents: balance }, 200, h);
+        return json({ client_secret: pi.client_secret, payment_intent_id: pi.id, amount_cents: charge }, 200, h);
       }
 
       const piId = String(body.payment_intent_id ?? "");
@@ -218,7 +229,7 @@ Deno.serve(async (req) => {
     form.set("payment_method_types[0]", "card");
     form.set("line_items[0][quantity]", "1");
     form.set("line_items[0][price_data][currency]", "usd");
-    form.set("line_items[0][price_data][unit_amount]", String(balance));
+    form.set("line_items[0][price_data][unit_amount]", String(charge));
     form.set("line_items[0][price_data][product_data][name]", `${brandName} - Invoice ${shortId}`);
     form.set("line_items[0][price_data][product_data][description]", `Invoice dated ${s.sale_date}`);
     form.set("metadata[sale_id]", s.id);
@@ -252,7 +263,7 @@ Deno.serve(async (req) => {
       .update({ stripe_session_id: session.id }).eq("id", s.id);
     if (upd.error) console.error("session id stamp failed", upd.error);
 
-    return json({ url: session.url, amount_cents: balance }, 200, h);
+    return json({ url: session.url, amount_cents: charge }, 200, h);
   } catch (e) {
     console.error("create-checkout error", e);
     return json({ error: "Something went wrong starting checkout." }, 500, h);
