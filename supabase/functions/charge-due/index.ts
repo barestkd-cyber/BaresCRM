@@ -355,9 +355,42 @@ Deno.serve(async (req) => {
       }
       const person = await admin.from("contacts")
         .select("id,first_name,last_name,email,brand,stripe_customer_id").eq("id", payerId).maybeSingle();
-      const who = person.data
+      let who = person.data
         ? [person.data.first_name, person.data.last_name].filter(Boolean).join(" ")
         : "unknown";
+
+      // A child rarely holds the card. When the payer has no Stripe
+      // customer of their own, use the guardian who has one - which is
+      // where the checkout files a family card on purpose (owner,
+      // 2026-09-05: "Most kids with guardians on file should have their
+      // parent paying"). Their contact row is left alone; this only
+      // decides which customer gets charged.
+      let customerId = person.data?.stripe_customer_id ?? null;
+      let payerEmail = person.data?.email ?? null;
+      if (!customerId) {
+        const links = await admin.from("student_guardians")
+          .select("guardian_id").eq("student_id", String(mem.data.contact_id));
+        const gids = (links.data ?? []).map((l: Record<string, unknown>) => String(l.guardian_id));
+        if (gids.length) {
+          const gs = await admin.from("guardians")
+            .select("id,name,stripe_customer_id").in("id", gids)
+            .not("stripe_customer_id", "is", null).limit(2);
+          const found = gs.data ?? [];
+          if (found.length === 1) {
+            customerId = String(found[0].stripe_customer_id);
+            who = String(found[0].name || who) + " (guardian)";
+            const ge = await admin.from("guardian_emails")
+              .select("email").eq("guardian_id", found[0].id).limit(1);
+            if (ge.data?.length) payerEmail = String(ge.data[0].email);
+          } else if (found.length > 1) {
+            // Two parents with cards on file is not something to guess at.
+            report.needs_review++;
+            report.lines.push("TWO GUARDIANS HAVE CARDS for " + who + " · " + mem.data.program
+              + " - say which one pays before this can bill automatically.");
+            continue;
+          }
+        }
+      }
       const label = who + " · " + mem.data.program + " · " + money(amount) + " due " + r.due_on;
 
       if (!live) {
@@ -401,7 +434,7 @@ Deno.serve(async (req) => {
           tender_method: null, status: "unpaid",
           subtotal_cents: amount, discount_cents: 0, admin_fee_cents: 0, tax_cents: 0,
           total_cents: amount,
-          payer_email: person.data?.email,
+          payer_email: payerEmail,   // the guardian's address when they are paying
           customer_note: mem.data.program + " membership, payment due " + r.due_on + ".",
           notes: "Automatic membership payment, installment " + r.seq,
         }).select("id").single();
@@ -422,7 +455,7 @@ Deno.serve(async (req) => {
         await admin.from("membership_installments").update({ sale_id: saleId }).eq("id", r.id);
       }
 
-      if (!secretKey || !person.data?.stripe_customer_id) {
+      if (!secretKey || !customerId) {
         await admin.from("membership_installments").update({
           status: "scheduled", attempts: attempts + 1, last_error: "no saved card",
         }).eq("id", r.id).eq("status", "charging");
@@ -432,7 +465,7 @@ Deno.serve(async (req) => {
       }
 
       const pmList = await stripe(
-        "payment_methods?customer=" + encodeURIComponent(String(person.data.stripe_customer_id)) + "&type=card&limit=1",
+        "payment_methods?customer=" + encodeURIComponent(String(customerId)) + "&type=card&limit=1",
         secretKey, undefined, "GET",
       );
       const pm = pmList.body?.data?.[0]?.id;
@@ -448,7 +481,7 @@ Deno.serve(async (req) => {
       const f = new URLSearchParams();
       f.set("amount", String(amount));
       f.set("currency", "usd");
-      f.set("customer", String(person.data.stripe_customer_id));
+      f.set("customer", String(customerId));
       f.set("payment_method", String(pm));
       f.set("off_session", "true");
       f.set("confirm", "true");
