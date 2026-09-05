@@ -849,5 +849,70 @@ test('nothing to charge, or nothing configured, means no fee', () => {
   assert.strictEqual(P.cardFeeCents(6000, 20000, 30), 0);
 });
 
+/* ─── a membership is born billable ────────────────────────────────────────
+ * Every membership ever created came out with next_bill_on empty and
+ * payment_count empty, because the snapshot builder never set either. The
+ * billing engine only looks at memberships with a date, so it found none of
+ * them; and it stops a contract by counting paid installments against
+ * payment_count, which was always null, so no contract could ever end.
+ * Found 2026-09-05 after a membership set up at the desk sat there not
+ * billing anybody.
+ */
+const bornWith = (over) => P.buildMembershipSnapshot(Object.assign({
+  calc: quote('cubs_weekly', { contact_id: 'a', activeMemberships: [] }, []),
+  contactId: 'a', startedOn: '2026-09-05', createdBy: 'staff@barestkd.fit'
+}, over || {}));
+
+test('a weekly membership bills a week after it starts', () => {
+  assert.strictEqual(bornWith().next_bill_on, '2026-09-12');
+  assert.strictEqual(bornWith({ startedOn: '2026-12-29' }).next_bill_on, '2027-01-05',
+    'and counts days, not calendar squares, across a year end');
+});
+
+test('a monthly membership bills the same day next month', () => {
+  const monthly = () => quote('specialty_jiujitsu', { contact_id: 'a', activeMemberships: [] }, []);
+  const on = (d) => P.buildMembershipSnapshot({ calc: monthly(), contactId: 'a', startedOn: d }).next_bill_on;
+  assert.strictEqual(on('2026-09-05'), '2026-10-05');
+  // A month is not always long enough to hold the day it started on. Billing
+  // the last day of the short month beats skipping the month entirely.
+  assert.strictEqual(on('2026-08-31'), '2026-09-30');
+  assert.strictEqual(on('2026-01-31'), '2026-02-28');
+});
+
+test('a paid-in-full plan has no next payment', () => {
+  const pif = quote('juniors_pif', { contact_id: 'a', activeMemberships: [] }, []);
+  const snap = P.buildMembershipSnapshot({ calc: pif, contactId: 'a', startedOn: '2026-09-05' });
+  assert.ok(snap.next_bill_on == null, 'one time means there is no next time');
+});
+
+test('the desk can name a different first billing date', () => {
+  // Owner, 2026-09-05: the POS should fill in what is supposed to happen
+  // "and then I can go in and edit any of that". Cody trains Saturdays, so
+  // his membership bills Saturdays whatever day it was sold on.
+  assert.strictEqual(bornWith({ nextBillOn: '2026-09-12' }).next_bill_on, '2026-09-12');
+  assert.strictEqual(bornWith({ startedOn: '2026-09-05', nextBillOn: '2026-10-01' }).next_bill_on,
+    '2026-10-01', 'a named date beats the default, it does not merely nudge it');
+});
+
+test('the number of payments comes from the plan, and the desk can change it', () => {
+  const contract = quote('juniors_option_b', { contact_id: 'a', activeMemberships: [] }, []);
+  const snap = P.buildMembershipSnapshot({ calc: contract, contactId: 'a', startedOn: '2026-09-05' });
+  assert.strictEqual(snap.payment_count, 12, 'a contract plan is twelve payments, and must say so');
+  assert.strictEqual(
+    P.buildMembershipSnapshot({ calc: contract, contactId: 'a', startedOn: '2026-09-05', paymentCount: 6 }).payment_count,
+    6, 'a shorter term agreed at the desk sticks');
+  // Open-ended is a real answer, not a missing one: it bills until cancelled.
+  assert.strictEqual(bornWith().payment_count, null, 'a weekly plan has no end');
+});
+
+test('an override decides whether there is a next payment at all', () => {
+  const calc = quote('cubs_weekly', { contact_id: 'a', activeMemberships: [] }, []);
+  const waived = P.buildMembershipSnapshot({
+    calc: calc, contactId: 'a', startedOn: '2026-09-05',
+    override: { active: true, recurringCents: 0, reason: 'Staff family', by: 'x', at: 'y' }
+  });
+  assert.ok(waived.next_bill_on == null, 'nothing to charge means no date to charge it on');
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
 process.exit(failed ? 1 : 0);

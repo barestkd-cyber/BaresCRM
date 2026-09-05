@@ -3173,11 +3173,35 @@ function posQuote(code, ctx){
    "due today" means - including the down payment on one_time plans. */
 function posMemDueCents(calc, override){ return BTKDPricing.dueTodayCents(calc, override); }
 function posMemLineDueCents(l){ return posMemDueCents(l.calc, l.override); }
-function posMemRecurringNote(calc, override){
+/* The billing schedule this line will actually be sold with: what the desk
+ * typed where it typed something, and the plan's own answer everywhere
+ * else. Worked out fresh each time rather than stamped onto the line at
+ * creation, so a line that nobody has edited keeps tracking its plan -
+ * attaching a sibling can substitute a family plan and turn a weekly
+ * membership monthly, and an untouched date has to follow that.
+ *
+ * count: a number of payments, or 0 for ongoing. Never null - the desk
+ * clearing the box is an answer, not a gap.
+ */
+function posMemSched(l){
+  const c = l.calc || {};
+  const start = l.startsOn || posSale.date || attYMD();
+  return {
+    start: start,
+    first: l.nextBillOn || BTKDPricing.firstBillOn(start, c.billingFrequency) || '',
+    count: l.paymentCount != null ? l.paymentCount : (c.paymentCount || 0),
+    recurring: c.billingFrequency === 'weekly' || c.billingFrequency === 'monthly'
+  };
+}
+
+function posMemRecurringNote(calc, override, count){
   const rec = override ? override.recurringCents : calc.finalRecurringCents;
   if(calc.billingFrequency === 'one_time') return 'paid in full';
   const amt = money(rec/100) + (calc.billingFrequency === 'weekly' ? '/wk' : '/mo');
-  return calc.paymentCount ? ('then '+Math.max(0, calc.paymentCount-1)+' × '+amt) : ('then '+amt+' ongoing');
+  // A term shortened at the desk has to read as the shorter term here too,
+  // or the invoice line says twelve payments while the membership is six.
+  const n = count != null ? count : calc.paymentCount;
+  return n ? ('then '+Math.max(0, n-1)+' × '+amt) : ('then '+amt+' ongoing');
 }
 
 /* Sellable plans grouped by program, in pitch order. Plans with no program yet
@@ -4822,9 +4846,14 @@ async function posTender(method, opts){
       const student = MEMBERS.find(x=>x.id===studentId);
       const who = student ? (student.first+' '+student.last) : studentId;
       const rows = lines.map(l=>{
+        // The schedule the desk agreed to, defaults included. A membership
+        // has to be born knowing when it next bills or the billing engine
+        // never sees it at all.
+        const sc = posMemSched(l);
         l.__snap = BTKDPricing.buildMembershipSnapshot({
           calc:l.calc, contactId:studentId, program:l.program,
-          startedOn:(posSale.date||attYMD()), createdBy:staff, override:l.override
+          startedOn:sc.start, nextBillOn:sc.first||null, paymentCount:sc.count,
+          createdBy:staff, override:l.override
         });
         // Session plans (duration_weeks) expire: bake the end date into the
         // snapshot at sale time - the nightly sweep flips them to 'ended'.
@@ -6025,6 +6054,20 @@ function posEditMemLine(i,isNew){
     +'<div class="spk-card-desc">'+escHtml(c.explanation)+'</div>'
     +(c.substituted?'<div class="ck-hint" style="margin-top:6px">Rate adjusted: '+escHtml(c.substitutionNote)+'</div>':'')
     +'</div>';
+  /* Billing schedule. Filled in with what is supposed to happen, and every
+   * box editable - a membership that comes out of the desk with no billing
+   * date is a membership that quietly never bills anybody, which is exactly
+   * what happened before 2026-09-05. Hidden for a paid-in-full plan, which
+   * has no schedule to argue about. */
+  const sc = posMemSched(l);
+  const schedForm = '<div class="spk-disc-hd"><b>Billing schedule</b> <span class="spk-disc-sub">filled in from the plan. Change any of it.</span></div>'
+    +'<label class="spk-label">Starts on</label>'
+    +'<input id="pmStart" class="ed-in" type="date" value="'+escAttr(sc.start)+'" onchange="posMemStartChanged('+i+')">'
+    +'<label class="spk-label">First bill</label>'
+    +'<input id="pmNext" class="ed-in" type="date" value="'+escAttr(sc.first)+'">'
+    +'<label class="spk-label">Payments in total</label>'
+    +'<input id="pmCount" class="ed-in" type="number" min="1" max="520" value="'+escAttr(sc.count?String(sc.count):'')+'" placeholder="blank = bills until cancelled">';
+
   const form='<div class="spk-form">'
     +'<div class="spk-disc-hd"><b>Override price?</b> <span class="spk-disc-sub">leave blank to sell the recommended price.</span></div>'
     +'<label class="spk-label">Manual price ('+per+')</label>'
@@ -6033,6 +6076,7 @@ function posEditMemLine(i,isNew){
     +'<div class="spk-price"><span class="spk-dollar">$</span><input id="pmDown" class="ed-in" inputmode="decimal" value="'+escAttr(ov&&ov.downCents!=null?dollarsFromCents(ov.downCents):'')+'" placeholder="'+dollarsFromCents(c.finalDownCents)+'"></div>'
     +'<label class="spk-label">Reason (required for an override)</label>'
     +'<input id="pmReason" class="ed-in" value="'+escAttr(ov?ov.reason:'')+'" placeholder="Why this price differs">'
+    +(sc.recurring ? schedForm : '')
     +'<label class="spk-label">Notes</label><textarea id="pmNote" class="ed-in spk-note">'+escHtml(l.note||'')+'</textarea>'
     +'</div>';
   const foot='<div class="spk-foot">'
@@ -6045,6 +6089,19 @@ function posEditMemLine(i,isNew){
     +'<div class="sheet-body spk-body">'+studentRow+'<div class="spk-grid">'+card+form+'</div></div>'+foot;
   openSheet();
 }
+/* A start date that moves drags an untouched first-bill date along with it.
+ * A date the desk typed itself is left exactly where they put it - Cody
+ * trains Saturdays and bills Saturdays whatever day he signed up. */
+function posMemStartChanged(i){
+  const l = posSale.lines[i]; if(!l) return;
+  const startEl = document.getElementById('pmStart');
+  const nextEl = document.getElementById('pmNext');
+  if(!startEl || !nextEl) return;
+  const was = BTKDPricing.firstBillOn(l.startsOn || posSale.date || attYMD(), (l.calc||{}).billingFrequency);
+  if(nextEl.value && nextEl.value !== was) return;   // theirs, not ours
+  nextEl.value = BTKDPricing.firstBillOn(startEl.value, (l.calc||{}).billingFrequency) || '';
+}
+
 async function posSaveMemLine(i){
   const l=posSale.lines[i]; if(!l) return;
   const c=l.calc;
@@ -6063,9 +6120,31 @@ async function posSaveMemLine(i){
   } else {
     l.override = null;
   }
+  // The schedule, when the plan has one. Stored on the line only where the
+  // desk actually chose something, so a line left alone keeps following its
+  // plan if the plan changes under it (see posMemSched).
+  const startEl=document.getElementById("pmStart");
+  if(startEl){
+    const start=(startEl.value||'').trim();
+    if(!start){ toast('A membership needs a start date'); return; }
+    l.startsOn = start;
+    const next=(document.getElementById("pmNext").value||'').trim();
+    if(next && next < start){ toast('The first bill cannot be before the membership starts'); return; }
+    l.nextBillOn = next || null;
+    const cnt=(document.getElementById("pmCount").value||'').trim();
+    if(cnt){
+      const n=Math.round(parseFloat(cnt));
+      if(!isFinite(n)||n<1||n>520){ toast('How many payments? 1 to 520, or leave it blank for ongoing'); return; }
+      l.paymentCount = n;
+    } else {
+      // Cleared on purpose: bills until somebody cancels it. Kept as 0
+      // rather than dropped, so it is not mistaken for never having asked.
+      l.paymentCount = 0;
+    }
+  }
   l.note=document.getElementById("pmNote").value;
   l.amount=posMemLineDueCents(l)/100;
-  l.sub=posMemRecurringNote(c, l.override);
+  l.sub=posMemRecurringNote(c, l.override, l.paymentCount);
   closeSheet(); renderPOS();
 }
 function posEditLine(i,isNew){
@@ -7496,7 +7575,7 @@ let meCardsAtOpen = [];
 
 async function memEditOpen(id){
   const { data, error } = await sb.from('memberships')
-    .select('id,contact_id,payer_contact_id,program,plan_code,status,billing_frequency,next_bill_on,final_recurring_cents,final_down_cents,started_on,ended_on,payment_method_id')
+    .select('id,contact_id,payer_contact_id,program,plan_code,status,billing_frequency,next_bill_on,final_recurring_cents,final_down_cents,started_on,ended_on,payment_count,payment_method_id')
     .eq('id', id).single();
   if(error||!data){ toast('Could not open that membership'); return; }
   MEM_EDIT = data;

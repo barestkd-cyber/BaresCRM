@@ -110,6 +110,8 @@ const FNS = [
   'renderPOS',
   'posStudentContext', 'posForgetStudent', 'posStudentName',
   'posQuote', 'posMemDueCents', 'posMemLineDueCents', 'posMemRecurringNote', 'posProgramBuckets',
+  // the billing schedule the desk fills in and can change (2026-09-05)
+  'posMemSched', 'posMemStartChanged',
   'posSuggestedAdminFeeCents', 'posSaveAmount',
   'posPayOpen', 'posPayTab', 'posPayRender', 'posPayChange', 'posPayEffectiveCents', 'posPayQuick',
   'posPayFeePrompt', 'posPayFeeAnswer', 'posPayAskClose', 'posPayRestoreFee', 'posPaySubmit', 'posPayClose', 'pmHasBuyer',
@@ -1361,6 +1363,109 @@ await test('43 gear never demands a participant the way a membership does', asyn
   assert.ok(SB_CALLS.some(c => c.table === 'pos_sales' && c.op === 'insert'),
     'an unattached product sale was refused');
   assert.ok(!TOASTS.some(t => /Attach/i.test(t)), 'it asked for a participant on a plain product sale');
+});
+
+await test('44 a membership sold at the desk is born with a billing date', async () => {
+  // Owner, 2026-09-05, after a membership he set up sat there billing nobody:
+  // "when I set that up at point of sale, it should fill in with the basic
+  // stuff that is supposed to happen." Nothing ever wrote next_bill_on, and
+  // the billing engine only looks at memberships that have one.
+  run('posSale = posBlank()');
+  run("posSale.date = '2026-09-05'");
+  run("posSale.memberId = 'kidB'");
+  SB_SELECT['memberships'] = [];
+  run("posAddMemLine('juniors_option_c')");
+  const i = sandbox.posSale.lines.length - 1;
+  run('posSale.lines[' + i + "].studentId = 'kidB'");
+  sandbox.posSale.lines[i].__agreementWaived = true;
+  SB_CALLS.length = 0; TOASTS.length = 0;
+  await call("posTender('Cash', { agreementHandled: true })");
+
+  const mem = SB_CALLS.filter(c => c.table === 'memberships' && c.op === 'insert')
+    .flatMap(c => (Array.isArray(c.rows) ? c.rows : [c.rows]))[0];
+  assert.ok(mem, 'no membership row was written');
+  assert.strictEqual(mem.started_on, '2026-09-05');
+  assert.strictEqual(mem.next_bill_on, '2026-10-05', 'a monthly membership bills a month after it starts');
+  assert.strictEqual(mem.payment_count, 12, 'a twelve-payment contract has to say so, or it bills forever');
+});
+
+await test('45 the desk can change the schedule, and the sale honours it', async () => {
+  // "and then I can go in and edit any of that." Cody trains Saturdays, so
+  // his membership bills Saturdays whatever day he happened to sign up.
+  run('posSale = posBlank()');
+  run("posSale.date = '2026-09-05'");
+  SB_SELECT['memberships'] = [];
+  run("posAddMemLine('juniors_option_c')");
+  const i = sandbox.posSale.lines.length - 1;
+  run('posSale.lines[' + i + "].studentId = 'kidB'");
+
+  // the sheet opens filled in - that is what the desk edits from
+  await call('posEditMemLine(' + i + ', false)');
+  assert.strictEqual(ensureEl('pmStart').value, '2026-09-05', 'start box should arrive filled in');
+  assert.strictEqual(ensureEl('pmNext').value, '2026-10-05', 'first-bill box should arrive filled in');
+  assert.strictEqual(ensureEl('pmCount').value, '12', 'the term should arrive filled in');
+
+  ensureEl('pmRec').value = ''; ensureEl('pmDown').value = ''; ensureEl('pmReason').value = '';
+  ensureEl('pmNote').value = '';
+  ensureEl('pmStart').value = '2026-09-08';
+  ensureEl('pmNext').value = '2026-09-12';
+  ensureEl('pmCount').value = '6';
+  await call('posSaveMemLine(' + i + ')');
+  // The first payment is collected today, so a six-payment term reads as
+  // five more to come. Twelve would have read as eleven.
+  assert.ok(/5 × /.test(sandbox.posSale.lines[i].sub),
+    'the invoice line should read as the shorter term it was sold on: ' + sandbox.posSale.lines[i].sub);
+
+  sandbox.posSale.lines[i].__agreementWaived = true;
+  SB_CALLS.length = 0; TOASTS.length = 0;
+  await call("posTender('Cash', { agreementHandled: true })");
+  const mem = SB_CALLS.filter(c => c.table === 'memberships' && c.op === 'insert')
+    .flatMap(c => (Array.isArray(c.rows) ? c.rows : [c.rows]))[0];
+  assert.ok(mem, 'no membership row was written');
+  assert.strictEqual(mem.started_on, '2026-09-08');
+  assert.strictEqual(mem.next_bill_on, '2026-09-12', 'the date the desk typed must be the date that is saved');
+  assert.strictEqual(mem.payment_count, 6);
+});
+
+await test('46 a first bill cannot land before the membership starts', async () => {
+  run('posSale = posBlank()');
+  run("posSale.date = '2026-09-05'");
+  SB_SELECT['memberships'] = [];
+  run("posAddMemLine('juniors_option_c')");
+  const i = sandbox.posSale.lines.length - 1;
+  await call('posEditMemLine(' + i + ', false)');
+  ensureEl('pmRec').value = ''; ensureEl('pmDown').value = ''; ensureEl('pmReason').value = '';
+  ensureEl('pmNote').value = '';
+  ensureEl('pmStart').value = '2026-09-08';
+  ensureEl('pmNext').value = '2026-09-01';
+  ensureEl('pmCount').value = '';
+  TOASTS.length = 0;
+  await call('posSaveMemLine(' + i + ')');
+  assert.ok(TOASTS.some(t => /cannot be before/i.test(t)), 'it accepted a bill date before the start: ' + JSON.stringify(TOASTS));
+  assert.notStrictEqual(sandbox.posSale.lines[i].nextBillOn, '2026-09-01', 'and it kept the bad date anyway');
+});
+
+await test('47 clearing the payments box means ongoing, not "ask the plan"', async () => {
+  run('posSale = posBlank()');
+  run("posSale.date = '2026-09-05'");
+  SB_SELECT['memberships'] = [];
+  run("posAddMemLine('juniors_option_c')");   // a twelve-payment plan
+  const i = sandbox.posSale.lines.length - 1;
+  run('posSale.lines[' + i + "].studentId = 'kidB'");
+  await call('posEditMemLine(' + i + ', false)');
+  ensureEl('pmRec').value = ''; ensureEl('pmDown').value = ''; ensureEl('pmReason').value = '';
+  ensureEl('pmNote').value = '';
+  ensureEl('pmStart').value = '2026-09-05';
+  ensureEl('pmNext').value = '2026-10-05';
+  ensureEl('pmCount').value = '';
+  await call('posSaveMemLine(' + i + ')');
+  sandbox.posSale.lines[i].__agreementWaived = true;
+  SB_CALLS.length = 0;
+  await call("posTender('Cash', { agreementHandled: true })");
+  const mem = SB_CALLS.filter(c => c.table === 'memberships' && c.op === 'insert')
+    .flatMap(c => (Array.isArray(c.rows) ? c.rows : [c.rows]))[0];
+  assert.strictEqual(mem.payment_count, null, 'an emptied box has to mean ongoing, not fall back to the plan');
+  assert.strictEqual(mem.next_bill_on, '2026-10-05', 'it still has to bill');
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
